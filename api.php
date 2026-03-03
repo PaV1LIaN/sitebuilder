@@ -42,7 +42,24 @@ function sb_data_path(string $file): string {
 function sb_read_json_file(string $file): array {
     $path = sb_data_path($file);
     if (!file_exists($path)) return [];
-    $raw = file_get_contents($path);
+
+    $fp = fopen($path, 'rb');
+    if (!$fp) return [];
+
+    $raw = '';
+    if (flock($fp, LOCK_SH)) {
+        $raw = stream_get_contents($fp);
+        flock($fp, LOCK_UN);
+    } else {
+        $raw = stream_get_contents($fp);
+    }
+    fclose($fp);
+
+    // remove UTF-8 BOM (just in case)
+    if (strncmp($raw, "\xEF\xBB\xBF", 3) === 0) {
+        $raw = substr($raw, 3);
+    }
+
     $data = json_decode((string)$raw, true);
     return is_array($data) ? $data : [];
 }
