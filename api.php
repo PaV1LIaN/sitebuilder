@@ -917,7 +917,7 @@ if ($action === 'page.create') {
         'slug' => $slug, 
         'parentId' => 0, 
         'sort' => 500, 
-        'status' => 'DRAFT',
+        'status' => 'draft',
         'publishedAt' => '', 
         'createdBy' => (int)$USER->GetID(), 
         'createdAt' => date('c'), 
