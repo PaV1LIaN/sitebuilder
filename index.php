@@ -586,9 +586,6 @@ BX.ready(function () {
               <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-rename="${node.id}">Имя/slug</button>
               <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-duplicate="${node.id}">Дублировать</button>
 
-              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="draft">Draft</button>
-              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="published">Published</button>
-
               <a class="ui-btn ui-btn-primary ui-btn-xs btnTiny"
                  href="/local/sitebuilder/editor.php?siteId=${siteId}&pageId=${node.id}"
                  target="_blank">Редактор</a>
@@ -853,22 +850,6 @@ BX.ready(function () {
               notify('Статус обновлён');
               loadAndRender();
             }).catch(()=>notify('Ошибка page.setStatus'));
-            return;
-          }
-
-          const st = e.target.closest('[data-page-status]');
-          if (st) {
-            const id = parseInt(st.getAttribute('data-page-status'), 10);
-            const status = st.getAttribute('data-status') || 'draft';
-
-            api('page.setStatus', { id, status }).then(r => {
-              if (!r || r.ok !== true) {
-                notify('Не удалось изменить статус');
-                return;
-              }
-              notify('Статус изменён: ' + status);
-              loadAndRender();
-            }).catch(() => notify('Ошибка page.setStatus'));
             return;
           }
 
