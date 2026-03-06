@@ -917,7 +917,8 @@ if ($action === 'page.create') {
         'slug' => $slug, 
         'parentId' => 0, 
         'sort' => 500, 
-        'status' => 'DRAFT', 
+        'status' => 'DRAFT',
+        'publishedAt' => '', 
         'createdBy' => (int)$USER->GetID(), 
         'createdAt' => date('c'), 
     ];
@@ -2336,25 +2337,26 @@ if ($action === 'page.updateMeta') {
 }
 
 
-if ($action === 'page.setStatus') { 
-    $id = (int)($_POST['id'] ?? 0); $status = strtoupper(trim((string)($_POST['status'] ?? '')));
+if ($action === 'page.setStatus') {
+    $id = (int)($_POST['id'] ?? 0);
+    $status = strtolower(trim((string)($_POST['status'] ?? '')));
 
     if ($id <= 0) {
         http_response_code(422);
-        echo json_encode(['ok'=>false,'error'=>'ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => false, 'error' => 'ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
-    if (!in_array($status, ['DRAFT', 'PUBLISHED'], true)) {
+    if (!in_array($status, ['draft', 'published'], true)) {
         http_response_code(422);
-        echo json_encode(['ok'=>false,'error'=>'STATUS_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => false, 'error' => 'STATUS_REQUIRED'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
     $page = sb_find_page($id);
     if (!$page) {
         http_response_code(404);
-        echo json_encode(['ok'=>false,'error'=>'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => false, 'error' => 'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -2365,24 +2367,38 @@ if ($action === 'page.setStatus') {
     $found = false;
 
     foreach ($pages as &$p) {
-        if ((int)($p['id'] ?? 0) === $id) {
-            $p['status'] = $status;
-            $p['updatedAt'] = date('c');
-            $p['updatedBy'] = (int)$USER->GetID();
-            $found = true;
-            break;
+        if ((int)($p['id'] ?? 0) !== $id) continue;
+
+        $p['status'] = $status;
+        $p['updatedAt'] = date('c');
+        $p['updatedBy'] = (int)$USER->GetID();
+
+        if ($status === 'published') {
+            if (empty($p['publishedAt'])) {
+                $p['publishedAt'] = date('c');
+            }
+        } else {
+            $p['publishedAt'] = '';
         }
+
+        $found = true;
+        break;
     }
     unset($p);
 
     if (!$found) {
         http_response_code(404);
-        echo json_encode(['ok'=>false,'error'=>'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => false, 'error' => 'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
     sb_write_pages($pages);
-    echo json_encode(['ok'=>true, 'status'=>$status], JSON_UNESCAPED_UNICODE);
+
+    echo json_encode([
+        'ok' => true,
+        'id' => $id,
+        'status' => $status,
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
