@@ -559,6 +559,7 @@ BX.ready(function () {
                 : `<button class="ui-btn ui-btn-success ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="published">Опубликовать</button>`}
 
               <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-rename="${node.id}">Имя/slug</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-duplicate="${node.id}">Дублировать</button>
 
               <a class="ui-btn ui-btn-primary ui-btn-xs btnTiny"
                  href="/local/sitebuilder/editor.php?siteId=${siteId}&pageId=${node.id}"
@@ -827,7 +828,28 @@ BX.ready(function () {
             return;
           }
 
+          const dup = e.target.closest('[data-page-duplicate]');
+          if (dup) {
+            const id = parseInt(dup.getAttribute('data-page-duplicate'), 10);
 
+            BX.UI.Dialogs.MessageBox.show({
+              title: 'Дублировать страницу #' + id + '?',
+              message: 'Будет создана копия страницы вместе со всеми блоками.',
+              buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
+              onOk: function(mb){
+                api('page.duplicate', { id }).then(r => {
+                  if (!r || r.ok !== true) {
+                    notify('Не удалось дублировать страницу');
+                    return;
+                  }
+                  notify('Страница продублирована');
+                  mb.close();
+                  loadAndRender();
+                }).catch(() => notify('Ошибка page.duplicate'));
+              }
+            });
+            return;
+          }
 
           const rn = e.target.closest('[data-page-rename]');
           if (rn) {

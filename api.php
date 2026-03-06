@@ -952,6 +952,117 @@ if ($action === 'page.delete') {
     exit;
 }
 
+if ($action === 'page.duplicate') {
+    $id = (int)($_POST['id'] ?? 0);
+    if ($id <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $srcPage = sb_find_page($id);
+    if (!$srcPage) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $siteId = (int)($srcPage['siteId'] ?? 0);
+    sb_require_editor($siteId);
+
+    $pages = sb_read_pages();
+    $blocks = sb_read_blocks();
+
+    $maxPageId = 0;
+    foreach ($pages as $p) {
+        $maxPageId = max($maxPageId, (int)($p['id'] ?? 0));
+    }
+    $newPageId = $maxPageId + 1;
+
+    $srcTitle = (string)($srcPage['title'] ?? 'Страница');
+    $newTitle = $srcTitle . ' (копия)';
+
+    $baseSlug = sb_slugify((string)($srcPage['slug'] ?? ($srcPage['title'] ?? 'page')));
+    if ($baseSlug === '') $baseSlug = 'page';
+
+    $newSlug = $baseSlug . '-copy';
+
+    $existing = array_map(
+        fn($x) => (string)($x['slug'] ?? ''),
+        array_filter($pages, fn($p) => (int)($p['siteId'] ?? 0) === $siteId)
+    );
+
+    $base = $newSlug;
+    $i = 2;
+    while (in_array($newSlug, $existing, true)) {
+        $newSlug = $base . '-' . $i;
+        $i++;
+    }
+
+    $srcSort = (int)($srcPage['sort'] ?? 500);
+
+    // вставляем копию сразу после исходной страницы среди соседей
+    foreach ($pages as &$p) {
+        if (
+            (int)($p['siteId'] ?? 0) === $siteId &&
+            (int)($p['parentId'] ?? 0) === (int)($srcPage['parentId'] ?? 0) &&
+            (int)($p['sort'] ?? 0) > $srcSort
+        ) {
+            $p['sort'] = (int)($p['sort'] ?? 0) + 10;
+            $p['updatedAt'] = date('c');
+            $p['updatedBy'] = (int)$USER->GetID();
+        }
+    }
+    unset($p);
+
+    $newPage = $srcPage;
+    $newPage['id'] = $newPageId;
+    $newPage['title'] = $newTitle;
+    $newPage['slug'] = $newSlug;
+    $newPage['sort'] = $srcSort + 10;
+    $newPage['createdBy'] = (int)$USER->GetID();
+    $newPage['createdAt'] = date('c');
+    $newPage['updatedAt'] = date('c');
+    $newPage['updatedBy'] = (int)$USER->GetID();
+
+    // если у тебя уже есть статус страницы — сохраняем draft для копии
+    if (array_key_exists('status', $srcPage)) {
+        $newPage['status'] = 'draft';
+        $newPage['publishedAt'] = null;
+    }
+
+    $pages[] = $newPage;
+
+    // копируем блоки страницы
+    $maxBlockId = 0;
+    foreach ($blocks as $b) {
+        $maxBlockId = max($maxBlockId, (int)($b['id'] ?? 0));
+    }
+    $nextBlockId = $maxBlockId + 1;
+
+    $srcBlocks = array_values(array_filter($blocks, fn($b) => (int)($b['pageId'] ?? 0) === $id));
+    usort($srcBlocks, fn($a,$b) => (int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500));
+
+    foreach ($srcBlocks as $b) {
+        $copy = $b;
+        $copy['id'] = $nextBlockId++;
+        $copy['pageId'] = $newPageId;
+        $copy['createdBy'] = (int)$USER->GetID();
+        $copy['createdAt'] = date('c');
+        $copy['updatedAt'] = date('c');
+        $blocks[] = $copy;
+    }
+
+    sb_write_pages($pages);
+    sb_write_blocks($blocks);
+
+    echo json_encode([
+        'ok' => true,
+        'page' => $newPage
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 /** -------------------- BLOCKS -------------------- */
 
 if ($action === 'block.list') {
