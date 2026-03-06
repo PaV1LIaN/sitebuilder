@@ -93,11 +93,13 @@ $pageId = (int)($_GET['pageId'] ?? 0);
     <div class="muted">|</div>
     <div><b>siteId:</b> <code><?= (int)$siteId ?></code></div>
     <div><b>pageId:</b> <code><?= (int)$pageId ?></code></div>
+    <div><b>Статус:</b> <span id="pageStatusBadge" class="muted">...</span></div>
 
     <div style="flex:1;"></div>
 
     <a class="ui-btn ui-btn-light" target="_blank"
        href="/local/sitebuilder/view.php?siteId=<?= (int)$siteId ?>&pageId=<?= (int)$pageId ?>">Открыть просмотр</a>
+    <button class="ui-btn ui-btn-light" id="btnToggleStatus">Сменить статус</button>
     <a class="ui-btn ui-btn-light" href="javascript:void(0)" id="btnSaveTemplate">Сохранить как шаблон</a>
     <a class="ui-btn ui-btn-light" href="javascript:void(0)" id="btnApplyTemplate">Вставить шаблон</a>
     <a class="ui-btn ui-btn-light" href="javascript:void(0)" id="btnSections">Каталог секций</a>
@@ -149,6 +151,11 @@ BX.ready(function () {
   const btnSaveTemplate = document.getElementById('btnSaveTemplate');
   const btnApplyTemplate = document.getElementById('btnApplyTemplate');
   const btnSections = document.getElementById('btnSections');
+
+  const btnToggleStatus = document.getElementById('btnToggleStatus');
+  const pageStatusBadge = document.getElementById('pageStatusBadge');
+
+  let pageMeta = null;
 
 function saveTemplateFromPage(){
   BX.UI.Dialogs.MessageBox.show({
@@ -227,6 +234,53 @@ async function applyTemplateToPage(){
 
   function fileDownloadUrl(fileId) {
     return `/local/sitebuilder/download.php?siteId=${siteId}&fileId=${fileId}`;
+  }
+
+  async function loadPageMeta() {
+    const res = await api('page.list', { siteId });
+    if (!res || res.ok !== true) throw new Error('page.list failed');
+  
+    const pages = res.pages || [];
+    pageMeta = pages.find(p => parseInt(p.id, 10) === pageId) || null;
+  
+    const status = (pageMeta && pageMeta.status) ? String(pageMeta.status).toUpperCase() : 'DRAFT';
+  
+    if (pageStatusBadge) {
+      pageStatusBadge.textContent = status;
+      pageStatusBadge.style.color = (status === 'PUBLISHED') ? '#15803d' : '#b45309';
+      pageStatusBadge.style.fontWeight = '700';
+    }
+  
+    if (btnToggleStatus) {
+      btnToggleStatus.textContent = (status === 'PUBLISHED')
+        ? 'Сделать DRAFT'
+        : 'Опубликовать';
+    }
+  }
+
+  function togglePageStatus() {
+    if (!pageMeta) {
+      notify('Страница ещё не загружена');
+      return;
+    }
+  
+    const currentStatus = String(pageMeta.status || 'DRAFT').toUpperCase();
+    const nextStatus = (currentStatus === 'PUBLISHED') ? 'DRAFT' : 'PUBLISHED';
+  
+    api('page.setStatus', { id: pageId, status: nextStatus })
+      .then(res => {
+        if (!res || res.ok !== true) {
+          notify('Не удалось сменить статус: ' + (res?.error || 'UNKNOWN'));
+          console.log('page.setStatus failed', res);
+          return;
+        }
+        notify('Статус изменён: ' + nextStatus);
+        loadPageMeta();
+      })
+      .catch(err => {
+        console.log('page.setStatus error', err);
+        notify('Ошибка page.setStatus');
+      });
   }
 
   async function getFilesForSite() {
@@ -1863,9 +1917,11 @@ async function applyTemplateToPage(){
   btnAddCards.addEventListener('click', addCardsBlock);
   btnSections.addEventListener('click', openSectionsLibrary);
   btnSaveTemplate.addEventListener('click', saveTemplateFromPage);
-    btnApplyTemplate.addEventListener('click', applyTemplateToPage);
+  btnApplyTemplate.addEventListener('click', applyTemplateToPage);
+  if (btnToggleStatus) btnToggleStatus.addEventListener('click', togglePageStatus);
 
   loadBlocks();
+  loadPageMeta();
 });
 </script>
 </body>

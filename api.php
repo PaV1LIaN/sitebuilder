@@ -875,6 +875,15 @@ if ($action === 'page.list') {
 
     $pages = sb_read_pages();
     $pages = array_values(array_filter($pages, fn($p) => (int)($p['siteId'] ?? 0) === $siteId));
+    // back-compat: если поле status отсутствует у старых страниц — считаем их опубликованными
+    foreach ($pages as &$p) {
+        if (!isset($p['status']) || !in_array((string)$p['status'], ['draft','published'], true)) {
+            $p['status'] = 'published';
+        }
+        if (!isset($p['publishedAt'])) $p['publishedAt'] = '';
+    }
+    unset($p);
+
     usort($pages, fn($a, $b) => (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0));
 
     echo json_encode(['ok' => true, 'pages' => $pages], JSON_UNESCAPED_UNICODE);
@@ -901,15 +910,16 @@ if ($action === 'page.create') {
     $base = $slug; $i = 2;
     while (in_array($slug, $existing, true)) { $slug = $base.'-'.$i; $i++; }
 
-    $page = [
-        'id' => $id,
-        'siteId' => $siteId,
-        'title' => $title,
-        'slug' => $slug,
-        'parentId' => 0,
-        'sort' => 500,
-        'createdBy' => (int)$USER->GetID(),
-        'createdAt' => date('c'),
+    $page = [ 
+        'id' => $id, 
+        'siteId' => $siteId, 
+        'title' => $title, 
+        'slug' => $slug, 
+        'parentId' => 0, 
+        'sort' => 500, 
+        'status' => 'DRAFT', 
+        'createdBy' => (int)$USER->GetID(), 
+        'createdAt' => date('c'), 
     ];
 
     $pages[] = $page;
@@ -2324,6 +2334,59 @@ if ($action === 'page.updateMeta') {
     echo json_encode(['ok'=>true], JSON_UNESCAPED_UNICODE);
     exit;
 }
+
+
+if ($action === 'page.setStatus') { 
+    $id = (int)($_POST['id'] ?? 0); $status = strtoupper(trim((string)($_POST['status'] ?? '')));
+
+    if ($id <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    if (!in_array($status, ['DRAFT', 'PUBLISHED'], true)) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'STATUS_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $page = sb_find_page($id);
+    if (!$page) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $siteId = (int)($page['siteId'] ?? 0);
+    sb_require_editor($siteId);
+
+    $pages = sb_read_pages();
+    $found = false;
+
+    foreach ($pages as &$p) {
+        if ((int)($p['id'] ?? 0) === $id) {
+            $p['status'] = $status;
+            $p['updatedAt'] = date('c');
+            $p['updatedBy'] = (int)$USER->GetID();
+            $found = true;
+            break;
+        }
+    }
+    unset($p);
+
+    if (!$found) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    sb_write_pages($pages);
+    echo json_encode(['ok'=>true, 'status'=>$status], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+
 
 if ($action === 'page.setParent') {
     $id = (int)($_POST['id'] ?? 0);

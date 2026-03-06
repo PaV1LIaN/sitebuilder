@@ -22,7 +22,24 @@ function sb_data_path(string $file): string {
 function sb_read_json(string $file): array {
     $path = sb_data_path($file);
     if (!file_exists($path)) return [];
-    $raw = file_get_contents($path);
+
+    $fp = fopen($path, 'rb');
+    if (!$fp) return [];
+
+    $raw = '';
+    if (flock($fp, LOCK_SH)) {
+        $raw = stream_get_contents($fp);
+        flock($fp, LOCK_UN);
+    } else {
+        $raw = stream_get_contents($fp);
+    }
+    fclose($fp);
+
+    // remove UTF-8 BOM (just in case)
+    if (strncmp($raw, "\xEF\xBB\xBF", 3) === 0) {
+        $raw = substr($raw, 3);
+    }
+
     $data = json_decode((string)$raw, true);
     return is_array($data) ? $data : [];
 }
@@ -568,14 +585,6 @@ foreach ($menusAll as $rec) {
   <div class="container top">
     <div class="topRow">
       <div class="brand">
-        <?php if ($logoFileId > 0): ?>
-          <img
-            src="<?= h(downloadUrl($siteId, $logoFileId)) ?>"
-            alt="logo"
-            style="height:34px;width:auto;display:block;border-radius:12px;border:1px solid #eee;background:#fff;"
-          >
-        <?php endif; ?>
-
         <div class="brandMark">
           <?php if ($logoFileId > 0): ?>
             <img src="<?= h(downloadUrl($siteId, $logoFileId)) ?>" alt="logo">

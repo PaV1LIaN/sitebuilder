@@ -1,3 +1,4 @@
+
 <?php
 define('NO_KEEP_STATISTIC', true);
 define('NO_AGENT_STATISTIC', true);
@@ -129,6 +130,17 @@ header('Content-Type: text/html; charset=UTF-8');
     .nodeTitleLine { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .nodeTitleLine b { font-size:14px; }
     .nodeSlug { font-size:12px; background:#f3f4f6; padding:2px 8px; border-radius:999px; color:#374151; }
+
+    .nodeBadge{
+      font-size:11px;
+      background:#f3f4f6;
+      border:1px solid #eef0f2;
+      color:#374151;
+      padding:2px 8px;
+      border-radius:999px;
+    }
+    .nodeBadgeDraft{ background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
+    .nodeBadgePub{ background:#ecfdf3; border-color:#abefc6; color:#067647; }
     .nodeMeta { margin-top:4px; font-size:12px; color:#6a737f; display:flex; gap:10px; flex-wrap:wrap; }
     .nodeBtns { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
     .children { margin-left:18px; border-left:2px dashed #e5e7ea; padding-left:12px; margin-top:10px; }
@@ -512,6 +524,11 @@ BX.ready(function () {
       const pid = parseInt(node.parentId||0,10)||0;
       const parentLabel = pid ? `parent: #${pid}` : 'root';
 
+      const status = (node.status || 'published');
+      const statusBadge = (status === 'published')
+        ? '<span class="nodeBadge nodeBadgePub">PUBLISHED</span>'
+        : '<span class="nodeBadge nodeBadgeDraft">DRAFT</span>';
+
       return `
         <div class="node">
           <div class="nodeHead">
@@ -521,6 +538,7 @@ BX.ready(function () {
                 <div class="nodeTitleLine">
                   <b>#${node.id} ${BX.util.htmlspecialchars(node.title || '')}</b>
                   <span class="nodeSlug">${BX.util.htmlspecialchars(node.slug || '')}</span>
+                  ${statusBadge}
                 </div>
                 <div class="nodeMeta">
                   <span>sort: ${parseInt(node.sort||500,10)}</span>
@@ -535,6 +553,10 @@ BX.ready(function () {
 
               <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-parent="${node.id}">Вложить…</button>
               <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-root="${node.id}">В корень</button>
+
+              ${(status === 'published')
+                ? `<button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="draft">В черновик</button>`
+                : `<button class="ui-btn ui-btn-success ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="published">Опубликовать</button>`}
 
               <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-rename="${node.id}">Имя/slug</button>
 
@@ -793,6 +815,19 @@ BX.ready(function () {
             }).catch(()=>notify('Ошибка page.move'));
             return;
           }
+          const st = e.target.closest('[data-page-status]');
+          if (st) {
+            const id = parseInt(st.getAttribute('data-page-status'), 10);
+            const status = st.getAttribute('data-status') || 'draft';
+            api('page.setStatus', { id, status }).then(r => {
+              if(!r || r.ok !== true){ notify('Не удалось изменить статус (нужен EDITOR+)'); return; }
+              notify('Статус обновлён');
+              loadAndRender();
+            }).catch(()=>notify('Ошибка page.setStatus'));
+            return;
+          }
+
+
 
           const rn = e.target.closest('[data-page-rename]');
           if (rn) {
