@@ -153,6 +153,28 @@ header('Content-Type: text/html; charset=UTF-8');
     .secTitle{font-weight:800;}
     .secMeta{color:#6a737f;font-size:12px;margin-top:4px;}
     .secSearch{margin-top:10px;}
+
+    .nodeStatus {
+      display:inline-flex;
+      align-items:center;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:700;
+      border:1px solid #e5e7ea;
+    }
+
+.nodeStatus.isDraft {
+  background:#fff7ed;
+  border-color:#fdba74;
+  color:#9a3412;
+}
+
+.nodeStatus.isPublished {
+  background:#ecfdf3;
+  border-color:#86efac;
+  color:#166534;
+}
   </style>
 </head>
 <body>
@@ -543,6 +565,9 @@ BX.ready(function () {
                 <div class="nodeMeta">
                   <span>sort: ${parseInt(node.sort||500,10)}</span>
                   <span>${parentLabel}</span>
+                  <span class="nodeStatus ${String(node.status || 'published') === 'draft' ? 'isDraft' : 'isPublished'}">
+                    ${BX.util.htmlspecialchars(String(node.status || 'published').toUpperCase())}
+                  </span>
                 </div>
               </div>
             </div>
@@ -560,6 +585,9 @@ BX.ready(function () {
 
               <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-rename="${node.id}">Имя/slug</button>
               <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-duplicate="${node.id}">Дублировать</button>
+
+              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="draft">Draft</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="published">Published</button>
 
               <a class="ui-btn ui-btn-primary ui-btn-xs btnTiny"
                  href="/local/sitebuilder/editor.php?siteId=${siteId}&pageId=${node.id}"
@@ -825,6 +853,22 @@ BX.ready(function () {
               notify('Статус обновлён');
               loadAndRender();
             }).catch(()=>notify('Ошибка page.setStatus'));
+            return;
+          }
+
+          const st = e.target.closest('[data-page-status]');
+          if (st) {
+            const id = parseInt(st.getAttribute('data-page-status'), 10);
+            const status = st.getAttribute('data-status') || 'draft';
+
+            api('page.setStatus', { id, status }).then(r => {
+              if (!r || r.ok !== true) {
+                notify('Не удалось изменить статус');
+                return;
+              }
+              notify('Статус изменён: ' + status);
+              loadAndRender();
+            }).catch(() => notify('Ошибка page.setStatus'));
             return;
           }
 
