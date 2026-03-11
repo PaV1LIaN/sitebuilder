@@ -11,6 +11,7 @@ use Bitrix\Disk\Folder;
 use Bitrix\Disk\File;
 use Bitrix\Disk\Driver;
 
+
 global $USER;
 
 header('Content-Type: application/json; charset=UTF-8');
