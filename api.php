@@ -998,7 +998,6 @@ if ($action === 'page.create') {
     $siteId = (int)($_POST['siteId'] ?? 0);
     $title  = trim((string)($_POST['title'] ?? ''));
     $slugIn = trim((string)($_POST['slug'] ?? ''));
-    $parentId = (int)($_POST['parentId'] ?? 0);
 
     if ($siteId <= 0) { http_response_code(422); echo json_encode(['ok'=>false,'error'=>'SITE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE); exit; }
     if ($title === '') { http_response_code(422); echo json_encode(['ok'=>false,'error'=>'TITLE_REQUIRED'], JSON_UNESCAPED_UNICODE); exit; }
@@ -1015,15 +1014,6 @@ if ($action === 'page.create') {
     $base = $slug; $i = 2;
     while (in_array($slug, $existing, true)) { $slug = $base.'-'.$i; $i++; }
 
-    if ($parentId > 0) {
-        $parent = sb_find_page($parentId);
-        if (!$parent || (int)($parent['siteId'] ?? 0) !== $siteId) {
-            http_response_code(422);
-            echo json_encode(['ok'=>false,'error'=>'PARENT_PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-    }
-
     $page = [ 
         'id' => $id, 
         'siteId' => $siteId, 
@@ -1035,7 +1025,6 @@ if ($action === 'page.create') {
         'publishedAt' => '', 
         'createdBy' => (int)$USER->GetID(), 
         'createdAt' => date('c'), 
-        'parentId' => $parentId,
     ];
 
     $pages[] = $page;

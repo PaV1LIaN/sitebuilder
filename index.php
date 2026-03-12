@@ -1,4 +1,3 @@
-
 <?php
 define('NO_KEEP_STATISTIC', true);
 define('NO_AGENT_STATISTIC', true);
@@ -164,17 +163,66 @@ header('Content-Type: text/html; charset=UTF-8');
       border:1px solid #e5e7ea;
     }
 
-.nodeStatus.isDraft {
-  background:#fff7ed;
-  border-color:#fdba74;
-  color:#9a3412;
-}
+    .nodeStatus.isDraft {
+        background:#fff7ed;
+        border-color:#fdba74;
+        color:#9a3412;
+    }
 
-.nodeStatus.isPublished {
-  background:#ecfdf3;
-  border-color:#86efac;
-  color:#166534;
-}
+    .nodeStatus.isPublished {
+        background:#ecfdf3;
+        border-color:#86efac;
+        color:#166534;
+    }
+
+    .pageBadge{
+        display:inline-flex;
+        align-items:center;
+        gap:6px;
+        padding:3px 8px;
+        border-radius:999px;
+        font-size:11px;
+        font-weight:700;
+        line-height:1;
+        border:1px solid transparent;
+    }
+
+    .pageBadgePublished{
+        background:#ecfdf3;
+        border-color:#b7ebc6;
+        color:#027a48;
+    }
+
+    .pageBadgeDraft{
+        background:#fff4ed;
+        border-color:#ffd6ae;
+        color:#b54708;
+    }
+
+    .pageBadgeHome{
+        background:#eef2ff;
+        border-color:#c7d2fe;
+        color:#3730a3;
+    }
+
+    .node.isDraft{
+        background:#fffaf5;
+        border-color:#f5d7b2;
+    }
+
+    .nodeBadges{
+        display:flex;
+        gap:6px;
+        flex-wrap:wrap;
+        align-items:center;
+    }
+
+    .nodeMeta code{
+        background:#f3f4f6;
+        padding:2px 6px;
+        border-radius:999px;
+        font-size:11px;
+    }
   </style>
 </head>
 <body>
@@ -524,86 +572,104 @@ BX.ready(function () {
 
   function renderPagesTree(container, siteId, pages, q) {
     const query = (q || '').trim().toLowerCase();
+
+    const homePageId = pages.reduce((acc, p) => {
+        if (parseInt(p.isHome || 0, 10) === 1) return parseInt(p.id, 10);
+        return acc;
+    }, 0);
+
     const matches = (p) => {
-      if (!query) return true;
-      const t = (p.title||'').toLowerCase();
-      const s = (p.slug||'').toLowerCase();
-      return t.includes(query) || s.includes(query) || String(p.id).includes(query);
+        if (!query) return true;
+        const t = (p.title || '').toLowerCase();
+        const s = (p.slug || '').toLowerCase();
+        const status = (p.status || '').toLowerCase();
+        return t.includes(query) || s.includes(query) || status.includes(query) || String(p.id).includes(query);
     };
 
     const { roots } = buildTree(pages);
 
     const renderNode = (node) => {
-      const kidsHtml = (node.children || [])
+        const kidsHtml = (node.children || [])
         .map(renderNode)
         .filter(Boolean)
         .join('');
 
-      const selfMatch = matches(node);
-      const hasVisibleKids = kidsHtml !== '';
-      if (!selfMatch && !hasVisibleKids) return '';
+        const selfMatch = matches(node);
+        const hasVisibleKids = kidsHtml !== '';
+        if (!selfMatch && !hasVisibleKids) return '';
 
-      const pid = parseInt(node.parentId||0,10)||0;
-      const parentLabel = pid ? `parent: #${pid}` : 'root';
+        const pid = parseInt(node.parentId || 0, 10) || 0;
+        const parentLabel = pid ? `parent: #${pid}` : 'root';
 
-      const status = (node.status || 'published');
-      const statusBadge = (status === 'published')
-        ? '<span class="nodeBadge nodeBadgePub">PUBLISHED</span>'
-        : '<span class="nodeBadge nodeBadgeDraft">DRAFT</span>';
+        const status = String(node.status || 'published').toLowerCase() === 'draft' ? 'draft' : 'published';
+        const isDraft = status === 'draft';
+        const draftBtnClass = isDraft ? 'ui-btn-warning' : 'ui-btn-light';
+        const pubBtnClass = !isDraft ? 'ui-btn-success' : 'ui-btn-light';
+        const isHome = parseInt(node.id, 10) === homePageId || parseInt(node.homePageId || 0, 10) === parseInt(node.id, 10);
 
-      return `
-        <div class="node">
-          <div class="nodeHead">
+        const statusBadge = isDraft
+        ? '<span class="pageBadge pageBadgeDraft">DRAFT</span>'
+        : '<span class="pageBadge pageBadgePublished">PUBLISHED</span>';
+
+        const homeBadge = isHome
+        ? '<span class="pageBadge pageBadgeHome">HOME</span>'
+        : '';
+
+        const title = BX.util.htmlspecialchars(node.title || '');
+        const slug = BX.util.htmlspecialchars(node.slug || '');
+        const sort = parseInt(node.sort || 500, 10);
+
+        return `
+        <div class="node ${isDraft ? 'isDraft' : ''}">
+            <div class="nodeHead">
             <div class="nodeLeft">
-              <div class="nodeIcon">≡</div>
-              <div class="nodeMain">
+                <div class="nodeIcon">≡</div>
+                <div class="nodeMain">
                 <div class="nodeTitleLine">
-                  <b>#${node.id} ${BX.util.htmlspecialchars(node.title || '')}</b>
-                  <span class="nodeSlug">${BX.util.htmlspecialchars(node.slug || '')}</span>
-                  ${statusBadge}
+                    <b>#${node.id} ${title}</b>
+                    <span class="nodeSlug">${slug}</span>
                 </div>
+
+                <div class="nodeBadges" style="margin-top:6px;">
+                    ${statusBadge}
+                    ${homeBadge}
+                </div>
+
                 <div class="nodeMeta">
-                  <span>sort: ${parseInt(node.sort||500,10)}</span>
-                  <span>${parentLabel}</span>
-                  <span class="nodeStatus ${String(node.status || 'published') === 'draft' ? 'isDraft' : 'isPublished'}">
-                    ${BX.util.htmlspecialchars(String(node.status || 'published').toUpperCase())}
-                  </span>
+                    <span>sort: <code>${sort}</code></span>
+                    <span>${parentLabel}</span>
+                    <span>slug: <code>${slug}</code></span>
                 </div>
-              </div>
+                </div>
             </div>
 
             <div class="nodeBtns">
-              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-move="${node.id}" data-dir="up">↑</button>
-              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-move="${node.id}" data-dir="down">↓</button>
+                <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-move="${node.id}" data-dir="up">↑</button>
+                <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-move="${node.id}" data-dir="down">↓</button>
 
-              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-parent="${node.id}">Вложить…</button>
-              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-root="${node.id}">В корень</button>
+                <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-parent="${node.id}">Вложить…</button>
+                <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-root="${node.id}">В корень</button>
 
-              ${(status === 'published')
-                ? `<button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="draft">В черновик</button>`
-                : `<button class="ui-btn ui-btn-success ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="published">Опубликовать</button>`}
+                <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-rename="${node.id}">Имя/slug</button>
 
-              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-rename="${node.id}">Имя/slug</button>
-              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-duplicate="${node.id}">Дублировать</button>
+                <button class="ui-btn ${draftBtnClass} ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="draft">Draft</button>
+                <button class="ui-btn ${pubBtnClass} ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="published">Published</button>
 
-              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="draft">Draft</button>
-              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="published">Published</button>
+                <a class="ui-btn ui-btn-primary ui-btn-xs btnTiny"
+                href="/local/sitebuilder/editor.php?siteId=${siteId}&pageId=${node.id}"
+                target="_blank">Редактор</a>
 
-              <a class="ui-btn ui-btn-primary ui-btn-xs btnTiny"
-                 href="/local/sitebuilder/editor.php?siteId=${siteId}&pageId=${node.id}"
-                 target="_blank">Редактор</a>
+                <a class="ui-btn ui-btn-light ui-btn-xs btnTiny"
+                href="/local/sitebuilder/view.php?siteId=${siteId}&pageId=${node.id}"
+                target="_blank">Открыть</a>
 
-              <a class="ui-btn ui-btn-light ui-btn-xs btnTiny"
-                 href="/local/sitebuilder/view.php?siteId=${siteId}&pageId=${node.id}"
-                 target="_blank">Открыть</a>
-
-              <button class="ui-btn ui-btn-danger ui-btn-xs btnTiny" data-page-delete="${node.id}">Удалить</button>
+                <button class="ui-btn ui-btn-danger ui-btn-xs btnTiny" data-page-delete="${node.id}">Удалить</button>
             </div>
-          </div>
+            </div>
 
-          ${hasVisibleKids ? `<div class="children">${kidsHtml}</div>` : ''}
+            ${hasVisibleKids ? `<div class="children">${kidsHtml}</div>` : ''}
         </div>
-      `;
+        `;
     };
 
     const html = roots.map(renderNode).filter(Boolean).join('');
@@ -817,7 +883,9 @@ BX.ready(function () {
       try {
         const res = await api('page.list', { siteId });
         if (!res || res.ok !== true) { notify('Не удалось загрузить страницы (возможно нет прав)'); return; }
-        pagesCache = res.pages || [];
+        pagesCache = (res.pages || []).map(p => Object.assign({}, p, {
+        isHome: parseInt(res.homePageId || 0, 10) === parseInt(p.id || 0, 10) ? 1 : 0
+        }));
         renderPagesTree(container, siteId, pagesCache, q);
       } catch (e) {
         notify('Ошибка page.list');
@@ -834,6 +902,19 @@ BX.ready(function () {
 
       if (container) {
         container.addEventListener('click', function(e){
+
+            const statusBtn = e.target.closest('[data-page-status]');
+            if (statusBtn) {
+            const id = parseInt(statusBtn.getAttribute('data-page-status'), 10);
+            const status = statusBtn.getAttribute('data-status') || 'draft';
+
+            api('page.setStatus', { id, status }).then(r => {
+                if (!r || r.ok !== true) { notify('Не удалось сменить статус'); return; }
+                loadAndRender();
+            }).catch(() => notify('Ошибка page.setStatus'));
+            return;
+          }
+          
           const mv = e.target.closest('[data-page-move]');
           if (mv) {
             const id = parseInt(mv.getAttribute('data-page-move'),10);

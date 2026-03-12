@@ -32,22 +32,51 @@ $pageId = (int)($_GET['pageId'] ?? 0);
   <?php $APPLICATION->ShowHead(); ?>
   <style>
     body { font-family: Arial, sans-serif; margin:0; background:#f6f7f8; }
-    .top { background:#fff; border-bottom:1px solid #e5e7ea; padding:12px 16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+    .top {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(255,255,255,.94);
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid #e5e7ea;
+      padding:12px 16px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .topActions {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .toolbarSearch {
+      min-width:220px;
+      flex:1;
+      max-width:360px;
+    }
+
     .content { padding: 18px; }
     .card { background:#fff; border:1px solid #e5e7ea; border-radius:12px; padding:16px; }
     .muted { color:#6a737f; }
-    .block { border:1px solid #eee; border-radius:10px; padding:12px; margin-top:10px; }
-    .row { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-    .btns { display:flex; gap:6px; flex-wrap:wrap; }
-    pre { white-space:pre-wrap; margin:10px 0 0; background:#f9fafb; border:1px solid #eee; border-radius:8px; padding:10px; }
     a { color:#0b57d0; text-decoration:none; }
     a:hover { text-decoration:underline; }
     code { background:#f3f4f6; padding:2px 6px; border-radius:6px; }
-    .imgPrev { margin-top:10px; max-width: 420px; border:1px solid #eee; border-radius:10px; overflow:hidden; background:#fafafa; }
-    .imgPrev img { display:block; width:100%; height:auto; }
+    pre { white-space:pre-wrap; margin:10px 0 0; background:#f9fafb; border:1px solid #eee; border-radius:8px; padding:10px; }
+
+    .row { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    .btns { display:flex; gap:6px; flex-wrap:wrap; }
+
     .field { margin-top:10px; }
     .field label { display:block; font-size:12px; color:#6a737f; margin-bottom:4px; }
     .input, select, textarea { width:100%; padding:8px; border:1px solid #d0d7de; border-radius:8px; box-sizing:border-box; }
+
+    .imgPrev { margin-top:10px; max-width:420px; border:1px solid #eee; border-radius:10px; overflow:hidden; background:#fafafa; }
+    .imgPrev img { display:block; width:100%; height:auto; }
 
     .btnPreview { margin-top:10px; display:inline-block; padding:10px 14px; border-radius:10px; border:1px solid #e5e7ea; text-decoration:none; }
     .btnPrimary { background:#2563eb; color:#fff; border-color:#2563eb; }
@@ -56,19 +85,16 @@ $pageId = (int)($_GET['pageId'] ?? 0);
     .headingPreview { margin-top:10px; border:1px dashed #e5e7ea; border-radius:10px; padding:10px; }
     .headingPreview h1, .headingPreview h2, .headingPreview h3 { margin:0; }
 
-    /* columns2 preview */
     .colsPreview { margin-top:10px; border:1px dashed #e5e7ea; border-radius:10px; padding:10px; display:grid; gap:10px; }
     .colsPreview .cell { background:#fafafa; border:1px solid #eee; border-radius:10px; padding:10px; min-height:48px; }
     .colsPreview pre { margin:0; background:transparent; border:none; padding:0; }
 
-    /* gallery preview */
     .galPrev { margin-top:10px; display:grid; gap:10px; }
     .galPrev img { width:100%; height:auto; display:block; border-radius:10px; border:1px solid #eee; background:#fafafa; }
     .galPick { margin-top:10px; max-height:260px; overflow:auto; border:1px solid #e5e7ea; border-radius:10px; padding:10px; background:#fff; }
     .galPick .row { display:flex; justify-content:flex-start; gap:10px; align-items:center; margin:6px 0; }
     .galPick small { color:#6a737f; }
 
-    /* cards builder */
     .cardsBuilder { margin-top:10px; }
     .cardsBuilder .item { border:1px solid #e5e7ea; border-radius:12px; padding:10px; margin-top:10px; background:#fff; }
     .cardsBuilder .itemHead { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
@@ -76,7 +102,6 @@ $pageId = (int)($_GET['pageId'] ?? 0);
     .cardsBuilder .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
     @media (max-width: 720px){ .cardsBuilder .grid2 { grid-template-columns: 1fr; } }
 
-    /* sections library */
     .secGrid{display:grid;gap:12px;margin-top:12px;}
     @media (min-width: 820px){ .secGrid{grid-template-columns: 1fr 1fr;} }
     .secCard{border:1px solid #e5e7ea;border-radius:14px;background:#fff;padding:12px;}
@@ -84,6 +109,95 @@ $pageId = (int)($_GET['pageId'] ?? 0);
     .secMeta{color:#6a737f;font-size:12px;margin-top:4px;}
     .secBtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
     .secSearch{margin-top:10px;}
+
+    .block {
+      border:1px solid #e5e7ea;
+      border-radius:14px;
+      padding:12px;
+      margin-top:12px;
+      background:#fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    }
+
+    .blockHeader {
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+
+    .blockLeft {
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width:220px;
+    }
+
+    .blockTitleRow {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .blockTypeBadge {
+      display:inline-flex;
+      align-items:center;
+      padding:3px 8px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:700;
+      border:1px solid #e5e7ea;
+      background:#f8fafc;
+      color:#334155;
+    }
+
+    .blockMeta {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      color:#6a737f;
+      font-size:12px;
+    }
+
+    .blockBody {
+      margin-top:10px;
+    }
+
+    .blockCollapsed .blockBody {
+      display:none;
+    }
+
+    .dragHandle {
+      cursor: grab;
+      user-select: none;
+      font-weight: 700;
+      color:#64748b;
+      padding:2px 6px;
+      border-radius:8px;
+      border:1px solid #e5e7ea;
+      background:#f8fafc;
+    }
+
+    .dragHandle:active {
+      cursor: grabbing;
+    }
+
+    .block.dragging {
+      opacity: .55;
+      border-color:#93c5fd;
+    }
+
+    .block[data-type="text"] .blockTypeBadge { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+    .block[data-type="image"] .blockTypeBadge { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
+    .block[data-type="button"] .blockTypeBadge { background:#ecfeff; color:#0f766e; border-color:#a5f3fc; }
+    .block[data-type="heading"] .blockTypeBadge { background:#fef3c7; color:#92400e; border-color:#fcd34d; }
+    .block[data-type="columns2"] .blockTypeBadge { background:#f3f4f6; color:#374151; border-color:#d1d5db; }
+    .block[data-type="gallery"] .blockTypeBadge { background:#fdf2f8; color:#be185d; border-color:#fbcfe8; }
+    .block[data-type="spacer"] .blockTypeBadge { background:#f8fafc; color:#475569; border-color:#cbd5e1; }
+    .block[data-type="card"] .blockTypeBadge { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; }
+    .block[data-type="cards"] .blockTypeBadge { background:#ecfccb; color:#3f6212; border-color:#bef264; }
   </style>
 </head>
 <body>
@@ -93,26 +207,29 @@ $pageId = (int)($_GET['pageId'] ?? 0);
     <div class="muted">|</div>
     <div><b>siteId:</b> <code><?= (int)$siteId ?></code></div>
     <div><b>pageId:</b> <code><?= (int)$pageId ?></code></div>
-    <div><b>Статус:</b> <span id="pageStatusBadge" class="muted">...</span></div>
 
     <div style="flex:1;"></div>
 
-    <a class="ui-btn ui-btn-light" target="_blank"
-       href="/local/sitebuilder/view.php?siteId=<?= (int)$siteId ?>&pageId=<?= (int)$pageId ?>">Открыть просмотр</a>
-    <button class="ui-btn ui-btn-light" id="btnToggleStatus">Сменить статус</button>
-    <a class="ui-btn ui-btn-light" href="javascript:void(0)" id="btnSaveTemplate">Сохранить как шаблон</a>
-    <a class="ui-btn ui-btn-light" href="javascript:void(0)" id="btnApplyTemplate">Вставить шаблон</a>
-    <a class="ui-btn ui-btn-light" href="javascript:void(0)" id="btnSections">Каталог секций</a>
+    <div class="toolbarSearch">
+      <input class="input" id="blockSearch" placeholder="Поиск по типу блока: text, image, card..." />
+    </div>
 
-    <a class="ui-btn ui-btn-light" target="_blank"
-       href="/local/sitebuilder/files.php?siteId=<?= (int)$siteId ?>">Файлы</a>
+    <div class="topActions">
+      <a class="ui-btn ui-btn-light" target="_blank"
+         href="/local/sitebuilder/view.php?siteId=<?= (int)$siteId ?>&pageId=<?= (int)$pageId ?>">Открыть просмотр</a>
+      <a class="ui-btn ui-btn-light" href="javascript:void(0)" id="btnSaveTemplate">Сохранить как шаблон</a>
+      <a class="ui-btn ui-btn-light" href="javascript:void(0)" id="btnApplyTemplate">Вставить шаблон</a>
+      <a class="ui-btn ui-btn-light" href="javascript:void(0)" id="btnSections">Каталог секций</a>
+      <a class="ui-btn ui-btn-light" target="_blank"
+         href="/local/sitebuilder/files.php?siteId=<?= (int)$siteId ?>">Файлы</a>
+    </div>
   </div>
 
   <div class="content">
     <div class="card">
       <div class="row">
         <div class="muted">
-          Блоки: <b>Text</b>, <b>Image</b>, <b>Button</b>, <b>Heading</b>, <b>Columns2</b>, <b>Gallery</b>, <b>Spacer</b>, <b>Card</b>.
+          Блоки: <b>Text</b>, <b>Image</b>, <b>Button</b>, <b>Heading</b>, <b>Columns2</b>, <b>Gallery</b>, <b>Spacer</b>, <b>Card</b>, <b>Cards</b>.
         </div>
         <div class="btns">
           <button class="ui-btn ui-btn-primary" id="btnAddText">+ Text</button>
@@ -137,6 +254,8 @@ BX.ready(function () {
   const pageId = <?= (int)$pageId ?>;
 
   const blocksBox = document.getElementById('blocksBox');
+  const blockSearch = document.getElementById('blockSearch');
+  const collapsedBlocks = new Set();
 
   const btnAddText = document.getElementById('btnAddText');
   const btnAddImage = document.getElementById('btnAddImage');
@@ -151,69 +270,6 @@ BX.ready(function () {
   const btnSaveTemplate = document.getElementById('btnSaveTemplate');
   const btnApplyTemplate = document.getElementById('btnApplyTemplate');
   const btnSections = document.getElementById('btnSections');
-
-  const btnToggleStatus = document.getElementById('btnToggleStatus');
-  const pageStatusBadge = document.getElementById('pageStatusBadge');
-
-  let pageMeta = null;
-
-function saveTemplateFromPage(){
-  BX.UI.Dialogs.MessageBox.show({
-    title:'Сохранить как шаблон',
-    message:`<div class="field"><label>Название шаблона</label><input id="tpl_name" class="input" placeholder="например: Обложка + преимущества"></div>`,
-    buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
-    onOk: function(mb){
-      const name = (document.getElementById('tpl_name')?.value || '').trim();
-      if(!name){ notify('Введите название'); return; }
-      api('template.createFromPage', { siteId, pageId, name }).then(r=>{
-        if(!r || r.ok!==true){ notify('Не удалось сохранить шаблон'); return; }
-        notify('Шаблон сохранён');
-        mb.close();
-      }).catch(()=>notify('Ошибка template.createFromPage'));
-    }
-  });
-}
-
-async function applyTemplateToPage(){
-  let res;
-  try { res = await api('template.list', {}); } catch(e){ notify('Ошибка template.list'); return; }
-  if(!res || res.ok!==true){ notify('Не удалось получить шаблоны'); return; }
-  const list = res.templates || [];
-  if(!list.length){ notify('Шаблонов нет. Сначала сохрани один.'); return; }
-
-  const opts = list.map(t=>`<option value="${t.id}">${BX.util.htmlspecialchars(t.name)} (id ${t.id})</option>`).join('');
-  BX.UI.Dialogs.MessageBox.show({
-    title:'Вставить шаблон',
-    message:`
-      <div class="field">
-        <label>Шаблон</label>
-        <select id="tpl_id" class="input">${opts}</select>
-      </div>
-      <div class="field">
-        <label>Режим</label>
-        <select id="tpl_mode" class="input">
-          <option value="append">Добавить в конец</option>
-          <option value="replace">Заменить страницу</option>
-        </select>
-      </div>
-    `,
-    buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
-    onOk: function(mb){
-      const templateId = parseInt(document.getElementById('tpl_id')?.value || '0', 10);
-      const mode = document.getElementById('tpl_mode')?.value || 'append';
-      if(!templateId){ notify('Выбери шаблон'); return; }
-
-      api('template.applyToPage', { siteId, pageId, templateId, mode }).then(r=>{
-        if(!r || r.ok!==true){ notify('Не удалось применить шаблон'); return; }
-        notify('Готово: добавлено блоков ' + (r.added || 0));
-        mb.close();
-        loadBlocks();
-      }).catch(()=>notify('Ошибка template.applyToPage'));
-    }
-  });
-}
-
-  // ===== helpers =====
 
   function notify(msg) {
     BX.UI.Notification.Center.notify({ content: msg });
@@ -234,53 +290,6 @@ async function applyTemplateToPage(){
 
   function fileDownloadUrl(fileId) {
     return `/local/sitebuilder/download.php?siteId=${siteId}&fileId=${fileId}`;
-  }
-
-  async function loadPageMeta() {
-    const res = await api('page.list', { siteId });
-    if (!res || res.ok !== true) throw new Error('page.list failed');
-  
-    const pages = res.pages || [];
-    pageMeta = pages.find(p => parseInt(p.id, 10) === pageId) || null;
-  
-    const status = (pageMeta && pageMeta.status) ? String(pageMeta.status).toUpperCase() : 'DRAFT';
-  
-    if (pageStatusBadge) {
-      pageStatusBadge.textContent = status;
-      pageStatusBadge.style.color = (status === 'PUBLISHED') ? '#15803d' : '#b45309';
-      pageStatusBadge.style.fontWeight = '700';
-    }
-  
-    if (btnToggleStatus) {
-      btnToggleStatus.textContent = (status === 'PUBLISHED')
-        ? 'Сделать DRAFT'
-        : 'Опубликовать';
-    }
-  }
-
-  function togglePageStatus() {
-    if (!pageMeta) {
-      notify('Страница ещё не загружена');
-      return;
-    }
-  
-    const currentStatus = String(pageMeta.status || 'DRAFT').toUpperCase();
-    const nextStatus = (currentStatus === 'PUBLISHED') ? 'DRAFT' : 'PUBLISHED';
-  
-    api('page.setStatus', { id: pageId, status: nextStatus })
-      .then(res => {
-        if (!res || res.ok !== true) {
-          notify('Не удалось сменить статус: ' + (res?.error || 'UNKNOWN'));
-          console.log('page.setStatus failed', res);
-          return;
-        }
-        notify('Статус изменён: ' + nextStatus);
-        loadPageMeta();
-      })
-      .catch(err => {
-        console.log('page.setStatus error', err);
-        notify('Ошибка page.setStatus');
-      });
   }
 
   async function getFilesForSite() {
@@ -313,241 +322,326 @@ async function applyTemplateToPage(){
     return '1fr 1fr 1fr';
   }
 
-  // ===== CARDS BUILDER (визуальный конструктор) =====
-    function cardsNormalizeItem(it) {
+  function buildBlockShell(id, type, sort, bodyHtml, buttonsHtml, extraMetaHtml = '') {
+    const isCollapsed = collapsedBlocks.has(id);
+    return `
+      <div class="block ${isCollapsed ? 'blockCollapsed' : ''}" data-type="${BX.util.htmlspecialchars(type)}" data-block-id="${id}">
+        <div class="blockHeader">
+          <div class="blockLeft">
+            <div class="blockTitleRow">
+              <span class="dragHandle" data-drag-handle="${id}" title="Перетащить">⋮⋮</span>
+              <b>#${id}</b>
+              <span class="blockTypeBadge">${BX.util.htmlspecialchars(type)}</span>
+            </div>
+            <div class="blockMeta">
+              <span>sort: ${sort}</span>
+              ${extraMetaHtml}
+            </div>
+          </div>
+          <div class="btns">
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-toggle-block="${id}">${isCollapsed ? 'Развернуть' : 'Свернуть'}</button>
+            ${buttonsHtml}
+          </div>
+        </div>
+        <div class="blockBody">
+          ${bodyHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  function saveTemplateFromPage(){
+    BX.UI.Dialogs.MessageBox.show({
+      title:'Сохранить как шаблон',
+      message:`<div class="field"><label>Название шаблона</label><input id="tpl_name" class="input" placeholder="например: Обложка + преимущества"></div>`,
+      buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
+      onOk: function(mb){
+        const name = (document.getElementById('tpl_name')?.value || '').trim();
+        if(!name){ notify('Введите название'); return; }
+        api('template.createFromPage', { siteId, pageId, name }).then(r=>{
+          if(!r || r.ok!==true){ notify('Не удалось сохранить шаблон'); return; }
+          notify('Шаблон сохранён');
+          mb.close();
+        }).catch(()=>notify('Ошибка template.createFromPage'));
+      }
+    });
+  }
+
+  async function applyTemplateToPage(){
+    let res;
+    try { res = await api('template.list', {}); } catch(e){ notify('Ошибка template.list'); return; }
+    if(!res || res.ok!==true){ notify('Не удалось получить шаблоны'); return; }
+    const list = res.templates || [];
+    if(!list.length){ notify('Шаблонов нет. Сначала сохрани один.'); return; }
+
+    const opts = list.map(t=>`<option value="${t.id}">${BX.util.htmlspecialchars(t.name)} (id ${t.id})</option>`).join('');
+    BX.UI.Dialogs.MessageBox.show({
+      title:'Вставить шаблон',
+      message:`
+        <div class="field">
+          <label>Шаблон</label>
+          <select id="tpl_id" class="input">${opts}</select>
+        </div>
+        <div class="field">
+          <label>Режим</label>
+          <select id="tpl_mode" class="input">
+            <option value="append">Добавить в конец</option>
+            <option value="replace">Заменить страницу</option>
+          </select>
+        </div>
+      `,
+      buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
+      onOk: function(mb){
+        const templateId = parseInt(document.getElementById('tpl_id')?.value || '0', 10);
+        const mode = document.getElementById('tpl_mode')?.value || 'append';
+        if(!templateId){ notify('Выбери шаблон'); return; }
+
+        api('template.applyToPage', { siteId, pageId, templateId, mode }).then(r=>{
+          if(!r || r.ok!==true){ notify('Не удалось применить шаблон'); return; }
+          notify('Готово: добавлено блоков ' + (r.added || 0));
+          mb.close();
+          loadBlocks();
+        }).catch(()=>notify('Ошибка template.applyToPage'));
+      }
+    });
+  }
+
+  function cardsNormalizeItem(it) {
     const x = (it && typeof it === 'object') ? it : {};
     return {
-        title: (x.title || '').toString(),
-        text: (x.text || '').toString(),
-        imageFileId: parseInt(x.imageFileId || 0, 10) || 0,
-        buttonText: (x.buttonText || '').toString(),
-        buttonUrl: (x.buttonUrl || '').toString(),
+      title: (x.title || '').toString(),
+      text: (x.text || '').toString(),
+      imageFileId: parseInt(x.imageFileId || 0, 10) || 0,
+      buttonText: (x.buttonText || '').toString(),
+      buttonUrl: (x.buttonUrl || '').toString(),
     };
-    }
+  }
 
-    function cardsRenderBuilderItems(items, files) {
+  function cardsRenderBuilderItems(items, files) {
     const fileOptions = (selectedId) => {
-        const opts = ['<option value="0">— без картинки —</option>'];
-        files.forEach(f => {
+      const opts = ['<option value="0">— без картинки —</option>'];
+      files.forEach(f => {
         const s = (parseInt(f.id,10) === selectedId) ? 'selected' : '';
         opts.push(`<option value="${f.id}" ${s}>${BX.util.htmlspecialchars(f.name)} (id ${f.id})</option>`);
-        });
-        return opts.join('');
+      });
+      return opts.join('');
     };
 
     return items.map((it, idx) => {
-        const title = BX.util.htmlspecialchars(it.title || '');
-        const text = BX.util.htmlspecialchars(it.text || '');
-        const btnText = BX.util.htmlspecialchars(it.buttonText || '');
-        const btnUrl = BX.util.htmlspecialchars(it.buttonUrl || '');
-        const imgId = parseInt(it.imageFileId || 0, 10) || 0;
+      const title = BX.util.htmlspecialchars(it.title || '');
+      const text = BX.util.htmlspecialchars(it.text || '');
+      const btnText = BX.util.htmlspecialchars(it.buttonText || '');
+      const btnUrl = BX.util.htmlspecialchars(it.buttonUrl || '');
+      const imgId = parseInt(it.imageFileId || 0, 10) || 0;
 
-        const imgPrev = imgId ? `<div class="imgPrev"><img src="${fileDownloadUrl(imgId)}" alt=""></div>` : '';
+      const imgPrev = imgId ? `<div class="imgPrev"><img src="${fileDownloadUrl(imgId)}" alt=""></div>` : '';
 
-        return `
+      return `
         <div class="item" data-ci="${idx}">
-            <div class="itemHead">
+          <div class="itemHead">
             <div><b>Карточка ${idx + 1}</b></div>
             <div class="miniBtns">
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-card-up="${idx}">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-card-down="${idx}">↓</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-card-del="${idx}">Удалить</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs" data-card-up="${idx}">↑</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs" data-card-down="${idx}">↓</button>
+              <button class="ui-btn ui-btn-danger ui-btn-xs" data-card-del="${idx}">Удалить</button>
             </div>
-            </div>
+          </div>
 
-            <div class="grid2" style="margin-top:10px;">
+          <div class="grid2" style="margin-top:10px;">
             <div>
-                <div class="field">
+              <div class="field">
                 <label>Заголовок</label>
                 <input class="input" data-card-title="${idx}" value="${title}">
-                </div>
-                <div class="field">
+              </div>
+              <div class="field">
                 <label>Текст</label>
                 <textarea class="input" data-card-text="${idx}" style="height:120px;">${text}</textarea>
-                </div>
+              </div>
             </div>
 
             <div>
-                <div class="field">
+              <div class="field">
                 <label>Картинка</label>
                 <select class="input" data-card-img="${idx}">
-                    ${fileOptions(imgId)}
+                  ${fileOptions(imgId)}
                 </select>
-                </div>
-                <div data-card-img-prev="${idx}">${imgPrev}</div>
+              </div>
+              <div data-card-img-prev="${idx}">${imgPrev}</div>
 
-                <div class="field">
+              <div class="field">
                 <label>Текст кнопки (опц.)</label>
                 <input class="input" data-card-btntext="${idx}" value="${btnText}">
-                </div>
-                <div class="field">
+              </div>
+              <div class="field">
                 <label>URL кнопки (опц.)</label>
                 <input class="input" data-card-btnurl="${idx}" value="${btnUrl}">
-                </div>
+              </div>
             </div>
-            </div>
+          </div>
         </div>
-        `;
+      `;
     }).join('');
-    }
+  }
 
-    async function openCardsBuilderDialog(mode, blockId, currentContent) {
+  async function openCardsBuilderDialog(mode, blockId, currentContent) {
     let cols = currentContent?.columns ? parseInt(currentContent.columns, 10) : 3;
     if (![2,3,4].includes(cols)) cols = 3;
 
     let items = Array.isArray(currentContent?.items) ? currentContent.items.map(cardsNormalizeItem) : [];
     if (!items.length) items = [
-        cardsNormalizeItem({title:'Преимущество 1', text:'Короткое описание'}),
-        cardsNormalizeItem({title:'Преимущество 2', text:'Короткое описание'}),
-        cardsNormalizeItem({title:'Преимущество 3', text:'Короткое описание'}),
+      cardsNormalizeItem({title:'Преимущество 1', text:'Короткое описание'}),
+      cardsNormalizeItem({title:'Преимущество 2', text:'Короткое описание'}),
+      cardsNormalizeItem({title:'Преимущество 3', text:'Короткое описание'}),
     ];
 
     let files = [];
     try { files = await getFilesForSite(); } catch(e) { files = []; }
 
     const render = () => `
-        <div class="cardsBuilder">
+      <div class="cardsBuilder">
         <div class="field">
-            <label>Колонки</label>
-            <select id="cb_cols" class="input">
+          <label>Колонки</label>
+          <select id="cb_cols" class="input">
             <option value="2" ${cols===2?'selected':''}>2</option>
             <option value="3" ${cols===3?'selected':''}>3</option>
             <option value="4" ${cols===4?'selected':''}>4</option>
-            </select>
+          </select>
         </div>
 
         <div style="margin-top:10px;">
-            <button class="ui-btn ui-btn-light" id="cb_add">+ Добавить карточку</button>
+          <button class="ui-btn ui-btn-light" id="cb_add">+ Добавить карточку</button>
         </div>
 
         <div id="cb_items">${cardsRenderBuilderItems(items, files)}</div>
         <div class="muted" style="margin-top:10px;">Минимум у карточки должен быть заголовок.</div>
-        </div>
+      </div>
     `;
 
     BX.UI.Dialogs.MessageBox.show({
-        title: mode === 'edit' ? ('Редактировать Cards #' + blockId) : 'Новый Cards блок',
-        message: render(),
-        buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
-        onOk: function(mb){
+      title: mode === 'edit' ? ('Редактировать Cards #' + blockId) : 'Новый Cards блок',
+      message: render(),
+      buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
+      onOk: function(mb){
         cols = parseInt(document.getElementById('cb_cols')?.value || '3', 10);
         if (![2,3,4].includes(cols)) { notify('columns должен быть 2/3/4'); return; }
 
         const collected = items.map((_, idx) => {
-            const title = (document.querySelector(`[data-card-title="${idx}"]`)?.value || '').trim();
-            const text = (document.querySelector(`[data-card-text="${idx}"]`)?.value || '');
-            const imageFileId = parseInt(document.querySelector(`[data-card-img="${idx}"]`)?.value || '0', 10) || 0;
-            const buttonText = (document.querySelector(`[data-card-btntext="${idx}"]`)?.value || '').trim();
-            const buttonUrl = (document.querySelector(`[data-card-btnurl="${idx}"]`)?.value || '').trim();
-            return { title, text, imageFileId, buttonText, buttonUrl };
+          const title = (document.querySelector(`[data-card-title="${idx}"]`)?.value || '').trim();
+          const text = (document.querySelector(`[data-card-text="${idx}"]`)?.value || '');
+          const imageFileId = parseInt(document.querySelector(`[data-card-img="${idx}"]`)?.value || '0', 10) || 0;
+          const buttonText = (document.querySelector(`[data-card-btntext="${idx}"]`)?.value || '').trim();
+          const buttonUrl = (document.querySelector(`[data-card-btnurl="${idx}"]`)?.value || '').trim();
+          return { title, text, imageFileId, buttonText, buttonUrl };
         }).filter(x => x.title !== '');
 
         if (!collected.length) { notify('Добавь хотя бы одну карточку с заголовком'); return; }
 
         const payload = { columns: cols, items: JSON.stringify(collected) };
         const call = (mode === 'edit')
-            ? api('block.update', Object.assign({ id: blockId }, payload))
-            : api('block.create', Object.assign({ pageId, type:'cards' }, payload));
+          ? api('block.update', Object.assign({ id: blockId }, payload))
+          : api('block.create', Object.assign({ pageId, type:'cards' }, payload));
 
         call.then(res => {
-            if (!res || res.ok !== true) { notify('Не удалось сохранить cards'); return; }
-            notify(mode === 'edit' ? 'Сохранено' : 'Cards создан');
-            mb.close(); loadBlocks();
+          if (!res || res.ok !== true) { notify('Не удалось сохранить cards'); return; }
+          notify(mode === 'edit' ? 'Сохранено' : 'Cards создан');
+          mb.close(); loadBlocks();
         }).catch(() => notify('Ошибка запроса cards'));
-        }
+      }
     });
 
     setTimeout(() => {
-        const root = document.querySelector('.cardsBuilder');
-        if (!root) return;
+      const root = document.querySelector('.cardsBuilder');
+      if (!root) return;
 
-        const snapshot = () => {
+      const snapshot = () => {
         items = items.map((it, idx) => ({
-            title: (document.querySelector(`[data-card-title="${idx}"]`)?.value || it.title || ''),
-            text: (document.querySelector(`[data-card-text="${idx}"]`)?.value || it.text || ''),
-            imageFileId: parseInt(document.querySelector(`[data-card-img="${idx}"]`)?.value || it.imageFileId || 0, 10) || 0,
-            buttonText: (document.querySelector(`[data-card-btntext="${idx}"]`)?.value || it.buttonText || ''),
-            buttonUrl: (document.querySelector(`[data-card-btnurl="${idx}"]`)?.value || it.buttonUrl || ''),
+          title: (document.querySelector(`[data-card-title="${idx}"]`)?.value || it.title || ''),
+          text: (document.querySelector(`[data-card-text="${idx}"]`)?.value || it.text || ''),
+          imageFileId: parseInt(document.querySelector(`[data-card-img="${idx}"]`)?.value || it.imageFileId || 0, 10) || 0,
+          buttonText: (document.querySelector(`[data-card-btntext="${idx}"]`)?.value || it.buttonText || ''),
+          buttonUrl: (document.querySelector(`[data-card-btnurl="${idx}"]`)?.value || it.buttonUrl || ''),
         }));
         cols = parseInt(document.getElementById('cb_cols')?.value || String(cols), 10);
         if (![2,3,4].includes(cols)) cols = 3;
-        };
+      };
 
-        const rerender = () => {
+      const rerender = () => {
         snapshot();
         root.innerHTML = render();
         bind();
-        };
+      };
 
-        const bind = () => {
+      const bind = () => {
         const addBtn = document.getElementById('cb_add');
         if (addBtn) addBtn.onclick = () => { snapshot(); items.push(cardsNormalizeItem({ title: 'Новая карточка' })); rerender(); };
 
         root.querySelectorAll('[data-card-up]').forEach(btn => {
-            btn.onclick = () => { snapshot(); const i = parseInt(btn.getAttribute('data-card-up'), 10);
+          btn.onclick = () => { snapshot(); const i = parseInt(btn.getAttribute('data-card-up'), 10);
             if (i > 0) { [items[i-1], items[i]] = [items[i], items[i-1]]; rerender(); }
-            };
+          };
         });
         root.querySelectorAll('[data-card-down]').forEach(btn => {
-            btn.onclick = () => { snapshot(); const i = parseInt(btn.getAttribute('data-card-down'), 10);
+          btn.onclick = () => { snapshot(); const i = parseInt(btn.getAttribute('data-card-down'), 10);
             if (i < items.length - 1) { [items[i+1], items[i]] = [items[i], items[i+1]]; rerender(); }
-            };
+          };
         });
         root.querySelectorAll('[data-card-del]').forEach(btn => {
-            btn.onclick = () => { snapshot(); const i = parseInt(btn.getAttribute('data-card-del'), 10);
+          btn.onclick = () => { snapshot(); const i = parseInt(btn.getAttribute('data-card-del'), 10);
             items.splice(i, 1); if (!items.length) items.push(cardsNormalizeItem({ title: 'Новая карточка' })); rerender();
-            };
+          };
         });
 
         root.querySelectorAll('select[data-card-img]').forEach(sel => {
-            sel.onchange = () => {
+          sel.onchange = () => {
             const idx = parseInt(sel.getAttribute('data-card-img'), 10);
             const fid = parseInt(sel.value || '0', 10);
             const box = root.querySelector(`[data-card-img-prev="${idx}"]`);
             if (!box) return;
             box.innerHTML = fid ? `<div class="imgPrev"><img src="${fileDownloadUrl(fid)}" alt=""></div>` : '';
-            };
+          };
         });
-        };
+      };
 
-        bind();
+      bind();
     }, 0);
-    }
-
-  // ===== render =====
+  }
 
   function renderBlocks(blocks) {
-    if (!blocks || !blocks.length) {
-      blocksBox.innerHTML = '<div class="muted">Блоков нет. Добавь первый.</div>';
+    const q = (blockSearch?.value || '').trim().toLowerCase();
+    const filteredBlocks = (blocks || []).filter(b => {
+      if (!q) return true;
+      const type = String(b.type || '').toLowerCase();
+      return type.includes(q) || String(b.id || '').includes(q);
+    });
+
+    if (!filteredBlocks.length) {
+      blocksBox.innerHTML = '<div class="muted">Ничего не найдено.</div>';
       return;
     }
 
-    blocksBox.innerHTML = blocks.map(b => {
+    blocksBox.innerHTML = filteredBlocks.map(b => {
       const type = b.type || '';
       const sort = b.sort;
       const id = b.id;
 
-      // TEXT
+      const commonBtns = `
+        <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
+        <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
+      `;
+
       if (type === 'text') {
         const text = (b.content && typeof b.content.text === 'string') ? b.content.text : '';
-        return `
-          <div class="block">
-            <div class="row">
-              <div><b>#${id}</b> <span class="muted">(text | sort ${sort})</span></div>
-              <div class="btns">
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-text-id="${id}">Редактировать</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-              </div>
-            </div>
-            <pre>${BX.util.htmlspecialchars(text)}</pre>
-          </div>
-        `;
+        return buildBlockShell(
+          id, type, sort,
+          `<pre>${BX.util.htmlspecialchars(text)}</pre>`,
+          `
+            ${commonBtns}
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-text-id="${id}">Редактировать</button>
+            <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
+          `
+        );
       }
 
-      // IMAGE
       if (type === 'image') {
         const fileId = b.content && b.content.fileId ? parseInt(b.content.fileId, 10) : 0;
         const alt = b.content && typeof b.content.alt === 'string' ? b.content.alt : '';
@@ -555,51 +649,40 @@ async function applyTemplateToPage(){
           ? `<div class="imgPrev"><img src="${fileDownloadUrl(fileId)}" alt="${BX.util.htmlspecialchars(alt)}"></div>`
           : '<div class="muted" style="margin-top:10px;">Файл не выбран</div>';
 
-        return `
-          <div class="block">
-            <div class="row">
-              <div><b>#${id}</b> <span class="muted">(image | sort ${sort} | fileId ${fileId || '-'})</span></div>
-              <div class="btns">
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-image-id="${id}">Редактировать</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-              </div>
-            </div>
-            <div class="muted" style="margin-top:8px;">alt: ${BX.util.htmlspecialchars(alt)}</div>
-            ${img}
-          </div>
-        `;
+        return buildBlockShell(
+          id, type, sort,
+          `<div class="muted">alt: ${BX.util.htmlspecialchars(alt)}</div>${img}`,
+          `
+            ${commonBtns}
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-image-id="${id}">Редактировать</button>
+            <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
+          `,
+          `<span>fileId: ${fileId || '-'}</span>`
+        );
       }
 
-      // BUTTON
       if (type === 'button') {
         const text = (b.content && typeof b.content.text === 'string') ? b.content.text : '';
         const url = (b.content && typeof b.content.url === 'string') ? b.content.url : '';
         const variant = (b.content && typeof b.content.variant === 'string') ? b.content.variant : 'primary';
 
-        return `
-          <div class="block">
-            <div class="row">
-              <div><b>#${id}</b> <span class="muted">(button | sort ${sort} | ${BX.util.htmlspecialchars(variant)})</span></div>
-              <div class="btns">
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-button-id="${id}">Редактировать</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-              </div>
-            </div>
-            <div class="muted" style="margin-top:8px;">url: ${BX.util.htmlspecialchars(url)}</div>
+        return buildBlockShell(
+          id, type, sort,
+          `
+            <div class="muted">url: ${BX.util.htmlspecialchars(url)}</div>
             <a class="${btnClass(variant)}" href="${BX.util.htmlspecialchars(url)}" target="_blank" rel="noopener noreferrer">
               ${BX.util.htmlspecialchars(text)}
             </a>
-          </div>
-        `;
+          `,
+          `
+            ${commonBtns}
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-button-id="${id}">Редактировать</button>
+            <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
+          `,
+          `<span>variant: ${BX.util.htmlspecialchars(variant)}</span>`
+        );
       }
 
-      // HEADING
       if (type === 'heading') {
         const text = (b.content && typeof b.content.text === 'string') ? b.content.text : '';
         const level = (b.content && typeof b.content.level === 'string') ? b.content.level : 'h2';
@@ -607,53 +690,45 @@ async function applyTemplateToPage(){
         const tag = headingTag(level);
         const al = headingAlign(align);
 
-        return `
-          <div class="block">
-            <div class="row">
-              <div><b>#${id}</b> <span class="muted">(heading | sort ${sort} | ${BX.util.htmlspecialchars(tag)} | ${BX.util.htmlspecialchars(al)})</span></div>
-              <div class="btns">
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-heading-id="${id}">Редактировать</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-              </div>
-            </div>
+        return buildBlockShell(
+          id, type, sort,
+          `
             <div class="headingPreview" style="text-align:${BX.util.htmlspecialchars(al)};">
               <${tag}>${BX.util.htmlspecialchars(text)}</${tag}>
             </div>
-          </div>
-        `;
+          `,
+          `
+            ${commonBtns}
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-heading-id="${id}">Редактировать</button>
+            <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
+          `,
+          `<span>${BX.util.htmlspecialchars(tag)}</span><span>${BX.util.htmlspecialchars(al)}</span>`
+        );
       }
 
-      // COLUMNS2
       if (type === 'columns2') {
         const left = (b.content && typeof b.content.left === 'string') ? b.content.left : '';
         const right = (b.content && typeof b.content.right === 'string') ? b.content.right : '';
         const ratio = (b.content && typeof b.content.ratio === 'string') ? b.content.ratio : '50-50';
         const tpl = colsGridTemplate(ratio);
 
-        return `
-          <div class="block">
-            <div class="row">
-              <div><b>#${id}</b> <span class="muted">(columns2 | sort ${sort} | ratio ${BX.util.htmlspecialchars(ratio)})</span></div>
-              <div class="btns">
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-cols2-id="${id}">Редактировать</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-              </div>
-            </div>
+        return buildBlockShell(
+          id, type, sort,
+          `
             <div class="colsPreview" style="grid-template-columns:${tpl};">
               <div class="cell"><pre>${BX.util.htmlspecialchars(left)}</pre></div>
               <div class="cell"><pre>${BX.util.htmlspecialchars(right)}</pre></div>
             </div>
-          </div>
-        `;
+          `,
+          `
+            ${commonBtns}
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-cols2-id="${id}">Редактировать</button>
+            <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
+          `,
+          `<span>ratio: ${BX.util.htmlspecialchars(ratio)}</span>`
+        );
       }
 
-      // GALLERY
       if (type === 'gallery') {
         const columns = (b.content && b.content.columns) ? parseInt(b.content.columns, 10) : 3;
         const imgs = (b.content && Array.isArray(b.content.images)) ? b.content.images : [];
@@ -665,51 +740,40 @@ async function applyTemplateToPage(){
           return `<img src="${fileDownloadUrl(fid)}" alt="${BX.util.htmlspecialchars(it.alt || '')}">`;
         }).join('');
 
-        return `
-          <div class="block">
-            <div class="row">
-              <div><b>#${id}</b> <span class="muted">(gallery | sort ${sort} | cols ${columns} | images ${imgs.length})</span></div>
-              <div class="btns">
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-gallery-id="${id}">Редактировать</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-              </div>
-            </div>
-            <div class="galPrev" style="grid-template-columns:${tpl};">${prev}</div>
-          </div>
-        `;
+        return buildBlockShell(
+          id, type, sort,
+          `<div class="galPrev" style="grid-template-columns:${tpl};">${prev}</div>`,
+          `
+            ${commonBtns}
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-gallery-id="${id}">Редактировать</button>
+            <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
+          `,
+          `<span>cols: ${columns}</span><span>images: ${imgs.length}</span>`
+        );
       }
 
-      // SPACER
       if (type === 'spacer') {
         const height = (b.content && b.content.height) ? parseInt(b.content.height, 10) : 40;
         const line = (b.content && (b.content.line === true || b.content.line === 'true')) ? true : false;
 
-        return `
-          <div class="block">
-            <div class="row">
-              <div><b>#${id}</b> <span class="muted">(spacer | sort ${sort} | ${height}px | line ${line ? 'yes' : 'no'})</span></div>
-              <div class="btns">
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-spacer-id="${id}">Редактировать</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-              </div>
-            </div>
-
+        return buildBlockShell(
+          id, type, sort,
+          `
             <div style="margin-top:10px; border:1px dashed #e5e7ea; border-radius:10px; padding:10px;">
               <div style="height:${height}px; position:relative; background:#fafafa; border-radius:10px;">
                 ${line ? '<div style="position:absolute; left:0; right:0; top:50%; height:1px; background:#e5e7ea;"></div>' : ''}
               </div>
             </div>
-          </div>
-        `;
+          `,
+          `
+            ${commonBtns}
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-spacer-id="${id}">Редактировать</button>
+            <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
+          `,
+          `<span>${height}px</span><span>line: ${line ? 'yes' : 'no'}</span>`
+        );
       }
 
-      // CARD
       if (type === 'card') {
         const title = (b.content && typeof b.content.title === 'string') ? b.content.title : '';
         const text = (b.content && typeof b.content.text === 'string') ? b.content.text : '';
@@ -719,67 +783,142 @@ async function applyTemplateToPage(){
 
         const img = imageFileId ? `<div class="imgPrev"><img src="${fileDownloadUrl(imageFileId)}" alt=""></div>` : '';
 
-        return `
-          <div class="block">
-            <div class="row">
-              <div><b>#${id}</b> <span class="muted">(card | sort ${sort})</span></div>
-              <div class="btns">
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-card-id="${id}">Редактировать</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-              </div>
-            </div>
-
-            <div style="margin-top:10px;">
-              <div style="font-weight:700;">${BX.util.htmlspecialchars(title)}</div>
-              <div class="muted" style="margin-top:6px; white-space:pre-wrap;">${BX.util.htmlspecialchars(text)}</div>
-              ${img}
-              ${buttonUrl ? `<a class="${btnClass('secondary')}" href="${BX.util.htmlspecialchars(buttonUrl)}" target="_blank" rel="noopener noreferrer">${BX.util.htmlspecialchars(buttonText || 'Открыть')}</a>` : ''}
-            </div>
-          </div>
-        `;
+        return buildBlockShell(
+          id, type, sort,
+          `
+            <div style="font-weight:700;">${BX.util.htmlspecialchars(title)}</div>
+            <div class="muted" style="margin-top:6px; white-space:pre-wrap;">${BX.util.htmlspecialchars(text)}</div>
+            ${img}
+            ${buttonUrl ? `<a class="${btnClass('secondary')}" href="${BX.util.htmlspecialchars(buttonUrl)}" target="_blank" rel="noopener noreferrer">${BX.util.htmlspecialchars(buttonText || 'Открыть')}</a>` : ''}
+          `,
+          `
+            ${commonBtns}
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-card-id="${id}">Редактировать</button>
+            <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
+          `
+        );
       }
 
-      // CARDS
       if (type === 'cards') {
         const columns = (b.content && b.content.columns) ? parseInt(b.content.columns, 10) : 3;
         const items = (b.content && Array.isArray(b.content.items)) ? b.content.items : [];
-        return `
-            <div class="block">
-            <div class="row">
-                <div><b>#${id}</b> <span class="muted">(cards | sort ${sort} | cols ${columns} | items ${items.length})</span></div>
-                <div class="btns">
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-cards-id="${id}">Редактировать</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-                </div>
-            </div>
-            <div class="muted" style="margin-top:8px;">Пока редактирование через JSON (быстро). Потом сделаем визуальный конструктор.</div>
-            <pre>${BX.util.htmlspecialchars(JSON.stringify({columns, items}, null, 2))}</pre>
-            </div>
-        `;
+        return buildBlockShell(
+          id, type, sort,
+          `<pre>${BX.util.htmlspecialchars(JSON.stringify({columns, items}, null, 2))}</pre>`,
+          `
+            ${commonBtns}
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-cards-id="${id}">Редактировать</button>
+            <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
+          `,
+          `<span>cols: ${columns}</span><span>items: ${items.length}</span>`
+        );
       }
 
-
-
-      // UNKNOWN
-      return `
-        <div class="block">
-          <div class="row">
-            <div><b>#${id}</b> <span class="muted">(unknown)</span></div>
-            <div class="btns">
-              <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-            </div>
-          </div>
-          <div class="muted" style="margin-top:10px;">Неизвестный тип: ${BX.util.htmlspecialchars(type)}</div>
-        </div>
-      `;
+      return buildBlockShell(
+        id, type, sort,
+        `<div class="muted">Неизвестный тип: ${BX.util.htmlspecialchars(type)}</div>`,
+        `<button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>`
+      );
     }).join('');
   }
+
+  function saveBlockOrder() {
+    const ids = Array.from(blocksBox.querySelectorAll('.block[data-block-id]'))
+      .map(el => parseInt(el.getAttribute('data-block-id'), 10))
+      .filter(Boolean);
+
+    return api('block.reorder', {
+      pageId,
+      order: JSON.stringify(ids)
+    });
+  }
+
+  function initBlockDnD() {
+    if (!blocksBox) return;
+
+    let draggedEl = null;
+    let dragAllowed = false;
+
+    blocksBox.querySelectorAll('.block[data-block-id]').forEach(block => {
+        block.setAttribute('draggable', 'false');
+
+        const handle = block.querySelector('[data-drag-handle]');
+        if (handle) {
+        handle.addEventListener('mousedown', () => {
+            dragAllowed = true;
+            block.setAttribute('draggable', 'true');
+        });
+
+        handle.addEventListener('mouseup', () => {
+            setTimeout(() => {
+            block.setAttribute('draggable', 'false');
+            dragAllowed = false;
+            }, 0);
+        });
+        }
+
+        block.addEventListener('dragstart', (e) => {
+        if (!dragAllowed) {
+            e.preventDefault();
+            return;
+        }
+
+        draggedEl = block;
+        block.classList.add('dragging');
+
+        try {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', block.getAttribute('data-block-id') || '');
+        } catch (err) {}
+        });
+
+        block.addEventListener('dragend', () => {
+        if (draggedEl) draggedEl.classList.remove('dragging');
+        draggedEl = null;
+        dragAllowed = false;
+        block.setAttribute('draggable', 'false');
+        });
+
+        block.addEventListener('dragover', (e) => {
+        if (!draggedEl || draggedEl === block) return;
+        e.preventDefault();
+
+        const rect = block.getBoundingClientRect();
+        const middle = rect.top + rect.height / 2;
+        const after = e.clientY > middle;
+
+        if (after) {
+            if (block.nextElementSibling !== draggedEl) {
+            block.parentNode.insertBefore(draggedEl, block.nextElementSibling);
+            }
+        } else {
+            if (block.previousElementSibling !== draggedEl) {
+            block.parentNode.insertBefore(draggedEl, block);
+            }
+        }
+        });
+
+        block.addEventListener('drop', async (e) => {
+        if (!draggedEl) return;
+        e.preventDefault();
+
+        try {
+            const r = await saveBlockOrder();
+            if (!r || r.ok !== true) {
+            notify('Не удалось сохранить порядок');
+            loadBlocks();
+            return;
+            }
+            notify('Порядок сохранён');
+            loadBlocks();
+        } catch (err) {
+            notify('Ошибка block.reorder');
+            loadBlocks();
+        }
+        });
+    });
+  }
+
 
   function loadBlocks() {
     api('block.list', { pageId }).then(res => {
@@ -788,6 +927,7 @@ async function applyTemplateToPage(){
         return;
       }
       renderBlocks(res.blocks);
+      initBlockDnD();
     }).catch(() => notify('Ошибка block.list'));
   }
 
@@ -804,139 +944,133 @@ async function applyTemplateToPage(){
     const containerId = 'sb_sections_root_' + Date.now();
 
     const render = (q) => {
-        const query = (q || '').trim().toLowerCase();
-        const filtered = templates.filter(t => ((t.name || '') + '').toLowerCase().includes(query));
+      const query = (q || '').trim().toLowerCase();
+      const filtered = templates.filter(t => ((t.name || '') + '').toLowerCase().includes(query));
 
-        const cards = filtered.map(t => {
+      const cards = filtered.map(t => {
         const blocksCount = Array.isArray(t.blocks) ? t.blocks.length : 0;
         const createdAt = (t.createdAt || '').replace('T',' ').replace('Z','');
 
         return `
-            <div class="secCard">
+          <div class="secCard">
             <div class="secTitle">${BX.util.htmlspecialchars(t.name || ('Template #' + t.id))}</div>
             <div class="secMeta">id: ${t.id} • блоков: ${blocksCount} • создан: ${BX.util.htmlspecialchars(createdAt)}</div>
 
             <div class="secBtns">
-                <button class="ui-btn ui-btn-primary ui-btn-xs" data-tpl-apply="${t.id}" data-mode="append">Вставить</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-tpl-apply="${t.id}" data-mode="replace">Заменить</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-tpl-rename="${t.id}">Переименовать</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-tpl-delete="${t.id}">Удалить</button>
+              <button class="ui-btn ui-btn-primary ui-btn-xs" data-tpl-apply="${t.id}" data-mode="append">Вставить</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs" data-tpl-apply="${t.id}" data-mode="replace">Заменить</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs" data-tpl-rename="${t.id}">Переименовать</button>
+              <button class="ui-btn ui-btn-danger ui-btn-xs" data-tpl-delete="${t.id}">Удалить</button>
             </div>
-            </div>
+          </div>
         `;
-        }).join('');
+      }).join('');
 
-        return `
+      return `
         <div id="${containerId}">
-            <div class="secSearch">
+          <div class="secSearch">
             <input id="${containerId}_q" class="input" placeholder="Поиск шаблонов..." value="${BX.util.htmlspecialchars(q || '')}">
-            </div>
-            <div class="secGrid">${cards || '<div class="muted">Ничего не найдено</div>'}</div>
+          </div>
+          <div class="secGrid">${cards || '<div class="muted">Ничего не найдено</div>'}</div>
         </div>
-        `;
+      `;
     };
 
     BX.UI.Dialogs.MessageBox.show({
-        title: 'Каталог секций',
-        message: render(''),
-        buttons: BX.UI.Dialogs.MessageBoxButtons.CANCEL,
-        onCancel: function (mb) { mb.close(); }
+      title: 'Каталог секций',
+      message: render(''),
+      buttons: BX.UI.Dialogs.MessageBoxButtons.CANCEL,
+      onCancel: function (mb) { mb.close(); }
     });
 
     setTimeout(() => {
-        const root = document.getElementById(containerId);
-        if (!root) {
-        notify('Каталог секций: не найден контейнер (проверь messagebox DOM)');
+      const root = document.getElementById(containerId);
+      if (!root) {
+        notify('Каталог секций: не найден контейнер');
         return;
-        }
+      }
 
-        const rerender = (q) => {
+      const rerender = (q) => {
         root.outerHTML = render(q);
         const newRoot = document.getElementById(containerId);
         if (!newRoot) return;
-
-        // заново вешаем обработчики на новый корень
         bind(newRoot);
-        };
+      };
 
-        const bind = (r) => {
-        // поиск
+      const bind = (r) => {
         const q = document.getElementById(containerId + '_q');
         if (q) q.oninput = () => rerender(q.value);
 
-        // делегирование кликов по кнопкам в карточках
         r.onclick = async (e) => {
-            const applyBtn = e.target.closest('[data-tpl-apply]');
-            if (applyBtn) {
+          const applyBtn = e.target.closest('[data-tpl-apply]');
+          if (applyBtn) {
             const tplId = parseInt(applyBtn.getAttribute('data-tpl-apply'), 10);
             const mode = applyBtn.getAttribute('data-mode') || 'append';
             try {
-                const r2 = await api('template.applyToPage', { siteId, pageId, templateId: tplId, mode });
-                if (!r2 || r2.ok !== true) { notify('Не удалось применить'); return; }
-                notify('Готово: добавлено блоков ' + (r2.added || 0));
-                loadBlocks();
+              const r2 = await api('template.applyToPage', { siteId, pageId, templateId: tplId, mode });
+              if (!r2 || r2.ok !== true) { notify('Не удалось применить'); return; }
+              notify('Готово: добавлено блоков ' + (r2.added || 0));
+              loadBlocks();
             } catch (err) {
-                notify('Ошибка apply');
+              notify('Ошибка apply');
             }
             return;
-            }
+          }
 
-            const renameBtn = e.target.closest('[data-tpl-rename]');
-            if (renameBtn) {
+          const renameBtn = e.target.closest('[data-tpl-rename]');
+          if (renameBtn) {
             const tplId = parseInt(renameBtn.getAttribute('data-tpl-rename'), 10);
             const cur = templates.find(x => parseInt(x.id, 10) === tplId);
 
             BX.UI.Dialogs.MessageBox.show({
-                title: 'Переименовать',
-                message: `<div class="field"><label>Название</label><input id="rn_name" class="input" value="${BX.util.htmlspecialchars(cur?.name || '')}"></div>`,
-                buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
-                onOk: function (mb2) {
+              title: 'Переименовать',
+              message: `<div class="field"><label>Название</label><input id="rn_name" class="input" value="${BX.util.htmlspecialchars(cur?.name || '')}"></div>`,
+              buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
+              onOk: function (mb2) {
                 const name = (document.getElementById('rn_name')?.value || '').trim();
                 if (!name) { notify('Введите название'); return; }
 
                 api('template.rename', { id: tplId, name }).then(r3 => {
-                    if (!r3 || r3.ok !== true) { notify('Не удалось переименовать'); return; }
-                    notify('Переименовано');
-                    const idx = templates.findIndex(x => parseInt(x.id, 10) === tplId);
-                    if (idx >= 0) templates[idx].name = name;
-                    mb2.close();
-                    const qv = document.getElementById(containerId + '_q')?.value || '';
-                    rerender(qv);
+                  if (!r3 || r3.ok !== true) { notify('Не удалось переименовать'); return; }
+                  notify('Переименовано');
+                  const idx = templates.findIndex(x => parseInt(x.id, 10) === tplId);
+                  if (idx >= 0) templates[idx].name = name;
+                  mb2.close();
+                  const qv = document.getElementById(containerId + '_q')?.value || '';
+                  rerender(qv);
                 }).catch(() => notify('Ошибка template.rename'));
-                }
+              }
             });
             return;
-            }
+          }
 
-            const delBtn = e.target.closest('[data-tpl-delete]');
-            if (delBtn) {
+          const delBtn = e.target.closest('[data-tpl-delete]');
+          if (delBtn) {
             const tplId = parseInt(delBtn.getAttribute('data-tpl-delete'), 10);
 
             BX.UI.Dialogs.MessageBox.show({
-                title: 'Удалить шаблон?',
-                message: 'Удалить навсегда?',
-                buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
-                onOk: function (mb2) {
+              title: 'Удалить шаблон?',
+              message: 'Удалить навсегда?',
+              buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
+              onOk: function (mb2) {
                 api('template.delete', { id: tplId }).then(r4 => {
-                    if (!r4 || r4.ok !== true) { notify('Не удалось удалить'); return; }
-                    notify('Удалено');
-                    templates = templates.filter(x => parseInt(x.id, 10) !== tplId);
-                    mb2.close();
-                    const qv = document.getElementById(containerId + '_q')?.value || '';
-                    rerender(qv);
+                  if (!r4 || r4.ok !== true) { notify('Не удалось удалить'); return; }
+                  notify('Удалено');
+                  templates = templates.filter(x => parseInt(x.id, 10) !== tplId);
+                  mb2.close();
+                  const qv = document.getElementById(containerId + '_q')?.value || '';
+                  rerender(qv);
                 }).catch(() => notify('Ошибка template.delete'));
-                }
+              }
             });
             return;
-            }
+          }
         };
-        };
+      };
 
-        bind(root);
+      bind(root);
     }, 0);
   }
-
-  // ===== add blocks =====
 
   function addTextBlock() {
     BX.UI.Dialogs.MessageBox.show({
@@ -1432,8 +1566,6 @@ async function applyTemplateToPage(){
 
   function addCardBlock() { openCardDialog('create', 0, null); }
 
-  // ===== edit blocks =====
-
   function editTextBlock(id) {
     api('block.list', { pageId }).then(res => {
       if (!res || res.ok !== true) return;
@@ -1792,66 +1924,41 @@ async function applyTemplateToPage(){
     });
   }
 
-  function openCardsJsonDialog(mode, blockId, currentContent) {
-    const cur = currentContent && typeof currentContent === 'object' ? currentContent : { columns: 3, items: [] };
-    const json = JSON.stringify(cur, null, 2);
+  function addCardsBlock() {
+    openCardsBuilderDialog('create', 0, { columns: 3, items: [
+      { title: 'Преимущество 1', text: 'Короткое описание' },
+      { title: 'Преимущество 2', text: 'Короткое описание' },
+      { title: 'Преимущество 3', text: 'Короткое описание' }
+    ]});
+  }
 
-    BX.UI.Dialogs.MessageBox.show({
-        title: mode === 'edit' ? ('Редактировать Cards #' + blockId) : 'Новый Cards блок',
-        message: `
-        <div class="muted">Формат: { columns: 2|3|4, items: [ {title,text,imageFileId,buttonText,buttonUrl}, ... ] }</div>
-        <textarea id="cards_json" class="input" style="height:260px; font-family:monospace;">${BX.util.htmlspecialchars(json)}</textarea>
-        `,
-        buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
-        onOk: function(mb){
-        let obj = null;
-        try {
-            obj = JSON.parse(document.getElementById('cards_json')?.value || '');
-        } catch (e) {
-            notify('JSON не валиден');
-            return;
-        }
-
-        const columns = parseInt(obj.columns || 3, 10);
-        if (![2,3,4].includes(columns)) { notify('columns должен быть 2/3/4'); return; }
-
-        const items = Array.isArray(obj.items) ? obj.items : [];
-        if (!items.length) { notify('items пустой'); return; }
-
-        const payload = { columns, items: JSON.stringify(items) };
-
-        const call = (mode === 'edit')
-            ? api('block.update', Object.assign({ id: blockId }, payload))
-            : api('block.create', Object.assign({ pageId, type:'cards' }, payload));
-
-        call.then(res => {
-            if (!res || res.ok !== true) { notify('Не удалось сохранить cards'); return; }
-            notify(mode === 'edit' ? 'Сохранено' : 'Cards создан');
-            mb.close(); loadBlocks();
-        }).catch(() => notify('Ошибка запроса cards'));
-        }
-    });
-    }
-
-    function addCardsBlock() {
-        openCardsBuilderDialog('create', 0, { columns: 3, items: [
-            { title: 'Преимущество 1', text: 'Короткое описание' },
-            { title: 'Преимущество 2', text: 'Короткое описание' },
-            { title: 'Преимущество 3', text: 'Короткое описание' }
-        ]});
-    }
-
-    function editCardsBlock(id) {
-        api('block.list', { pageId }).then(res => {
-            if (!res || res.ok !== true) return;
-            const blk = (res.blocks || []).find(x => parseInt(x.id,10) === id);
-            openCardsBuilderDialog('edit', id, blk?.content || null);
-        }).catch(() => notify('Ошибка block.list'));
-    }
-
-  // ===== common click handlers =====
+  function editCardsBlock(id) {
+    api('block.list', { pageId }).then(res => {
+      if (!res || res.ok !== true) return;
+      const blk = (res.blocks || []).find(x => parseInt(x.id,10) === id);
+      openCardsBuilderDialog('edit', id, blk?.content || null);
+    }).catch(() => notify('Ошибка block.list'));
+  }
 
   document.addEventListener('click', function (e) {
+    const tg = e.target.closest('[data-toggle-block]');
+    if (tg) {
+      const id = parseInt(tg.getAttribute('data-toggle-block'), 10);
+      const box = document.querySelector(`.block[data-block-id="${id}"]`);
+      if (!box) return;
+
+      if (collapsedBlocks.has(id)) {
+        collapsedBlocks.delete(id);
+        box.classList.remove('blockCollapsed');
+        tg.textContent = 'Свернуть';
+      } else {
+        collapsedBlocks.add(id);
+        box.classList.add('blockCollapsed');
+        tg.textContent = 'Развернуть';
+      }
+      return;
+    }
+
     const mvBtn = e.target.closest('[data-move-block-id]');
     if (mvBtn) {
       const id = parseInt(mvBtn.getAttribute('data-move-block-id'), 10);
@@ -1862,23 +1969,6 @@ async function applyTemplateToPage(){
           loadBlocks();
         })
         .catch(() => notify('Ошибка block.move'));
-      return;
-    }
-
-    const dupBtn = e.target.closest('[data-dup-block-id]');
-    if (dupBtn) {
-      const id = parseInt(dupBtn.getAttribute('data-dup-block-id'), 10);
-
-      api('block.duplicate', { id })
-        .then(r => {
-          if (!r || r.ok !== true) {
-            notify('Не удалось дублировать блок');
-            return;
-          }
-          notify('Блок продублирован');
-          loadBlocks();
-        })
-        .catch(() => notify('Ошибка block.duplicate'));
       return;
     }
 
@@ -1931,7 +2021,6 @@ async function applyTemplateToPage(){
     if (ecards) { editCardsBlock(parseInt(ecards.getAttribute('data-edit-cards-id'), 10)); return; }
   });
 
-  // ===== buttons =====
   btnAddText.addEventListener('click', addTextBlock);
   btnAddImage.addEventListener('click', addImageBlock);
   btnAddButton.addEventListener('click', addButtonBlock);
@@ -1944,10 +2033,12 @@ async function applyTemplateToPage(){
   btnSections.addEventListener('click', openSectionsLibrary);
   btnSaveTemplate.addEventListener('click', saveTemplateFromPage);
   btnApplyTemplate.addEventListener('click', applyTemplateToPage);
-  if (btnToggleStatus) btnToggleStatus.addEventListener('click', togglePageStatus);
+
+  if (blockSearch) {
+    blockSearch.addEventListener('input', loadBlocks);
+  }
 
   loadBlocks();
-  loadPageMeta();
 });
 </script>
 </body>
