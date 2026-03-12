@@ -11,7 +11,6 @@ use Bitrix\Disk\Folder;
 use Bitrix\Disk\File;
 use Bitrix\Disk\Driver;
 
-
 global $USER;
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -107,6 +106,92 @@ function sb_write_menus(array $menus): void { sb_write_json_file('menus.json', $
 
 function sb_read_templates(): array { return sb_read_json_file('templates.json'); }
 function sb_write_templates(array $templates): void { sb_write_json_file('templates.json', $templates, 'Cannot open templates.json'); }
+
+function sb_read_layouts(): array { return sb_read_json_file('layouts.json'); }
+function sb_write_layouts(array $layouts): void { sb_write_json_file('layouts.json', $layouts, 'Cannot open layouts.json'); }
+
+function sb_layout_empty_record(int $siteId): array {
+    return [
+        'siteId' => $siteId,
+        'zones' => [
+            'header' => [],
+            'footer' => [],
+            'left'   => [],
+            'right'  => [],
+        ],
+    ];
+}
+
+function sb_layout_find_record(array $all, int $siteId): ?array {
+    foreach ($all as $r) {
+        if ((int)($r['siteId'] ?? 0) === $siteId) return $r;
+    }
+    return null;
+}
+
+function sb_layout_upsert_record(array &$all, int $siteId, array $record): void {
+    $found = false;
+    foreach ($all as $i => $r) {
+        if ((int)($r['siteId'] ?? 0) === $siteId) {
+            $all[$i] = $record;
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) $all[] = $record;
+}
+
+function sb_layout_ensure_record(int $siteId): array {
+    $all = sb_read_layouts();
+    $rec = sb_layout_find_record($all, $siteId);
+    if ($rec) return $rec;
+
+    $rec = sb_layout_empty_record($siteId);
+    $all[] = $rec;
+    sb_write_layouts($all);
+    return $rec;
+}
+
+function sb_layout_valid_zone(string $zone): bool {
+    return in_array($zone, ['header', 'footer', 'left', 'right'], true);
+}
+
+function sb_layout_zone_blocks(array $record, string $zone): array {
+    $zones = $record['zones'] ?? [];
+    $blocks = $zones[$zone] ?? [];
+    return is_array($blocks) ? $blocks : [];
+}
+
+function sb_layout_zone_set(array &$record, string $zone, array $blocks): void {
+    if (!isset($record['zones']) || !is_array($record['zones'])) $record['zones'] = [];
+    $record['zones'][$zone] = array_values($blocks);
+}
+
+function sb_layout_next_block_id(array $record): int {
+    $max = 0;
+    $zones = is_array($record['zones'] ?? null) ? $record['zones'] : [];
+    foreach ($zones as $zoneBlocks) {
+        if (!is_array($zoneBlocks)) continue;
+        foreach ($zoneBlocks as $b) {
+            $max = max($max, (int)($b['id'] ?? 0));
+        }
+    }
+    return $max + 1;
+}
+
+function sb_layout_next_sort(array $blocks): int {
+    $max = 0;
+    foreach ($blocks as $b) $max = max($max, (int)($b['sort'] ?? 0));
+    return $max + 10;
+}
+
+function sb_layout_find_block(array $record, string $zone, int $blockId): ?array {
+    $blocks = sb_layout_zone_blocks($record, $zone);
+    foreach ($blocks as $b) {
+        if ((int)($b['id'] ?? 0) === $blockId) return $b;
+    }
+    return null;
+}
 
 function sb_slugify(string $name): string {
     $slug = \CUtil::translit($name, 'ru', [
@@ -763,15 +848,23 @@ if ($action === 'site.create') {
         'createdBy' => (int)$USER->GetID(),
         'createdAt' => date('c'),
         'diskFolderId' => 0,
-
-        // NEW: какое меню считать верхним (0 = не задано)
         'topMenuId' => 0,
         'settings' => [
             'containerWidth' => 1100,
             'accent' => '#2563eb',
             'logoFileId' => 0,
         ],
+        'layout' => [
+            'showHeader' => true,
+            'showFooter' => true,
+            'showLeft' => false,
+            'showRight' => false,
+            'leftWidth' => 260,
+            'rightWidth' => 260,
+            'leftMode' => 'blocks',
+        ],
     ];
+    
 
     $sites[] = $site;
     sb_write_sites($sites);
@@ -887,7 +980,17 @@ if ($action === 'page.list') {
 
     usort($pages, fn($a, $b) => (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0));
 
-    echo json_encode(['ok' => true, 'pages' => $pages], JSON_UNESCAPED_UNICODE);
+    $homePageId = 0;
+    $site = sb_find_site($siteId);
+    if ($site) {
+        $homePageId = (int)($site['homePageId'] ?? 0);
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'pages' => $pages,
+        'homePageId' => $homePageId,
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -895,6 +998,7 @@ if ($action === 'page.create') {
     $siteId = (int)($_POST['siteId'] ?? 0);
     $title  = trim((string)($_POST['title'] ?? ''));
     $slugIn = trim((string)($_POST['slug'] ?? ''));
+    $parentId = (int)($_POST['parentId'] ?? 0);
 
     if ($siteId <= 0) { http_response_code(422); echo json_encode(['ok'=>false,'error'=>'SITE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE); exit; }
     if ($title === '') { http_response_code(422); echo json_encode(['ok'=>false,'error'=>'TITLE_REQUIRED'], JSON_UNESCAPED_UNICODE); exit; }
@@ -911,6 +1015,15 @@ if ($action === 'page.create') {
     $base = $slug; $i = 2;
     while (in_array($slug, $existing, true)) { $slug = $base.'-'.$i; $i++; }
 
+    if ($parentId > 0) {
+        $parent = sb_find_page($parentId);
+        if (!$parent || (int)($parent['siteId'] ?? 0) !== $siteId) {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'PARENT_PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
+
     $page = [ 
         'id' => $id, 
         'siteId' => $siteId, 
@@ -922,6 +1035,7 @@ if ($action === 'page.create') {
         'publishedAt' => '', 
         'createdBy' => (int)$USER->GetID(), 
         'createdAt' => date('c'), 
+        'parentId' => $parentId,
     ];
 
     $pages[] = $page;
@@ -2509,24 +2623,24 @@ if ($action === 'page.updateMeta') {
 
 if ($action === 'page.setStatus') {
     $id = (int)($_POST['id'] ?? 0);
-    $status = strtolower(trim((string)($_POST['status'] ?? '')));
+    $status = strtolower(trim((string)($_POST['status'] ?? 'draft')));
 
     if ($id <= 0) {
         http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok'=>false,'error'=>'ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
     if (!in_array($status, ['draft', 'published'], true)) {
         http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'STATUS_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok'=>false,'error'=>'BAD_STATUS'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
     $page = sb_find_page($id);
     if (!$page) {
         http_response_code(404);
-        echo json_encode(['ok' => false, 'error' => 'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok'=>false,'error'=>'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -2537,38 +2651,24 @@ if ($action === 'page.setStatus') {
     $found = false;
 
     foreach ($pages as &$p) {
-        if ((int)($p['id'] ?? 0) !== $id) continue;
-
-        $p['status'] = $status;
-        $p['updatedAt'] = date('c');
-        $p['updatedBy'] = (int)$USER->GetID();
-
-        if ($status === 'published') {
-            if (empty($p['publishedAt'])) {
-                $p['publishedAt'] = date('c');
-            }
-        } else {
-            $p['publishedAt'] = '';
+        if ((int)($p['id'] ?? 0) === $id) {
+            $p['status'] = $status;
+            $p['updatedAt'] = date('c');
+            $p['updatedBy'] = (int)$USER->GetID();
+            $found = true;
+            break;
         }
-
-        $found = true;
-        break;
     }
     unset($p);
 
     if (!$found) {
         http_response_code(404);
-        echo json_encode(['ok' => false, 'error' => 'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok'=>false,'error'=>'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
     sb_write_pages($pages);
-
-    echo json_encode([
-        'ok' => true,
-        'id' => $id,
-        'status' => $status,
-    ], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok'=>true], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -2661,6 +2761,868 @@ if ($action === 'page.move') {
     unset($p);
 
     sb_write_pages($pages);
+    echo json_encode(['ok'=>true], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($action === 'block.reorder') {
+    $pageId = (int)($_POST['pageId'] ?? 0);
+    $orderJson = (string)($_POST['order'] ?? '[]');
+
+    if ($pageId <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'PAGE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $page = sb_find_page($pageId);
+    if (!$page) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'PAGE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $siteId = (int)($page['siteId'] ?? 0);
+    sb_require_editor($siteId);
+
+    $order = json_decode($orderJson, true);
+    if (!is_array($order) || !$order) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'BAD_ORDER'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $orderIds = array_values(array_map('intval', $order));
+    $orderMap = [];
+    foreach ($orderIds as $pos => $id) {
+        if ($id > 0) $orderMap[$id] = $pos;
+    }
+
+    $blocks = sb_read_blocks();
+
+    $pageBlocks = array_values(array_filter($blocks, fn($b) => (int)($b['pageId'] ?? 0) === $pageId));
+    $pageBlockIds = array_map(fn($b) => (int)($b['id'] ?? 0), $pageBlocks);
+    sort($pageBlockIds);
+
+    $submittedIds = array_keys($orderMap);
+    sort($submittedIds);
+
+    if ($pageBlockIds !== $submittedIds) {
+        http_response_code(422);
+        echo json_encode([
+            'ok'=>false,
+            'error'=>'ORDER_MISMATCH',
+            'expected'=>$pageBlockIds,
+            'got'=>$submittedIds,
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    foreach ($blocks as &$b) {
+        $bid = (int)($b['id'] ?? 0);
+        if ((int)($b['pageId'] ?? 0) !== $pageId) continue;
+        if (!isset($orderMap[$bid])) continue;
+
+        $b['sort'] = ($orderMap[$bid] + 1) * 10;
+        $b['updatedAt'] = date('c');
+        $b['updatedBy'] = (int)$USER->GetID();
+    }
+    unset($b);
+
+    sb_write_blocks($blocks);
+
+    echo json_encode(['ok'=>true], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($action === 'layout.get') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    if ($siteId <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'SITE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    sb_require_viewer($siteId);
+
+    $site = sb_find_site($siteId);
+    if (!$site) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'SITE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $record = sb_layout_ensure_record($siteId);
+
+    echo json_encode([
+        'ok' => true,
+        'layout' => $site['layout'] ?? [
+            'showHeader' => true,
+            'showFooter' => true,
+            'showLeft' => false,
+            'showRight' => false,
+            'leftWidth' => 260,
+            'rightWidth' => 260,
+        ],
+        'zones' => $record['zones'] ?? [
+            'header' => [],
+            'footer' => [],
+            'left' => [],
+            'right' => [],
+        ],
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($action === 'layout.updateSettings') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    if ($siteId <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'SITE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    sb_require_admin($siteId);
+
+    $sites = sb_read_sites();
+    $found = false;
+
+    foreach ($sites as &$s) {
+        if ((int)($s['id'] ?? 0) !== $siteId) continue;
+
+        $layout = is_array($s['layout'] ?? null) ? $s['layout'] : [];
+
+        if (array_key_exists('showHeader', $_POST)) {
+            $layout['showHeader'] = in_array((string)$_POST['showHeader'], ['1', 'true', 'Y'], true);
+        }
+        if (array_key_exists('showFooter', $_POST)) {
+            $layout['showFooter'] = in_array((string)$_POST['showFooter'], ['1', 'true', 'Y'], true);
+        }
+        if (array_key_exists('showLeft', $_POST)) {
+            $layout['showLeft'] = in_array((string)$_POST['showLeft'], ['1', 'true', 'Y'], true);
+        }
+        if (array_key_exists('showRight', $_POST)) {
+            $layout['showRight'] = in_array((string)$_POST['showRight'], ['1', 'true', 'Y'], true);
+        }
+        if (array_key_exists('leftWidth', $_POST)) {
+            $w = (int)$_POST['leftWidth'];
+            if ($w < 160) $w = 160;
+            if ($w > 500) $w = 500;
+            $layout['leftWidth'] = $w;
+        }
+        if (array_key_exists('rightWidth', $_POST)) {
+            $w = (int)$_POST['rightWidth'];
+            if ($w < 160) $w = 160;
+            if ($w > 500) $w = 500;
+            $layout['rightWidth'] = $w;
+        }
+
+        if (array_key_exists('leftMode', $_POST)) {
+            $leftMode = trim((string)$_POST['leftMode']);
+            if (!in_array($leftMode, ['blocks', 'menu'], true)) {
+                $leftMode = 'blocks';
+            }
+            $layout['leftMode'] = $leftMode;
+        }
+
+        $layout += [
+            'showHeader' => true,
+            'showFooter' => true,
+            'showLeft' => false,
+            'showRight' => false,
+            'leftWidth' => 260,
+            'rightWidth' => 260,
+            'leftMode' => 'blocks',
+        ];
+
+        $s['layout'] = $layout;
+        $s['updatedAt'] = date('c');
+        $s['updatedBy'] = (int)$USER->GetID();
+        $found = true;
+        break;
+    }
+    unset($s);
+
+    if (!$found) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'SITE_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    sb_write_sites($sites);
+    echo json_encode(['ok'=>true], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($action === 'layout.block.list') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    $zone = trim((string)($_POST['zone'] ?? ''));
+
+    if ($siteId <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'SITE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (!sb_layout_valid_zone($zone)) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'ZONE_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    sb_require_viewer($siteId);
+
+    $record = sb_layout_ensure_record($siteId);
+    $blocks = sb_layout_zone_blocks($record, $zone);
+    usort($blocks, fn($a,$b) => (int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500));
+
+    echo json_encode(['ok'=>true,'blocks'=>$blocks], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($action === 'layout.block.create') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    $zone = trim((string)($_POST['zone'] ?? ''));
+    $type = trim((string)($_POST['type'] ?? 'text'));
+
+    if ($siteId <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'SITE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (!sb_layout_valid_zone($zone)) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'ZONE_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (!in_array($type, ['text','image','button','heading','columns2','gallery','spacer','card','cards'], true)) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'TYPE_NOT_SUPPORTED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    sb_require_editor($siteId);
+
+    $all = sb_read_layouts();
+    $record = sb_layout_find_record($all, $siteId);
+    if (!$record) $record = sb_layout_empty_record($siteId);
+
+    $blocks = sb_layout_zone_blocks($record, $zone);
+    $id = sb_layout_next_block_id($record);
+    $sort = sb_layout_next_sort($blocks);
+
+    $content = [];
+
+    if ($type === 'text') {
+        $content = ['text' => (string)($_POST['text'] ?? '')];
+
+    } elseif ($type === 'image') {
+        $fileId = (int)($_POST['fileId'] ?? 0);
+        $alt = (string)($_POST['alt'] ?? '');
+
+        if ($fileId <= 0) {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'FILE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        if (!sb_disk_file_belongs_to_site($siteId, $fileId)) {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'FILE_NOT_IN_SITE_FOLDER'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $content = ['fileId' => $fileId, 'alt' => $alt];
+
+    } elseif ($type === 'heading') {
+        $text = trim((string)($_POST['text'] ?? ''));
+        $level = strtolower(trim((string)($_POST['level'] ?? 'h2')));
+        $align = strtolower(trim((string)($_POST['align'] ?? 'left')));
+
+        if ($text === '') {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'TEXT_REQUIRED'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        if (!in_array($level, ['h1','h2','h3'], true)) $level = 'h2';
+        if (!in_array($align, ['left','center','right'], true)) $align = 'left';
+
+        $content = ['text' => $text, 'level' => $level, 'align' => $align];
+
+    } elseif ($type === 'columns2') {
+        $left  = (string)($_POST['left'] ?? '');
+        $right = (string)($_POST['right'] ?? '');
+        $ratio = trim((string)($_POST['ratio'] ?? '50-50'));
+        if (!in_array($ratio, ['50-50','33-67','67-33'], true)) $ratio = '50-50';
+
+        $content = [
+            'left' => $left,
+            'right' => $right,
+            'ratio' => $ratio,
+        ];
+
+    } elseif ($type === 'gallery') {
+        $columns = (int)($_POST['columns'] ?? 3);
+        if (!in_array($columns, [2,3,4], true)) $columns = 3;
+
+        $imagesJson = (string)($_POST['images'] ?? '[]');
+        $images = json_decode($imagesJson, true);
+        if (!is_array($images)) $images = [];
+
+        $clean = [];
+        foreach ($images as $it) {
+            if (!is_array($it)) continue;
+            $fid = (int)($it['fileId'] ?? 0);
+            if ($fid <= 0) continue;
+
+            if (!sb_disk_file_belongs_to_site($siteId, $fid)) {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'FILE_NOT_IN_SITE_FOLDER','fileId'=>$fid], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $clean[] = [
+                'fileId' => $fid,
+                'alt' => (string)($it['alt'] ?? ''),
+            ];
+        }
+
+        if (count($clean) === 0) {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'IMAGES_REQUIRED'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $content = [
+            'columns' => $columns,
+            'images' => $clean,
+        ];
+
+    } elseif ($type === 'spacer') {
+        $height = (int)($_POST['height'] ?? 40);
+        if ($height < 10) $height = 10;
+        if ($height > 200) $height = 200;
+
+        $line = (string)($_POST['line'] ?? '0');
+        $line = ($line === '1' || $line === 'true');
+
+        $content = ['height' => $height, 'line' => $line];
+
+    } elseif ($type === 'card') {
+        $title = trim((string)($_POST['title'] ?? ''));
+        $text  = (string)($_POST['text'] ?? '');
+        $imageFileId = (int)($_POST['imageFileId'] ?? 0);
+        $buttonText = trim((string)($_POST['buttonText'] ?? ''));
+        $buttonUrl  = trim((string)($_POST['buttonUrl'] ?? ''));
+
+        if ($title === '') {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'TITLE_REQUIRED'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        if ($imageFileId > 0 && !sb_disk_file_belongs_to_site($siteId, $imageFileId)) {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'FILE_NOT_IN_SITE_FOLDER','fileId'=>$imageFileId], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        if ($buttonUrl !== '' && !(preg_match('~^https?://~i', $buttonUrl) || str_starts_with($buttonUrl, '/'))) {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'URL_BAD_FORMAT'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $content = [
+            'title' => $title,
+            'text' => $text,
+            'imageFileId' => $imageFileId,
+            'buttonText' => $buttonText,
+            'buttonUrl' => $buttonUrl,
+        ];
+
+    } elseif ($type === 'cards') {
+        $columns = (int)($_POST['columns'] ?? 3);
+        if (!in_array($columns, [2,3,4], true)) $columns = 3;
+
+        $itemsJson = (string)($_POST['items'] ?? '[]');
+        $items = json_decode($itemsJson, true);
+        if (!is_array($items)) $items = [];
+
+        $clean = [];
+        foreach ($items as $it) {
+            if (!is_array($it)) continue;
+
+            $title = trim((string)($it['title'] ?? ''));
+            $text  = (string)($it['text'] ?? '');
+            if ($title === '') continue;
+
+            $imageFileId = (int)($it['imageFileId'] ?? 0);
+            if ($imageFileId > 0 && !sb_disk_file_belongs_to_site($siteId, $imageFileId)) {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'FILE_NOT_IN_SITE_FOLDER','fileId'=>$imageFileId], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $buttonText = trim((string)($it['buttonText'] ?? ''));
+            $buttonUrl  = trim((string)($it['buttonUrl'] ?? ''));
+
+            if ($buttonUrl !== '' && !(preg_match('~^https?://~i', $buttonUrl) || str_starts_with($buttonUrl, '/'))) {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'URL_BAD_FORMAT'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $clean[] = [
+                'title' => $title,
+                'text' => $text,
+                'imageFileId' => $imageFileId,
+                'buttonText' => $buttonText,
+                'buttonUrl' => $buttonUrl,
+            ];
+        }
+
+        if (count($clean) === 0) {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'ITEMS_REQUIRED'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $content = [
+            'columns' => $columns,
+            'items' => $clean,
+        ];
+
+    } else {
+        $text = trim((string)($_POST['text'] ?? ''));
+        $url  = trim((string)($_POST['url'] ?? ''));
+        $variant = strtolower(trim((string)($_POST['variant'] ?? 'primary')));
+
+        if ($text === '') {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'TEXT_REQUIRED'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        if ($url === '') {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'URL_REQUIRED'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        if (!in_array($variant, ['primary','secondary'], true)) $variant = 'primary';
+
+        if (!(preg_match('~^https?://~i', $url) || str_starts_with($url, '/'))) {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'URL_BAD_FORMAT'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $content = ['text' => $text, 'url' => $url, 'variant' => $variant];
+    }
+
+    $block = [
+        'id' => $id,
+        'type' => $type,
+        'sort' => $sort,
+        'content' => $content,
+        'createdBy' => (int)$USER->GetID(),
+        'createdAt' => date('c'),
+        'updatedAt' => date('c'),
+    ];
+
+    $blocks[] = $block;
+    sb_layout_zone_set($record, $zone, $blocks);
+    sb_layout_upsert_record($all, $siteId, $record);
+    sb_write_layouts($all);
+
+    echo json_encode(['ok'=>true,'block'=>$block], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($action === 'layout.block.update') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    $zone = trim((string)($_POST['zone'] ?? ''));
+    $id = (int)($_POST['id'] ?? 0);
+
+    if ($siteId <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'SITE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (!sb_layout_valid_zone($zone)) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'ZONE_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if ($id <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    sb_require_editor($siteId);
+
+    $all = sb_read_layouts();
+    $record = sb_layout_find_record($all, $siteId);
+    if (!$record) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'LAYOUT_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $blocks = sb_layout_zone_blocks($record, $zone);
+    $found = false;
+
+    foreach ($blocks as &$b) {
+        if ((int)($b['id'] ?? 0) !== $id) continue;
+
+        $type = (string)($b['type'] ?? '');
+
+        if ($type === 'text') {
+            $b['content']['text'] = (string)($_POST['text'] ?? '');
+
+        } elseif ($type === 'image') {
+            $fileId = (int)($_POST['fileId'] ?? 0);
+            $alt = (string)($_POST['alt'] ?? '');
+
+            if ($fileId <= 0) {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'FILE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            if (!sb_disk_file_belongs_to_site($siteId, $fileId)) {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'FILE_NOT_IN_SITE_FOLDER'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $b['content']['fileId'] = $fileId;
+            $b['content']['alt'] = $alt;
+
+        } elseif ($type === 'button') {
+            $text = trim((string)($_POST['text'] ?? ''));
+            $url  = trim((string)($_POST['url'] ?? ''));
+            $variant = strtolower(trim((string)($_POST['variant'] ?? 'primary')));
+
+            if ($text === '') {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'TEXT_REQUIRED'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            if ($url === '') {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'URL_REQUIRED'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            if (!in_array($variant, ['primary','secondary'], true)) $variant = 'primary';
+
+            if (!(preg_match('~^https?://~i', $url) || str_starts_with($url, '/'))) {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'URL_BAD_FORMAT'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $b['content']['text'] = $text;
+            $b['content']['url'] = $url;
+            $b['content']['variant'] = $variant;
+
+        } elseif ($type === 'heading') {
+            $text = trim((string)($_POST['text'] ?? ''));
+            $level = strtolower(trim((string)($_POST['level'] ?? 'h2')));
+            $align = strtolower(trim((string)($_POST['align'] ?? 'left')));
+
+            if ($text === '') {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'TEXT_REQUIRED'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            if (!in_array($level, ['h1','h2','h3'], true)) $level = 'h2';
+            if (!in_array($align, ['left','center','right'], true)) $align = 'left';
+
+            $b['content']['text'] = $text;
+            $b['content']['level'] = $level;
+            $b['content']['align'] = $align;
+
+        } elseif ($type === 'columns2') {
+            $left  = (string)($_POST['left'] ?? '');
+            $right = (string)($_POST['right'] ?? '');
+            $ratio = trim((string)($_POST['ratio'] ?? '50-50'));
+
+            if (!in_array($ratio, ['50-50','33-67','67-33'], true)) $ratio = '50-50';
+
+            $b['content']['left'] = $left;
+            $b['content']['right'] = $right;
+            $b['content']['ratio'] = $ratio;
+
+        } elseif ($type === 'gallery') {
+            $columns = (int)($_POST['columns'] ?? 3);
+            if (!in_array($columns, [2,3,4], true)) $columns = 3;
+
+            $imagesJson = (string)($_POST['images'] ?? '[]');
+            $images = json_decode($imagesJson, true);
+            if (!is_array($images)) $images = [];
+
+            $clean = [];
+            foreach ($images as $it) {
+                if (!is_array($it)) continue;
+                $fid = (int)($it['fileId'] ?? 0);
+                if ($fid <= 0) continue;
+
+                if (!sb_disk_file_belongs_to_site($siteId, $fid)) {
+                    http_response_code(422);
+                    echo json_encode(['ok'=>false,'error'=>'FILE_NOT_IN_SITE_FOLDER','fileId'=>$fid], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+
+                $clean[] = [
+                    'fileId' => $fid,
+                    'alt' => (string)($it['alt'] ?? ''),
+                ];
+            }
+
+            if (count($clean) === 0) {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'IMAGES_REQUIRED'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $b['content']['columns'] = $columns;
+            $b['content']['images'] = $clean;
+
+        } elseif ($type === 'spacer') {
+            $height = (int)($_POST['height'] ?? 40);
+            if ($height < 10) $height = 10;
+            if ($height > 200) $height = 200;
+
+            $line = (string)($_POST['line'] ?? '0');
+            $line = ($line === '1' || $line === 'true');
+
+            $b['content']['height'] = $height;
+            $b['content']['line'] = $line;
+
+        } elseif ($type === 'card') {
+            $title = trim((string)($_POST['title'] ?? ''));
+            $text  = (string)($_POST['text'] ?? '');
+            $imageFileId = (int)($_POST['imageFileId'] ?? 0);
+            $buttonText = trim((string)($_POST['buttonText'] ?? ''));
+            $buttonUrl  = trim((string)($_POST['buttonUrl'] ?? ''));
+
+            if ($title === '') {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'TITLE_REQUIRED'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            if ($imageFileId > 0 && !sb_disk_file_belongs_to_site($siteId, $imageFileId)) {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'FILE_NOT_IN_SITE_FOLDER','fileId'=>$imageFileId], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            if ($buttonUrl !== '' && !(preg_match('~^https?://~i', $buttonUrl) || str_starts_with($buttonUrl, '/'))) {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'URL_BAD_FORMAT'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $b['content']['title'] = $title;
+            $b['content']['text'] = $text;
+            $b['content']['imageFileId'] = $imageFileId;
+            $b['content']['buttonText'] = $buttonText;
+            $b['content']['buttonUrl'] = $buttonUrl;
+
+        } elseif ($type === 'cards') {
+            $columns = (int)($_POST['columns'] ?? 3);
+            if (!in_array($columns, [2,3,4], true)) $columns = 3;
+
+            $itemsJson = (string)($_POST['items'] ?? '[]');
+            $items = json_decode($itemsJson, true);
+            if (!is_array($items)) $items = [];
+
+            $clean = [];
+            foreach ($items as $it) {
+                if (!is_array($it)) continue;
+
+                $title = trim((string)($it['title'] ?? ''));
+                $text  = (string)($it['text'] ?? '');
+
+                if ($title === '') continue;
+
+                $imageFileId = (int)($it['imageFileId'] ?? 0);
+                if ($imageFileId > 0 && !sb_disk_file_belongs_to_site($siteId, $imageFileId)) {
+                    http_response_code(422);
+                    echo json_encode(['ok'=>false,'error'=>'FILE_NOT_IN_SITE_FOLDER','fileId'=>$imageFileId], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+
+                $buttonText = trim((string)($it['buttonText'] ?? ''));
+                $buttonUrl  = trim((string)($it['buttonUrl'] ?? ''));
+
+                if ($buttonUrl !== '' && !(preg_match('~^https?://~i', $buttonUrl) || str_starts_with($buttonUrl, '/'))) {
+                    http_response_code(422);
+                    echo json_encode(['ok'=>false,'error'=>'URL_BAD_FORMAT'], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+
+                $clean[] = [
+                    'title' => $title,
+                    'text' => $text,
+                    'imageFileId' => $imageFileId,
+                    'buttonText' => $buttonText,
+                    'buttonUrl' => $buttonUrl,
+                ];
+            }
+
+            if (count($clean) === 0) {
+                http_response_code(422);
+                echo json_encode(['ok'=>false,'error'=>'ITEMS_REQUIRED'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $b['content']['columns'] = $columns;
+            $b['content']['items'] = $clean;
+
+        } else {
+            http_response_code(422);
+            echo json_encode(['ok'=>false,'error'=>'TYPE_NOT_SUPPORTED'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $b['updatedAt'] = date('c');
+        $b['updatedBy'] = (int)$USER->GetID();
+        $found = true;
+        break;
+    }
+    unset($b);
+
+    if (!$found) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'BLOCK_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    sb_layout_zone_set($record, $zone, $blocks);
+    sb_layout_upsert_record($all, $siteId, $record);
+    sb_write_layouts($all);
+
+    echo json_encode(['ok'=>true], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($action === 'layout.block.delete') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    $zone = trim((string)($_POST['zone'] ?? ''));
+    $id = (int)($_POST['id'] ?? 0);
+
+    if ($siteId <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'SITE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (!sb_layout_valid_zone($zone)) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'ZONE_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if ($id <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    sb_require_editor($siteId);
+
+    $all = sb_read_layouts();
+    $record = sb_layout_find_record($all, $siteId);
+    if (!$record) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'LAYOUT_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $blocks = sb_layout_zone_blocks($record, $zone);
+    $before = count($blocks);
+    $blocks = array_values(array_filter($blocks, fn($b) => (int)($b['id'] ?? 0) !== $id));
+
+    if (count($blocks) === $before) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'BLOCK_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    sb_layout_zone_set($record, $zone, $blocks);
+    sb_layout_upsert_record($all, $siteId, $record);
+    sb_write_layouts($all);
+
+    echo json_encode(['ok'=>true], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($action === 'layout.block.move') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    $zone = trim((string)($_POST['zone'] ?? ''));
+    $id = (int)($_POST['id'] ?? 0);
+    $dir = (string)($_POST['dir'] ?? '');
+
+    if ($siteId <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'SITE_ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (!sb_layout_valid_zone($zone)) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'ZONE_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if ($id <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'ID_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if ($dir !== 'up' && $dir !== 'down') {
+        http_response_code(422);
+        echo json_encode(['ok'=>false,'error'=>'DIR_REQUIRED'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    sb_require_editor($siteId);
+
+    $all = sb_read_layouts();
+    $record = sb_layout_find_record($all, $siteId);
+    if (!$record) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'LAYOUT_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $blocks = sb_layout_zone_blocks($record, $zone);
+    usort($blocks, fn($a,$b) => (int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500));
+
+    $pos = null;
+    for ($i=0; $i<count($blocks); $i++) {
+        if ((int)($blocks[$i]['id'] ?? 0) === $id) { $pos = $i; break; }
+    }
+
+    if ($pos === null) {
+        http_response_code(404);
+        echo json_encode(['ok'=>false,'error'=>'BLOCK_NOT_FOUND'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    if ($dir === 'up' && $pos === 0) { echo json_encode(['ok'=>true], JSON_UNESCAPED_UNICODE); exit; }
+    if ($dir === 'down' && $pos === count($blocks)-1) { echo json_encode(['ok'=>true], JSON_UNESCAPED_UNICODE); exit; }
+
+    $swap = ($dir === 'up') ? $pos - 1 : $pos + 1;
+
+    $sortA = (int)($blocks[$pos]['sort'] ?? 500);
+    $sortB = (int)($blocks[$swap]['sort'] ?? 500);
+
+    $blocks[$pos]['sort'] = $sortB;
+    $blocks[$pos]['updatedAt'] = date('c');
+    $blocks[$swap]['sort'] = $sortA;
+    $blocks[$swap]['updatedAt'] = date('c');
+
+    sb_layout_zone_set($record, $zone, $blocks);
+    sb_layout_upsert_record($all, $siteId, $record);
+    sb_write_layouts($all);
+
     echo json_encode(['ok'=>true], JSON_UNESCAPED_UNICODE);
     exit;
 }
