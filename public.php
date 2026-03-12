@@ -174,6 +174,36 @@ function public_not_found(string $title = 'Страница не найдена'
           background:#fff;
         }
         a.primary{ background:#2563eb; border-color:#2563eb; color:#fff; }
+
+        .breadcrumbs{
+        display:flex;
+        flex-wrap:wrap;
+        align-items:center;
+        gap:6px;
+        margin-bottom:10px;
+        font-size:13px;
+        color:var(--muted);
+        }
+
+        .crumb{
+        color:var(--muted);
+        text-decoration:none;
+        }
+
+        .crumb:hover{
+        color:var(--sb-accent);
+        text-decoration:none;
+        }
+
+        .crumb.current{
+        color:var(--text);
+        font-weight:600;
+        }
+
+        .crumbSep{
+        color:#c0c7d1;
+        margin:0 2px;
+        }
       </style>
     </head>
     <body>
@@ -363,6 +393,147 @@ function sb_render_blocks(array $blocks, int $siteId): string {
     return $html;
 }
 
+function sb_site_published_pages(int $siteId): array {
+    $pages = array_values(array_filter(sb_read_pages(), function($p) use ($siteId) {
+        return (int)($p['siteId'] ?? 0) === $siteId && is_page_published($p);
+    }));
+
+    usort($pages, function($a, $b) {
+        return ((int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500))
+            ?: ((int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0));
+    });
+
+    return $pages;
+}
+
+function sb_pages_build_tree(array $pages): array {
+    $byParent = [];
+    foreach ($pages as $p) {
+        $parentId = (int)($p['parentId'] ?? 0);
+        $byParent[$parentId][] = $p;
+    }
+
+    $build = function(int $parentId) use (&$build, $byParent): array {
+        $items = $byParent[$parentId] ?? [];
+        $out = [];
+        foreach ($items as $p) {
+            $node = $p;
+            $node['children'] = $build((int)($p['id'] ?? 0));
+            $out[] = $node;
+        }
+        return $out;
+    };
+
+    return $build(0);
+}
+
+function sb_page_ancestor_ids(array $pages, int $pageId): array {
+    $byId = [];
+    foreach ($pages as $p) {
+        $byId[(int)($p['id'] ?? 0)] = $p;
+    }
+
+    $ids = [];
+    $current = $pageId;
+    $guard = 0;
+
+    while ($current > 0 && isset($byId[$current]) && $guard < 100) {
+        $ids[] = $current;
+        $current = (int)($byId[$current]['parentId'] ?? 0);
+        $guard++;
+    }
+
+    return $ids;
+}
+
+function sb_page_breadcrumbs(array $pages, int $pageId): array {
+    $byId = [];
+    foreach ($pages as $p) {
+        $byId[(int)($p['id'] ?? 0)] = $p;
+    }
+
+    $chain = [];
+    $current = $pageId;
+    $guard = 0;
+
+    while ($current > 0 && isset($byId[$current]) && $guard < 100) {
+        array_unshift($chain, $byId[$current]);
+        $current = (int)($byId[$current]['parentId'] ?? 0);
+        $guard++;
+    }
+
+    return $chain;
+}
+
+function sb_render_breadcrumbs(array $items, array $site): string {
+    if (!$items) return '';
+
+    $parts = [];
+    $lastIndex = count($items) - 1;
+
+    foreach ($items as $i => $p) {
+        $title = (string)($p['title'] ?? 'Page');
+
+        if ($i === $lastIndex) {
+            $parts[] = '<span class="crumb current">' . h($title) . '</span>';
+        } else {
+            $parts[] = '<a class="crumb" href="' . h(public_page_url($site, $p)) . '">' . h($title) . '</a>';
+        }
+    }
+
+    return '<nav class="breadcrumbs">' . implode('<span class="crumbSep">›</span>', $parts) . '</nav>';
+}
+
+function sb_render_left_menu_tree(array $nodes, array $site, int $currentPageId, array $activePathIds, int $level = 0): string {
+    if (!$nodes) return '';
+
+    $html = '<div class="sideTree level-' . $level . '">';
+    foreach ($nodes as $node) {
+        $id = (int)($node['id'] ?? 0);
+        $title = (string)($node['title'] ?? 'Page');
+        $isActive = ($id === $currentPageId);
+        $isInPath = in_array($id, $activePathIds, true);
+        $children = is_array($node['children'] ?? null) ? $node['children'] : [];
+        $hasChildren = count($children) > 0;
+
+        $classes = ['sideMenuLink'];
+        if ($isActive) $classes[] = 'active';
+        if ($hasChildren) $classes[] = 'hasChildren';
+        if ($isInPath) $classes[] = 'open';
+
+        $url = public_page_url($site, $node);
+
+        $html .= '<div class="sideTreeNode level-' . $level . '" data-node-id="' . $id . '" data-open-default="' . ($isInPath ? '1' : '0') . '">';
+
+        if ($hasChildren) {
+            $html .= '<div class="sideMenuRow">';
+            $html .= '<button type="button" class="sideToggle" aria-expanded="' . ($isInPath ? 'true' : 'false') . '" aria-label="Переключить ветку">';
+            $html .= '<span class="sideToggleIcon">' . ($isInPath ? '▾' : '▸') . '</span>';
+            $html .= '</button>';
+            $html .= '<a class="' . h(implode(' ', $classes)) . '" href="' . h($url) . '">';
+            $html .= '<span class="sideMenuText">' . h($title) . '</span>';
+            $html .= '</a>';
+            $html .= '</div>';
+
+            $html .= '<div class="sideTreeChildren" style="display:' . ($isInPath ? 'block' : 'none') . ';">';
+            $html .= sb_render_left_menu_tree($children, $site, $currentPageId, $activePathIds, $level + 1);
+            $html .= '</div>';
+        } else {
+            $html .= '<div class="sideMenuRow">';
+            $html .= '<span class="sideToggleStub"></span>';
+            $html .= '<a class="' . h(implode(' ', $classes)) . '" href="' . h($url) . '">';
+            $html .= '<span class="sideMenuText">' . h($title) . '</span>';
+            $html .= '</a>';
+            $html .= '</div>';
+        }
+
+        $html .= '</div>';
+    }
+    $html .= '</div>';
+
+    return $html;
+}
+
 // -------------------- input --------------------
 
 $siteId = (int)($_GET['siteId'] ?? 0);
@@ -448,15 +619,7 @@ if (!$page) {
 }
 
 if (!$page) {
-    $publishedPages = array_values(array_filter(sb_read_pages(), function($p) use ($siteId) {
-        return (int)($p['siteId'] ?? 0) === $siteId && is_page_published($p);
-    }));
-
-    usort($publishedPages, fn($a, $b) =>
-        ((int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500))
-        ?: ((int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0))
-    );
-
+    $publishedPages = sb_site_published_pages($siteId);
     if ($publishedPages) {
         $page = $publishedPages[0];
     }
@@ -482,7 +645,7 @@ if ($pageSlug === '' || $currentUsesOldSiteId || $currentUsesOldPageParam) {
 $blocks = array_values(array_filter(sb_read_blocks(), fn($b) => (int)($b['pageId'] ?? 0) === $pageId));
 usort($blocks, fn($a, $b) => (int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500));
 
-// -------------------- menu --------------------
+// -------------------- top menu --------------------
 
 $menuItems = [];
 $allMenus = sb_read_menus();
@@ -530,22 +693,21 @@ if ($mainMenu && is_array($mainMenu['items'] ?? null)) {
     }
 }
 
+// -------------------- left nested menu --------------------
+
 $leftMenuHtml = '';
-if (!empty($layout['showLeft']) && $leftMode === 'menu' && count($menuItems)) {
-    ob_start();
-    ?>
-    <nav class="sideMenu">
-      <?php foreach ($menuItems as $mi): ?>
-        <a class="sideMenuLink <?= !empty($mi['active']) ? 'active' : '' ?>"
-           href="<?=h($mi['href'])?>"
-           <?=preg_match('~^https?://~i', $mi['href']) ? 'target="_blank" rel="noopener noreferrer"' : ''?>>
-          <?=h($mi['title'])?>
-        </a>
-      <?php endforeach; ?>
-    </nav>
-    <?php
-    $leftMenuHtml = (string)ob_get_clean();
+if (!empty($layout['showLeft']) && $leftMode === 'menu') {
+    $publishedPages = sb_site_published_pages($siteId);
+    $tree = sb_pages_build_tree($publishedPages);
+    $activePathIds = sb_page_ancestor_ids($publishedPages, $pageId);
+    $leftMenuHtml = sb_render_left_menu_tree($tree, $site, $pageId, $activePathIds);
 }
+
+$publishedPagesForNav = sb_site_published_pages($siteId);
+$breadcrumbsItems = sb_page_breadcrumbs($publishedPagesForNav, $pageId);
+$breadcrumbsHtml = sb_render_breadcrumbs($breadcrumbsItems, $site);
+
+// -------------------- final html parts --------------------
 
 $pageHtml = sb_render_blocks($blocks, $siteId);
 $headerHtml = sb_render_blocks($headerBlocks, $siteId);
@@ -812,48 +974,139 @@ $rightCol = ($rightHtml !== '') ? $rightWidth . 'px' : '0px';
     .pageRight{ grid-column:5; min-width:0; }
 
     .layoutSidebarBox{
-      background:#fff;
-      border:1px solid var(--line);
-      border-radius:16px;
-      padding:14px;
-      box-shadow: var(--shadow);
-      position: sticky;
-      top: 88px;
+    background:#fff;
+    border:1px solid #eef2f6;
+    border-radius:14px;
+    padding:12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    position: sticky;
+    top: 88px;
     }
 
     .layoutSidebarBox .block:first-child{
       margin-top:0;
     }
 
-    .sideMenu{
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-    }
+    .sideTree{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
 
-    .sideMenuLink{
-      display:block;
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid var(--line);
-      background:#fff;
-      color:var(--text);
-      text-decoration:none;
-      line-height:1.35;
-    }
+.sideTreeNode{
+  min-width:0;
+}
 
-    .sideMenuLink:hover{
-      text-decoration:none;
-      border-color:#d1d5db;
-      background:#f9fafb;
-    }
+.sideTreeChildren{
+  margin-top:2px;
+  margin-left:6px;
+  padding-left:6px;
+  border-left:1px solid #f1f5f9;
+}
 
-    .sideMenuLink.active{
-      background: color-mix(in srgb, var(--sb-accent) 12%, #fff);
-      border-color: color-mix(in srgb, var(--sb-accent) 28%, #e5e7eb);
-      color: var(--sb-accent);
-      font-weight:700;
-    }
+.sideMenuRow{
+  display:flex;
+  align-items:flex-start;
+  gap:4px;
+  min-width:0;
+}
+
+.sideToggle{
+  width:12px;
+  height:18px;
+  flex:0 0 12px;
+  margin-top:6px;
+  border:0;
+  background:transparent;
+  color:#94a3b8;
+  cursor:pointer;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:6px;
+}
+
+.sideToggle:hover{
+  background:#f1f5f9;
+  color:#64748b;
+}
+
+.sideToggleIcon{
+  font-size:10px;
+  line-height:1;
+}
+
+.sideToggleStub{
+    width:12px;
+  height:18px;
+  flex:0 0 12px;
+  margin-top:6px;
+}
+
+.sideMenuLink{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  width:100%;
+  padding:6px 6px;
+  border-radius:8px;
+  border:1px solid transparent;
+  background:transparent;
+  color:var(--text);
+  text-decoration:none;
+  line-height:1.3;
+  font-size:13px;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.sideMenuLink:hover{
+  text-decoration:none;
+  background:#f8fafc;
+  color:var(--text);
+}
+
+.sideMenuLink.open{
+  background:transparent;
+}
+
+.sideMenuLink.active{
+  background:#f5f9ff;
+  border-color:#dbeafe;
+  color:#1d4ed8;
+  font-weight:600;
+}
+
+.sideMenuCaret{
+  width:12px;
+  flex:0 0 12px;
+  color:#94a3b8;
+  text-align:center;
+  line-height:1.2;
+  font-size:10px;
+  margin-top:2px;
+}
+
+.sideMenuCaretEmpty{
+  visibility:hidden;
+}
+
+.sideMenuText{
+  min-width:0;
+  flex:1 1 auto;
+  word-break:normal;
+  overflow-wrap:anywhere;
+}
+
+
+
+.sideTree.level-1 > .sideTreeNode > .sideMenuLink,
+.sideTree.level-2 > .sideTreeNode > .sideMenuLink,
+.sideTree.level-3 > .sideTreeNode > .sideMenuLink,
+.sideTree.level-4 > .sideTreeNode > .sideMenuLink{
+  font-weight:400;
+  font-size:12px;
+}
 
     .meta{
       margin-top:28px;
@@ -886,9 +1139,121 @@ $rightCol = ($rightHtml !== '') ? $rightWidth . 'px' : '0px';
         position:static;
       }
     }
+
+    .sideTree{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.sideTreeChildren{
+  margin-top:2px;
+  margin-left:2px;
+  padding-left:6px;
+  border-left:1px solid #f1f5f9;
+}
+
+.sideTreeNode{
+  min-width:0;
+}
+
+.sideMenuLink{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid transparent;
+  background:transparent;
+  color:var(--text);
+  text-decoration:none;
+  line-height:1.3;
+  transition:background .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.sideMenuLink:hover{
+  text-decoration:none;
+  background:#f8fafc;
+}
+
+.sideMenuLink.active{
+  background: color-mix(in srgb, var(--sb-accent) 10%, #fff);
+  border-color: color-mix(in srgb, var(--sb-accent) 18%, #e5e7eb);
+  color: var(--sb-accent);
+  font-weight:700;
+}
+
+.sideMenuLink.open{
+  background:transparent;
+}
+
+.sideMenuCaret{
+  width:14px;
+  flex:0 0 14px;
+  color:#64748b;
+  text-align:center;
+  line-height:1;
+  font-size:11px;
+}
+
+.sideMenuCaretEmpty{
+  visibility:hidden;
+}
+
+.sideMenuText{
+  min-width:0;
+  flex:1 1 auto;
+  word-break:break-word;
+}
+
+.sideTree.level-0 > .sideTreeNode > .sideMenuLink{
+  font-weight:600;
+  font-size:13px;
+}
+
+.sideTree.level-1 > .sideTreeNode > .sideMenuLink,
+.sideTree.level-2 > .sideTreeNode > .sideMenuLink,
+.sideTree.level-3 > .sideTreeNode > .sideMenuLink{
+  font-weight:400;
+  font-size:14px;
+}
+
+.breadcrumbs{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px;
+  margin-bottom:8px;
+  font-size:12px;
+  color:#94a3b8;
+}
+
+.crumb{
+  color:var(--muted);
+  text-decoration:none;
+}
+
+.crumb:hover{
+  color:var(--sb-accent);
+  text-decoration:none;
+}
+
+.crumb.current{
+  color:#64748b;
+  font-weight:500;
+}
+
+.crumbSep{
+  color:#c0c7d1;
+  margin:0 2px;
+}
   </style>
 </head>
-<body style="--left-col: <?=h($leftCol)?>; --right-col: <?=h($rightCol)?>;">
+<body
+  data-site-key="<?=h((string)($site['slug'] ?? ('site-'.$siteId)))?>"
+  style="--left-col: <?=h($leftCol)?>; --right-col: <?=h($rightCol)?>;"
+>
 
 <div class="header">
   <div class="in">
@@ -932,10 +1297,14 @@ $rightCol = ($rightHtml !== '') ? $rightWidth . 'px' : '0px';
 
   <div class="pageCenter">
     <div class="centerWrap">
-      <div class="hero">
+        <div class="hero">
+        <?php if ($breadcrumbsHtml !== ''): ?>
+            <?= $breadcrumbsHtml ?>
+        <?php endif; ?>
+
         <h1><?=h($page['title'] ?? '')?></h1>
         <div class="muted"><?=h($site['name'] ?? 'Site')?></div>
-      </div>
+        </div>
 
       <?php if ($headerHtml !== ''): ?>
         <div class="layoutHeader">
@@ -966,6 +1335,72 @@ $rightCol = ($rightHtml !== '') ? $rightWidth . 'px' : '0px';
     </aside>
   <?php endif; ?>
 </div>
+
+<script>
+(function(){
+  const siteKey = document.body.getAttribute('data-site-key') || location.pathname;
+  const storageKey = 'sb-left-tree:' + siteKey;
+
+  function readState() {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeState(state) {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    } catch (e) {}
+  }
+
+  const state = readState();
+
+  document.querySelectorAll('.sideTreeNode[data-node-id]').forEach(node => {
+    const id = String(node.getAttribute('data-node-id') || '');
+    const defaultOpen = node.getAttribute('data-open-default') === '1';
+
+    const btn = node.querySelector(':scope > .sideMenuRow .sideToggle');
+    const icon = node.querySelector(':scope > .sideMenuRow .sideToggle .sideToggleIcon');
+    const children = node.querySelector(':scope > .sideTreeChildren');
+
+    if (!id || !btn || !icon || !children) return;
+
+    let isOpen;
+
+    if (Object.prototype.hasOwnProperty.call(state, id)) {
+      isOpen = !!state[id];
+    } else if (defaultOpen) {
+      isOpen = true;
+      state[id] = true;
+      writeState(state);
+    } else {
+      isOpen = false;
+    }
+
+    function render() {
+      children.style.display = isOpen ? 'block' : 'none';
+      btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      icon.textContent = isOpen ? '▾' : '▸';
+    }
+
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+
+      isOpen = !isOpen;
+      state[id] = isOpen;
+      writeState(state);
+      render();
+    });
+
+    render();
+  });
+})();
+</script>
 
 </body>
 </html>
