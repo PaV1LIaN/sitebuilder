@@ -393,6 +393,92 @@ function sb_render_blocks(array $blocks, int $siteId): string {
     return $html;
 }
 
+function sb_section_style(array $content): string {
+  $boxed = !empty($content['boxed']);
+  $background = (string)($content['background'] ?? '#ffffff');
+  if (!preg_match('~^#[0-9a-fA-F]{6}$~', $background)) $background = '#ffffff';
+
+  $paddingTop = (int)($content['paddingTop'] ?? 32);
+  $paddingBottom = (int)($content['paddingBottom'] ?? 32);
+  if ($paddingTop < 0) $paddingTop = 0;
+  if ($paddingTop > 200) $paddingTop = 200;
+  if ($paddingBottom < 0) $paddingBottom = 0;
+  if ($paddingBottom > 200) $paddingBottom = 200;
+
+  $border = !empty($content['border']);
+  $radius = (int)($content['radius'] ?? 0);
+  if ($radius < 0) $radius = 0;
+  if ($radius > 40) $radius = 40;
+
+  $styles = [];
+  $styles[] = 'background:' . $background;
+  $styles[] = 'padding-top:' . $paddingTop . 'px';
+  $styles[] = 'padding-bottom:' . $paddingBottom . 'px';
+
+  if ($border) {
+      $styles[] = 'border:1px solid #e5e7eb';
+  }
+  if ($radius > 0) {
+      $styles[] = 'border-radius:' . $radius . 'px';
+  }
+
+  return implode(';', $styles);
+}
+
+function sb_render_page_with_sections(array $blocks, int $siteId): string {
+  if (!$blocks) return '';
+
+  $html = '';
+  $currentSection = null;
+  $buffer = [];
+
+  $flush = function() use (&$html, &$currentSection, &$buffer, $siteId) {
+      if ($currentSection === null) {
+          if ($buffer) {
+              $html .= sb_render_blocks($buffer, $siteId);
+          }
+          $buffer = [];
+          return;
+      }
+
+      $content = is_array($currentSection['content'] ?? null) ? $currentSection['content'] : [];
+      $boxed = !empty($content['boxed']);
+      $style = sb_section_style($content);
+
+      $html .= '<section class="sbSection" style="' . h($style) . '">';
+      if ($boxed) {
+          $html .= '<div class="sbSectionInner sbSectionInnerBoxed">';
+      } else {
+          $html .= '<div class="sbSectionInner sbSectionInnerFull">';
+      }
+
+      if ($buffer) {
+          $html .= sb_render_blocks($buffer, $siteId);
+      }
+
+      $html .= '</div>';
+      $html .= '</section>';
+
+      $buffer = [];
+  };
+
+  foreach ($blocks as $b) {
+      $type = (string)($b['type'] ?? '');
+
+      if ($type === 'section') {
+          $flush();
+          $currentSection = $b;
+          continue;
+      }
+
+      $buffer[] = $b;
+  }
+
+  $flush();
+
+  return $html;
+}
+
 function sb_site_published_pages(int $siteId): array {
     $pages = array_values(array_filter(sb_read_pages(), function($p) use ($siteId) {
         return (int)($p['siteId'] ?? 0) === $siteId && is_page_published($p);
@@ -709,7 +795,7 @@ $breadcrumbsHtml = sb_render_breadcrumbs($breadcrumbsItems, $site);
 
 // -------------------- final html parts --------------------
 
-$pageHtml = sb_render_blocks($blocks, $siteId);
+$pageHtml = sb_render_page_with_sections($blocks, $siteId);
 $headerHtml = sb_render_blocks($headerBlocks, $siteId);
 $footerHtml = sb_render_blocks($footerBlocks, $siteId);
 $leftHtml = ($leftMode === 'menu') ? $leftMenuHtml : sb_render_blocks($leftBlocks, $siteId);
@@ -1247,6 +1333,27 @@ $rightCol = ($rightHtml !== '') ? $rightWidth . 'px' : '0px';
 .crumbSep{
   color:#c0c7d1;
   margin:0 2px;
+}
+.sbSection{
+  margin-top:18px;
+}
+
+.sbSectionInner{
+  width:100%;
+}
+
+.sbSectionInnerBoxed{
+  width:min(var(--sb-container), calc(100% - 32px));
+  margin:0 auto;
+}
+
+.sbSectionInnerFull{
+  width:100%;
+  margin:0;
+}
+
+.sbSection .block:first-child{
+  margin-top:0;
 }
   </style>
 </head>

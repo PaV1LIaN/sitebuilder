@@ -1196,7 +1196,7 @@ if ($action === 'block.create') {
     }
 
     // ДОБАВИЛИ button
-    if (!in_array($type, ['text','image','button', 'heading', 'columns2', 'gallery', 'spacer', 'card', 'cards'], true)) {
+    if (!in_array($type, ['text','image','button','heading','columns2','gallery','spacer','card','cards','section'], true)) {
         http_response_code(422);
         echo json_encode(['ok'=>false,'error'=>'TYPE_NOT_SUPPORTED'], JSON_UNESCAPED_UNICODE);
         exit;
@@ -1417,6 +1417,37 @@ if ($action === 'block.create') {
         $content = [
             'columns' => $columns,
             'items' => $clean,
+        ];
+
+      } elseif ($type === 'section') {
+        $boxed = (string)($_POST['boxed'] ?? '1');
+        $boxed = ($boxed === '1' || $boxed === 'true');
+    
+        $background = trim((string)($_POST['background'] ?? '#ffffff'));
+        if (!preg_match('~^#[0-9a-fA-F]{6}$~', $background)) $background = '#ffffff';
+    
+        $paddingTop = (int)($_POST['paddingTop'] ?? 32);
+        $paddingBottom = (int)($_POST['paddingBottom'] ?? 32);
+    
+        if ($paddingTop < 0) $paddingTop = 0;
+        if ($paddingTop > 200) $paddingTop = 200;
+        if ($paddingBottom < 0) $paddingBottom = 0;
+        if ($paddingBottom > 200) $paddingBottom = 200;
+    
+        $border = (string)($_POST['border'] ?? '0');
+        $border = ($border === '1' || $border === 'true');
+    
+        $radius = (int)($_POST['radius'] ?? 0);
+        if ($radius < 0) $radius = 0;
+        if ($radius > 40) $radius = 40;
+    
+        $content = [
+            'boxed' => $boxed,
+            'background' => strtoupper($background),
+            'paddingTop' => $paddingTop,
+            'paddingBottom' => $paddingBottom,
+            'border' => $border,
+            'radius' => $radius,
         ];
 
     } else { // button
@@ -1711,6 +1742,34 @@ if ($action === 'block.update') {
             $b['content']['items'] = $clean;
 
 
+          } elseif ($type === 'section') {
+            $boxed = (string)($_POST['boxed'] ?? '1');
+            $boxed = ($boxed === '1' || $boxed === 'true');
+        
+            $background = trim((string)($_POST['background'] ?? '#ffffff'));
+            if (!preg_match('~^#[0-9a-fA-F]{6}$~', $background)) $background = '#ffffff';
+        
+            $paddingTop = (int)($_POST['paddingTop'] ?? 32);
+            $paddingBottom = (int)($_POST['paddingBottom'] ?? 32);
+        
+            if ($paddingTop < 0) $paddingTop = 0;
+            if ($paddingTop > 200) $paddingTop = 200;
+            if ($paddingBottom < 0) $paddingBottom = 0;
+            if ($paddingBottom > 200) $paddingBottom = 200;
+        
+            $border = (string)($_POST['border'] ?? '0');
+            $border = ($border === '1' || $border === 'true');
+        
+            $radius = (int)($_POST['radius'] ?? 0);
+            if ($radius < 0) $radius = 0;
+            if ($radius > 40) $radius = 40;
+        
+            $b['content']['boxed'] = $boxed;
+            $b['content']['background'] = strtoupper($background);
+            $b['content']['paddingTop'] = $paddingTop;
+            $b['content']['paddingBottom'] = $paddingBottom;
+            $b['content']['border'] = $border;
+            $b['content']['radius'] = $radius;
 
         } else {
             http_response_code(422);

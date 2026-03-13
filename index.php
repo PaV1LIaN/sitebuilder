@@ -1,3 +1,4 @@
+
 <?php
 define('NO_KEEP_STATISTIC', true);
 define('NO_AGENT_STATISTIC', true);
@@ -115,35 +116,165 @@ header('Content-Type: text/html; charset=UTF-8');
     .searchRow{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:10px;}
     .hint2 { font-size:12px; color:#6a737f; margin-top:8px; }
 
-    /* ---- pages tree (your existing styles, kept) ---- */
-    .tree { margin-top: 12px; }
-    .node { border:1px solid #eef0f2; border-radius:14px; padding:12px; background:#fff; margin-top:10px; }
-    .nodeHead { display:flex; gap:12px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
-    .nodeLeft { display:flex; gap:10px; align-items:flex-start; }
-    .nodeIcon {
-      width:22px; height:22px; border-radius:8px; background:#f3f4f6;
-      display:flex; align-items:center; justify-content:center; color:#6a737f; font-weight:700;
-      flex:0 0 auto;
-    }
-    .nodeMain { min-width: 240px; }
-    .nodeTitleLine { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .nodeTitleLine b { font-size:14px; }
-    .nodeSlug { font-size:12px; background:#f3f4f6; padding:2px 8px; border-radius:999px; color:#374151; }
+    /* ---- pages tree ---- */
+    .tree{ margin-top:12px; }
 
-    .nodeBadge{
-      font-size:11px;
+    .node{
+      border:1px solid #e7ebf0;
+      border-radius:14px;
+      padding:12px;
+      background:#fff;
+      margin-top:10px;
+      box-shadow:0 1px 2px rgba(0,0,0,.03);
+    }
+    .node.isDraft{
+      background:#fffaf5;
+      border-color:#f2d4b3;
+    }
+
+    .nodeHead{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      align-items:stretch;
+    }
+
+    .nodeLeft{
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      min-width:0;
+    }
+
+    .nodeIcon{
+      width:24px;
+      height:24px;
+      border-radius:8px;
       background:#f3f4f6;
-      border:1px solid #eef0f2;
-      color:#374151;
+      color:#6a737f;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex:0 0 auto;
+      font-size:12px;
+      font-weight:700;
+    }
+
+    .nodeMain{
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      flex:1 1 auto;
+    }
+
+    .nodeTitleLine{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .nodeTitle{
+      font-size:15px;
+      font-weight:700;
+      line-height:1.25;
+      color:#111827;
+      word-break:break-word;
+    }
+
+    .nodeSlug{
+      display:inline-flex;
+      align-items:center;
       padding:2px 8px;
       border-radius:999px;
+      font-size:11px;
+      background:#f3f4f6;
+      color:#4b5563;
+      border:1px solid #eceff3;
     }
-    .nodeBadgeDraft{ background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
-    .nodeBadgePub{ background:#ecfdf3; border-color:#abefc6; color:#067647; }
-    .nodeMeta { margin-top:4px; font-size:12px; color:#6a737f; display:flex; gap:10px; flex-wrap:wrap; }
-    .nodeBtns { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
-    .children { margin-left:18px; border-left:2px dashed #e5e7ea; padding-left:12px; margin-top:10px; }
-    .btnTiny { padding:0 8px; height:26px; line-height:26px; }
+
+    .nodeBadges{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .pageBadge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:3px 8px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:700;
+      line-height:1;
+      border:1px solid transparent;
+    }
+    .pageBadgePublished{
+      background:#ecfdf3;
+      border-color:#b7ebc6;
+      color:#027a48;
+    }
+    .pageBadgeDraft{
+      background:#fff4ed;
+      border-color:#ffd6ae;
+      color:#b54708;
+    }
+    .pageBadgeHome{
+      background:#eef2ff;
+      border-color:#c7d2fe;
+      color:#3730a3;
+    }
+
+    .nodeMeta{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      font-size:12px;
+      color:#6b7280;
+    }
+
+    .nodeMetaItem{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      padding:2px 8px;
+      border-radius:999px;
+      background:#f8fafc;
+      border:1px solid #eef2f6;
+    }
+
+    .nodeMeta code{
+      background:#f3f4f6;
+      padding:1px 6px;
+      border-radius:999px;
+      font-size:11px;
+    }
+
+    .nodeBtns{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      align-items:center;
+      justify-content:flex-start;
+      max-width:none;
+    }
+
+    .btnTiny{
+      padding:0 8px;
+      height:28px;
+      line-height:28px;
+      border-radius:8px;
+    }
+
+    .children{
+      margin-left:8px;
+      border-left:1px solid #eef2f6;
+      padding-left:8px;
+      margin-top:8px;
+    }
 
     /* ---- picker cards (parent picker) ---- */
     .secGrid{display:grid;gap:12px;margin-top:12px;}
@@ -163,66 +294,17 @@ header('Content-Type: text/html; charset=UTF-8');
       border:1px solid #e5e7ea;
     }
 
-    .nodeStatus.isDraft {
-        background:#fff7ed;
-        border-color:#fdba74;
-        color:#9a3412;
-    }
+.nodeStatus.isDraft {
+  background:#fff7ed;
+  border-color:#fdba74;
+  color:#9a3412;
+}
 
-    .nodeStatus.isPublished {
-        background:#ecfdf3;
-        border-color:#86efac;
-        color:#166534;
-    }
-
-    .pageBadge{
-        display:inline-flex;
-        align-items:center;
-        gap:6px;
-        padding:3px 8px;
-        border-radius:999px;
-        font-size:11px;
-        font-weight:700;
-        line-height:1;
-        border:1px solid transparent;
-    }
-
-    .pageBadgePublished{
-        background:#ecfdf3;
-        border-color:#b7ebc6;
-        color:#027a48;
-    }
-
-    .pageBadgeDraft{
-        background:#fff4ed;
-        border-color:#ffd6ae;
-        color:#b54708;
-    }
-
-    .pageBadgeHome{
-        background:#eef2ff;
-        border-color:#c7d2fe;
-        color:#3730a3;
-    }
-
-    .node.isDraft{
-        background:#fffaf5;
-        border-color:#f5d7b2;
-    }
-
-    .nodeBadges{
-        display:flex;
-        gap:6px;
-        flex-wrap:wrap;
-        align-items:center;
-    }
-
-    .nodeMeta code{
-        background:#f3f4f6;
-        padding:2px 6px;
-        border-radius:999px;
-        font-size:11px;
-    }
+.nodeStatus.isPublished {
+  background:#ecfdf3;
+  border-color:#86efac;
+  color:#166534;
+}
   </style>
 </head>
 <body>
@@ -572,104 +654,92 @@ BX.ready(function () {
 
   function renderPagesTree(container, siteId, pages, q) {
     const query = (q || '').trim().toLowerCase();
-
-    const homePageId = pages.reduce((acc, p) => {
-        if (parseInt(p.isHome || 0, 10) === 1) return parseInt(p.id, 10);
-        return acc;
-    }, 0);
-
     const matches = (p) => {
-        if (!query) return true;
-        const t = (p.title || '').toLowerCase();
-        const s = (p.slug || '').toLowerCase();
-        const status = (p.status || '').toLowerCase();
-        return t.includes(query) || s.includes(query) || status.includes(query) || String(p.id).includes(query);
+      if (!query) return true;
+      const t = (p.title||'').toLowerCase();
+      const s = (p.slug||'').toLowerCase();
+      return t.includes(query) || s.includes(query) || String(p.id).includes(query);
     };
 
     const { roots } = buildTree(pages);
 
     const renderNode = (node) => {
-        const kidsHtml = (node.children || [])
+      const kidsHtml = (node.children || [])
         .map(renderNode)
         .filter(Boolean)
         .join('');
 
-        const selfMatch = matches(node);
-        const hasVisibleKids = kidsHtml !== '';
-        if (!selfMatch && !hasVisibleKids) return '';
+      const selfMatch = matches(node);
+      const hasVisibleKids = kidsHtml !== '';
+      if (!selfMatch && !hasVisibleKids) return '';
 
-        const pid = parseInt(node.parentId || 0, 10) || 0;
-        const parentLabel = pid ? `parent: #${pid}` : 'root';
+      const pid = parseInt(node.parentId||0,10)||0;
+      const parentLabel = pid ? `parent #${pid}` : 'root';
 
-        const status = String(node.status || 'published').toLowerCase() === 'draft' ? 'draft' : 'published';
-        const isDraft = status === 'draft';
-        const draftBtnClass = isDraft ? 'ui-btn-warning' : 'ui-btn-light';
-        const pubBtnClass = !isDraft ? 'ui-btn-success' : 'ui-btn-light';
-        const isHome = parseInt(node.id, 10) === homePageId || parseInt(node.homePageId || 0, 10) === parseInt(node.id, 10);
-
-        const statusBadge = isDraft
-        ? '<span class="pageBadge pageBadgeDraft">DRAFT</span>'
-        : '<span class="pageBadge pageBadgePublished">PUBLISHED</span>';
-
-        const homeBadge = isHome
+      const status = String(node.status || 'published');
+      const isDraft = status === 'draft';
+      const draftBtnClass = isDraft ? 'ui-btn-warning' : 'ui-btn-light';
+      const pubBtnClass = !isDraft ? 'ui-btn-success' : 'ui-btn-light';
+      const statusBadge = !isDraft
+        ? '<span class="pageBadge pageBadgePublished">PUBLISHED</span>'
+        : '<span class="pageBadge pageBadgeDraft">DRAFT</span>';
+      const homeBadge = node.slug === 'home'
         ? '<span class="pageBadge pageBadgeHome">HOME</span>'
         : '';
+      const title = BX.util.htmlspecialchars(node.title || '');
+      const slug = BX.util.htmlspecialchars(node.slug || '');
+      const sort = parseInt(node.sort || 500, 10);
 
-        const title = BX.util.htmlspecialchars(node.title || '');
-        const slug = BX.util.htmlspecialchars(node.slug || '');
-        const sort = parseInt(node.sort || 500, 10);
-
-        return `
+      return `
         <div class="node ${isDraft ? 'isDraft' : ''}">
-            <div class="nodeHead">
+          <div class="nodeHead">
             <div class="nodeLeft">
-                <div class="nodeIcon">≡</div>
-                <div class="nodeMain">
+              <div class="nodeIcon">≡</div>
+
+              <div class="nodeMain">
                 <div class="nodeTitleLine">
-                    <b>#${node.id} ${title}</b>
-                    <span class="nodeSlug">${slug}</span>
+                  <div class="nodeTitle">#${node.id} ${title}</div>
+                  <span class="nodeSlug">${slug}</span>
                 </div>
 
-                <div class="nodeBadges" style="margin-top:6px;">
-                    ${statusBadge}
-                    ${homeBadge}
+                <div class="nodeBadges">
+                  ${statusBadge}
+                  ${homeBadge}
                 </div>
 
                 <div class="nodeMeta">
-                    <span>sort: <code>${sort}</code></span>
-                    <span>${parentLabel}</span>
-                    <span>slug: <code>${slug}</code></span>
+                  <span class="nodeMetaItem">sort <code>${sort}</code></span>
+                  <span class="nodeMetaItem">${parentLabel}</span>
                 </div>
-                </div>
+              </div>
             </div>
 
             <div class="nodeBtns">
-                <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-move="${node.id}" data-dir="up">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-move="${node.id}" data-dir="down">↓</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-move="${node.id}" data-dir="up">↑</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-move="${node.id}" data-dir="down">↓</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-parent="${node.id}">Вложить…</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-root="${node.id}">В корень</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-rename="${node.id}">Имя/slug</button>
+              <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-duplicate="${node.id}">Дублировать</button>
 
-                <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-parent="${node.id}">Вложить…</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-root="${node.id}">В корень</button>
+              <button class="ui-btn ${draftBtnClass} ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="draft">Draft</button>
+              <button class="ui-btn ${pubBtnClass} ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="published">Published</button>
 
-                <button class="ui-btn ui-btn-light ui-btn-xs btnTiny" data-page-rename="${node.id}">Имя/slug</button>
+              <a class="ui-btn ui-btn-primary ui-btn-xs btnTiny"
+                 href="/local/sitebuilder/editor.php?siteId=${siteId}&pageId=${node.id}"
+                 target="_blank">Редактор</a>
 
-                <button class="ui-btn ${draftBtnClass} ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="draft">Draft</button>
-                <button class="ui-btn ${pubBtnClass} ui-btn-xs btnTiny" data-page-status="${node.id}" data-status="published">Published</button>
+              <a class="ui-btn ui-btn-light ui-btn-xs btnTiny"
+                 href="/local/sitebuilder/view.php?siteId=${siteId}&pageId=${node.id}"
+                 target="_blank">Открыть</a>
 
-                <a class="ui-btn ui-btn-primary ui-btn-xs btnTiny"
-                href="/local/sitebuilder/editor.php?siteId=${siteId}&pageId=${node.id}"
-                target="_blank">Редактор</a>
-
-                <a class="ui-btn ui-btn-light ui-btn-xs btnTiny"
-                href="/local/sitebuilder/view.php?siteId=${siteId}&pageId=${node.id}"
-                target="_blank">Открыть</a>
-
-                <button class="ui-btn ui-btn-danger ui-btn-xs btnTiny" data-page-delete="${node.id}">Удалить</button>
+              <button class="ui-btn ui-btn-danger ui-btn-xs btnTiny" data-page-delete="${node.id}">Удалить</button>
             </div>
-            </div>
+          </div>
 
-            ${hasVisibleKids ? `<div class="children">${kidsHtml}</div>` : ''}
+          ${hasVisibleKids ? `<div class="children">${kidsHtml}</div>` : ''}
         </div>
-        `;
+      `;
     };
 
     const html = roots.map(renderNode).filter(Boolean).join('');
@@ -862,7 +932,7 @@ BX.ready(function () {
         </div>
 
         <div class="hint2">
-          Дерево: <code>parentId</code>. Порядок: <code>sort</code> (стрелки ↑/↓ меняют порядок среди “соседей”).
+          Страницы выводятся деревом по <code>parentId</code>. Стрелки ↑/↓ меняют порядок среди страниц одного уровня.
         </div>
 
         <div id="pagesBox" class="tree"></div>
@@ -872,7 +942,8 @@ BX.ready(function () {
     BX.UI.Dialogs.MessageBox.show({
       title: 'Страницы сайта: ' + BX.util.htmlspecialchars(siteName),
       message: html,
-      buttons: BX.UI.Dialogs.MessageBoxButtons.CLOSE
+      buttons: BX.UI.Dialogs.MessageBoxButtons.CLOSE,
+      popupOptions: { width: 1280, maxWidth: 1280 }
     });
 
     const loadAndRender = async () => {
@@ -883,9 +954,7 @@ BX.ready(function () {
       try {
         const res = await api('page.list', { siteId });
         if (!res || res.ok !== true) { notify('Не удалось загрузить страницы (возможно нет прав)'); return; }
-        pagesCache = (res.pages || []).map(p => Object.assign({}, p, {
-        isHome: parseInt(res.homePageId || 0, 10) === parseInt(p.id || 0, 10) ? 1 : 0
-        }));
+        pagesCache = res.pages || [];
         renderPagesTree(container, siteId, pagesCache, q);
       } catch (e) {
         notify('Ошибка page.list');
@@ -902,19 +971,6 @@ BX.ready(function () {
 
       if (container) {
         container.addEventListener('click', function(e){
-
-            const statusBtn = e.target.closest('[data-page-status]');
-            if (statusBtn) {
-            const id = parseInt(statusBtn.getAttribute('data-page-status'), 10);
-            const status = statusBtn.getAttribute('data-status') || 'draft';
-
-            api('page.setStatus', { id, status }).then(r => {
-                if (!r || r.ok !== true) { notify('Не удалось сменить статус'); return; }
-                loadAndRender();
-            }).catch(() => notify('Ошибка page.setStatus'));
-            return;
-          }
-          
           const mv = e.target.closest('[data-page-move]');
           if (mv) {
             const id = parseInt(mv.getAttribute('data-page-move'),10);
