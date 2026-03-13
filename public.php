@@ -1047,26 +1047,40 @@ $rightCol = ($rightHtml !== '') ? $rightWidth . 'px' : '0px';
     .layoutFooter{ margin-top:24px; }
 
     .pageShell{
-      display:grid;
-      grid-template-columns: var(--left-col) minmax(0,1fr) minmax(0,var(--sb-container)) minmax(0,1fr) var(--right-col);
-      align-items:start;
-      gap:24px 16px;
+      position:relative;
       width:100%;
       padding:24px 16px 40px;
     }
 
-    .pageLeft{ grid-column:1; min-width:0; }
-    .pageCenter{ grid-column:3; min-width:0; }
-    .pageRight{ grid-column:5; min-width:0; }
+    .pageLeft{
+      position:absolute;
+      left:16px;
+      top:24px;
+      width:var(--left-col);
+      min-width:0;
+    }
+    .pageCenter{
+      width:min(var(--sb-container), calc(100% - 32px));
+      margin:0 auto;
+      min-width:0;
+    }
+    .pageRight{
+      position:absolute;
+      right:16px;
+      top:24px;
+      width:var(--right-col);
+      min-width:0;
+    }
 
     .layoutSidebarBox{
-    background:#fff;
-    border:1px solid #eef2f6;
-    border-radius:14px;
-    padding:12px;
-    box-shadow: 0 1px 2px rgba(0,0,0,.03);
-    position: sticky;
-    top: 88px;
+      background:#fff;
+      border:1px solid #eef2f6;
+      border-radius:14px;
+      padding:12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.03);
+      position: sticky;
+      top: 88px;
+      width:100%;
     }
 
     .layoutSidebarBox .block:first-child{
@@ -1215,12 +1229,17 @@ $rightCol = ($rightHtml !== '') ? $rightWidth . 'px' : '0px';
 
     @media (max-width: 1200px){
       .pageShell{
-        grid-template-columns:1fr;
         padding:24px 16px 40px;
       }
-      .pageLeft, .pageCenter, .pageRight{
-        grid-column:1;
+
+      .pageLeft,
+      .pageRight,
+      .pageCenter{
+        position:static;
+        width:100%;
+        margin:0 0 16px 0;
       }
+
       .layoutSidebarBox{
         position:static;
       }

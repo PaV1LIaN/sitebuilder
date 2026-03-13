@@ -198,6 +198,50 @@ $pageId = (int)($_GET['pageId'] ?? 0);
     .block[data-type="spacer"] .blockTypeBadge { background:#f8fafc; color:#475569; border-color:#cbd5e1; }
     .block[data-type="card"] .blockTypeBadge { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; }
     .block[data-type="cards"] .blockTypeBadge { background:#ecfccb; color:#3f6212; border-color:#bef264; }
+
+    .blockSection{
+      border:1px solid #cbd5e1;
+      background:linear-gradient(180deg,#f8fafc 0%, #f1f5f9 100%);
+    }
+
+    .blockSectionBadge{
+      display:inline-flex;
+      align-items:center;
+      padding:3px 8px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:700;
+      background:#e2e8f0;
+      color:#334155;
+      border:1px solid #cbd5e1;
+    }
+
+    .blockSectionGrid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+      gap:8px;
+      margin-top:10px;
+    }
+
+    .blockSectionItem{
+      background:#fff;
+      border:1px solid #e2e8f0;
+      border-radius:10px;
+      padding:8px 10px;
+    }
+
+    .blockSectionLabel{
+      font-size:11px;
+      color:#64748b;
+      margin-bottom:4px;
+    }
+
+    .blockSectionValue{
+      font-size:13px;
+      font-weight:600;
+      color:#0f172a;
+      word-break:break-word;
+    }
   </style>
 </head>
 <body>
@@ -229,9 +273,10 @@ $pageId = (int)($_GET['pageId'] ?? 0);
     <div class="card">
       <div class="row">
         <div class="muted">
-          Блоки: <b>Text</b>, <b>Image</b>, <b>Button</b>, <b>Heading</b>, <b>Columns2</b>, <b>Gallery</b>, <b>Spacer</b>, <b>Card</b>, <b>Cards</b>.
+          Блоки: <b>Section</b>, <b>Text</b>, <b>Image</b>, <b>Button</b>, <b>Heading</b>, <b>Columns2</b>, <b>Gallery</b>, <b>Spacer</b>, <b>Card</b>, <b>Cards</b>.
         </div>
         <div class="btns">
+          <button class="ui-btn ui-btn-primary" id="btnAddSection">+ Section</button>
           <button class="ui-btn ui-btn-primary" id="btnAddText">+ Text</button>
           <button class="ui-btn ui-btn-primary" id="btnAddImage">+ Image</button>
           <button class="ui-btn ui-btn-primary" id="btnAddButton">+ Button</button>
@@ -257,6 +302,7 @@ BX.ready(function () {
   const blockSearch = document.getElementById('blockSearch');
   const collapsedBlocks = new Set();
 
+  const btnAddSection = document.getElementById('btnAddSection');
   const btnAddText = document.getElementById('btnAddText');
   const btnAddImage = document.getElementById('btnAddImage');
   const btnAddButton = document.getElementById('btnAddButton');
@@ -628,6 +674,67 @@ BX.ready(function () {
         <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
         <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
       `;
+
+
+      if (type === 'section') {
+        const c = (b.content && typeof b.content === 'object') ? b.content : {};
+        const boxed = !!c.boxed;
+        const background = c.background || '#FFFFFF';
+        const paddingTop = parseInt(c.paddingTop || 32, 10);
+        const paddingBottom = parseInt(c.paddingBottom || 32, 10);
+        const border = !!c.border;
+        const radius = parseInt(c.radius || 0, 10);
+
+        return `
+          <div class="block blockSection">
+            <div class="row">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <b>#${id}</b>
+                <span class="blockSectionBadge">SECTION</span>
+                <span class="muted">(sort ${sort})</span>
+              </div>
+
+              <div class="btns">
+                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
+                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
+                <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-section-id="${id}">Редактировать</button>
+                <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
+                <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
+              </div>
+            </div>
+
+            <div class="blockSectionGrid">
+              <div class="blockSectionItem">
+                <div class="blockSectionLabel">Контейнер</div>
+                <div class="blockSectionValue">${boxed ? 'Boxed' : 'Full width'}</div>
+              </div>
+
+              <div class="blockSectionItem">
+                <div class="blockSectionLabel">Фон</div>
+                <div class="blockSectionValue">
+                  <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${BX.util.htmlspecialchars(background)};border:1px solid #cbd5e1;vertical-align:-1px;margin-right:6px;"></span>
+                  ${BX.util.htmlspecialchars(background)}
+                </div>
+              </div>
+
+              <div class="blockSectionItem">
+                <div class="blockSectionLabel">Отступы</div>
+                <div class="blockSectionValue">top ${paddingTop}px / bottom ${paddingBottom}px</div>
+              </div>
+
+              <div class="blockSectionItem">
+                <div class="blockSectionLabel">Граница</div>
+                <div class="blockSectionValue">${border ? 'Да' : 'Нет'}</div>
+              </div>
+
+              <div class="blockSectionItem">
+                <div class="blockSectionLabel">Скругление</div>
+                <div class="blockSectionValue">${radius}px</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
 
       if (type === 'text') {
         const text = (b.content && typeof b.content.text === 'string') ? b.content.text : '';
@@ -1333,6 +1440,73 @@ BX.ready(function () {
     });
   }
 
+  function addSectionBlock() {
+    BX.UI.Dialogs.MessageBox.show({
+      title: 'Новая Section',
+      message: `
+        <div>
+          <div class="field">
+            <label><input id="sec_boxed" type="checkbox" checked> Ограничить по контейнеру</label>
+          </div>
+
+          <div class="field">
+            <label>Фон секции</label>
+            <input id="sec_bg" class="input" value="#FFFFFF" placeholder="#FFFFFF" />
+          </div>
+
+          <div class="field">
+            <label>Отступ сверху (0..200)</label>
+            <input id="sec_pt" class="input" type="number" min="0" max="200" value="32" />
+          </div>
+
+          <div class="field">
+            <label>Отступ снизу (0..200)</label>
+            <input id="sec_pb" class="input" type="number" min="0" max="200" value="32" />
+          </div>
+
+          <div class="field">
+            <label><input id="sec_border" type="checkbox"> Граница</label>
+          </div>
+
+          <div class="field">
+            <label>Скругление (0..40)</label>
+            <input id="sec_radius" class="input" type="number" min="0" max="40" value="0" />
+          </div>
+        </div>
+      `,
+      buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
+      onOk: function (mb) {
+        const boxed = document.getElementById('sec_boxed')?.checked ? '1' : '0';
+        const background = (document.getElementById('sec_bg')?.value || '#FFFFFF').trim();
+        const paddingTop = parseInt(document.getElementById('sec_pt')?.value || '32', 10);
+        const paddingBottom = parseInt(document.getElementById('sec_pb')?.value || '32', 10);
+        const border = document.getElementById('sec_border')?.checked ? '1' : '0';
+        const radius = parseInt(document.getElementById('sec_radius')?.value || '0', 10);
+
+        api('block.create', {
+          pageId,
+          type: 'section',
+          boxed,
+          background,
+          paddingTop,
+          paddingBottom,
+          border,
+          radius
+        })
+          .then(res => {
+            if (!res || res.ok !== true) {
+              notify('Не удалось создать section');
+              return;
+            }
+            notify('Section создана');
+            mb.close();
+            loadBlocks();
+          })
+          .catch(() => notify('Ошибка block.create (section)'));
+      }
+    });
+  }
+
   function addSpacerBlock() {
     BX.UI.Dialogs.MessageBox.show({
       title: 'Новый Spacer блок',
@@ -1565,6 +1739,78 @@ BX.ready(function () {
   }
 
   function addCardBlock() { openCardDialog('create', 0, null); }
+
+  function editSectionBlock(id) {
+    api('block.list', { pageId }).then(res => {
+      if (!res || res.ok !== true) return;
+      const blk = (res.blocks || []).find(x => parseInt(x.id, 10) === id);
+      const cur = (blk && blk.content && typeof blk.content === 'object') ? blk.content : {};
+
+      BX.UI.Dialogs.MessageBox.show({
+        title: 'Редактировать Section #' + id,
+        message: `
+          <div>
+            <div class="field">
+              <label><input id="sec_boxed_e" type="checkbox" ${cur.boxed ? 'checked' : ''}> Boxed контейнер</label>
+            </div>
+
+            <div class="field">
+              <label>Цвет фона</label>
+              <input id="sec_bg_e" class="input" value="${BX.util.htmlspecialchars(cur.background || '#FFFFFF')}" />
+            </div>
+
+            <div class="field">
+              <label>Отступ сверху (0..200)</label>
+              <input id="sec_pt_e" class="input" type="number" min="0" max="200" value="${parseInt(cur.paddingTop || 32, 10)}" />
+            </div>
+
+            <div class="field">
+              <label>Отступ снизу (0..200)</label>
+              <input id="sec_pb_e" class="input" type="number" min="0" max="200" value="${parseInt(cur.paddingBottom || 32, 10)}" />
+            </div>
+
+            <div class="field">
+              <label><input id="sec_border_e" type="checkbox" ${cur.border ? 'checked' : ''}> Граница</label>
+            </div>
+
+            <div class="field">
+              <label>Скругление (0..40)</label>
+              <input id="sec_radius_e" class="input" type="number" min="0" max="40" value="${parseInt(cur.radius || 0, 10)}" />
+            </div>
+          </div>
+        `,
+        buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
+        onOk: function (mb) {
+          const boxed = document.getElementById('sec_boxed_e')?.checked ? '1' : '0';
+          const background = (document.getElementById('sec_bg_e')?.value || '#FFFFFF').trim();
+          const paddingTop = parseInt(document.getElementById('sec_pt_e')?.value || '32', 10);
+          const paddingBottom = parseInt(document.getElementById('sec_pb_e')?.value || '32', 10);
+          const border = document.getElementById('sec_border_e')?.checked ? '1' : '0';
+          const radius = parseInt(document.getElementById('sec_radius_e')?.value || '0', 10);
+
+          api('block.update', {
+            id,
+            boxed,
+            background,
+            paddingTop,
+            paddingBottom,
+            border,
+            radius
+          })
+            .then(r => {
+              if (!r || r.ok !== true) {
+                notify('Не удалось сохранить section');
+                return;
+              }
+              notify('Section сохранена');
+              mb.close();
+              loadBlocks();
+            })
+            .catch(() => notify('Ошибка block.update (section)'));
+        }
+      });
+    });
+  }
 
   function editTextBlock(id) {
     api('block.list', { pageId }).then(res => {
@@ -1993,6 +2239,12 @@ BX.ready(function () {
       return;
     }
 
+    const editSectionBtn = e.target.closest('[data-edit-section-id]');
+    if (editSectionBtn) {
+      editSectionBlock(parseInt(editSectionBtn.getAttribute('data-edit-section-id'), 10));
+      return;
+    }
+
     const et = e.target.closest('[data-edit-text-id]');
     if (et) { editTextBlock(parseInt(et.getAttribute('data-edit-text-id'), 10)); return; }
 
@@ -2021,6 +2273,7 @@ BX.ready(function () {
     if (ecards) { editCardsBlock(parseInt(ecards.getAttribute('data-edit-cards-id'), 10)); return; }
   });
 
+  btnAddSection?.addEventListener('click', addSectionBlock);
   btnAddText.addEventListener('click', addTextBlock);
   btnAddImage.addEventListener('click', addImageBlock);
   btnAddButton.addEventListener('click', addButtonBlock);
