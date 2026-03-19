@@ -245,7 +245,6 @@ $pageId = (int)($_GET['pageId'] ?? 0);
 
     .blockInSection{
       margin-left:18px;
-      padding-left:12px;
       border-left:2px solid #dbeafe;
     }
 
@@ -400,10 +399,10 @@ BX.ready(function () {
     return '1fr 1fr 1fr';
   }
 
-  function buildBlockShell(id, type, sort, bodyHtml, buttonsHtml, extraMetaHtml = '') {
+  function buildBlockShell(id, type, sort, bodyHtml, buttonsHtml, extraMetaHtml = '', extraClass = '', sectionMarkHtml = '') {
     const isCollapsed = collapsedBlocks.has(id);
     return `
-      <div class="block ${isCollapsed ? 'blockCollapsed' : ''}" data-type="${BX.util.htmlspecialchars(type)}" data-block-id="${id}">
+      <div class="block ${isCollapsed ? 'blockCollapsed' : ''} ${extraClass}" data-type="${BX.util.htmlspecialchars(type)}" data-block-id="${id}">
         <div class="blockHeader">
           <div class="blockLeft">
             <div class="blockTitleRow">
@@ -422,6 +421,7 @@ BX.ready(function () {
           </div>
         </div>
         <div class="blockBody">
+          ${sectionMarkHtml}
           ${bodyHtml}
         </div>
       </div>
@@ -732,15 +732,18 @@ BX.ready(function () {
     
     let currentSectionId = null;
 
-    function wrapBlockHtml(innerHtml) {
-      if (!currentSectionId) return innerHtml;
+    function wrapBlockMeta() {
+      if (!currentSectionId) {
+        return {
+          extraClass: '',
+          sectionMarkHtml: ''
+        };
+      }
 
-      return `
-        <div class="blockInSection">
-          <div class="blockSectionDivider">inside section #${currentSectionId}</div>
-          ${innerHtml}
-        </div>
-      `;
+      return {
+        extraClass: 'blockInSection',
+        sectionMarkHtml: `<div class="blockSectionDivider">inside section #${currentSectionId}</div>`
+      };
     }
 
     blocksBox.innerHTML = filteredBlocks.map(b => {
@@ -822,7 +825,9 @@ BX.ready(function () {
 
       if (type === 'text') {
         const text = (b.content && typeof b.content.text === 'string') ? b.content.text : '';
-        return wrapBlockHtml(buildBlockShell(
+
+        const wrap = wrapBlockMeta();
+        return buildBlockShell(
           id, type, sort,
           `<pre>${BX.util.htmlspecialchars(text)}</pre>`,
           `
@@ -830,7 +835,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-text-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `
-        ));
+        );
       }
 
       if (type === 'image') {
@@ -840,7 +845,8 @@ BX.ready(function () {
           ? `<div class="imgPrev"><img src="${fileDownloadUrl(fileId)}" alt="${BX.util.htmlspecialchars(alt)}"></div>`
           : '<div class="muted" style="margin-top:10px;">Файл не выбран</div>';
 
-        return wrapBlockHtml(buildBlockShell(
+        const wrap = wrapBlockMeta();
+        return buildBlockShell(
           id, type, sort,
           `<div class="muted">alt: ${BX.util.htmlspecialchars(alt)}</div>${img}`,
           `
@@ -849,7 +855,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>fileId: ${fileId || '-'}</span>`
-        ));
+        );
       }
 
       if (type === 'button') {
@@ -857,7 +863,8 @@ BX.ready(function () {
         const url = (b.content && typeof b.content.url === 'string') ? b.content.url : '';
         const variant = (b.content && typeof b.content.variant === 'string') ? b.content.variant : 'primary';
 
-        return wrapBlockHtml(buildBlockShell(
+        const wrap = wrapBlockMeta();
+        return buildBlockShell(
           id, type, sort,
           `
             <div class="muted">url: ${BX.util.htmlspecialchars(url)}</div>
@@ -871,7 +878,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>variant: ${BX.util.htmlspecialchars(variant)}</span>`
-        ));
+        );
       }
 
       if (type === 'heading') {
@@ -881,7 +888,8 @@ BX.ready(function () {
         const tag = headingTag(level);
         const al = headingAlign(align);
 
-        return wrapBlockHtml(buildBlockShell(
+        const wrap = wrapBlockMeta();
+        return buildBlockShell(
           id, type, sort,
           `
             <div class="headingPreview" style="text-align:${BX.util.htmlspecialchars(al)};">
@@ -894,7 +902,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>${BX.util.htmlspecialchars(tag)}</span><span>${BX.util.htmlspecialchars(al)}</span>`
-        ));
+        );
       }
 
       if (type === 'columns2') {
@@ -903,7 +911,8 @@ BX.ready(function () {
         const ratio = (b.content && typeof b.content.ratio === 'string') ? b.content.ratio : '50-50';
         const tpl = colsGridTemplate(ratio);
 
-        return wrapBlockHtml(buildBlockShell(
+        const wrap = wrapBlockMeta();
+        return buildBlockShell(
           id, type, sort,
           `
             <div class="colsPreview" style="grid-template-columns:${tpl};">
@@ -917,7 +926,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>ratio: ${BX.util.htmlspecialchars(ratio)}</span>`
-        ));
+        );
       }
 
       if (type === 'gallery') {
@@ -931,7 +940,8 @@ BX.ready(function () {
           return `<img src="${fileDownloadUrl(fid)}" alt="${BX.util.htmlspecialchars(it.alt || '')}">`;
         }).join('');
 
-        return wrapBlockHtml(buildBlockShell(
+        const wrap = wrapBlockMeta();
+        return buildBlockShell(
           id, type, sort,
           `<div class="galPrev" style="grid-template-columns:${tpl};">${prev}</div>`,
           `
@@ -940,14 +950,15 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>cols: ${columns}</span><span>images: ${imgs.length}</span>`
-        ));
+        );
       }
 
       if (type === 'spacer') {
         const height = (b.content && b.content.height) ? parseInt(b.content.height, 10) : 40;
         const line = (b.content && (b.content.line === true || b.content.line === 'true')) ? true : false;
 
-        return wrapBlockHtml(buildBlockShell(
+        const wrap = wrapBlockMeta();
+        return buildBlockShell(
           id, type, sort,
           `
             <div style="margin-top:10px; border:1px dashed #e5e7ea; border-radius:10px; padding:10px;">
@@ -962,7 +973,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>${height}px</span><span>line: ${line ? 'yes' : 'no'}</span>`
-        ));
+        );
       }
 
       if (type === 'card') {
@@ -974,7 +985,8 @@ BX.ready(function () {
 
         const img = imageFileId ? `<div class="imgPrev"><img src="${fileDownloadUrl(imageFileId)}" alt=""></div>` : '';
 
-        return wrapBlockHtml(buildBlockShell(
+        const wrap = wrapBlockMeta();
+        return buildBlockShell(
           id, type, sort,
           `
             <div style="font-weight:700;">${BX.util.htmlspecialchars(title)}</div>
@@ -987,13 +999,15 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-card-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `
-        ));
+        );
       }
 
       if (type === 'cards') {
         const columns = (b.content && b.content.columns) ? parseInt(b.content.columns, 10) : 3;
         const items = (b.content && Array.isArray(b.content.items)) ? b.content.items : [];
-        return wrapBlockHtml(buildBlockShell(
+
+        const wrap = wrapBlockMeta();
+        return buildBlockShell(
           id, type, sort,
           `<pre>${BX.util.htmlspecialchars(JSON.stringify({columns, items}, null, 2))}</pre>`,
           `
@@ -1002,14 +1016,15 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>cols: ${columns}</span><span>items: ${items.length}</span>`
-        ));
+        );
       }
 
-      return wrapBlockHtml(buildBlockShell(
+      const wrap = wrapBlockMeta();
+      return buildBlockShell(
         id, type, sort,
         `<div class="muted">Неизвестный тип: ${BX.util.htmlspecialchars(type)}</div>`,
         `<button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>`
-      ));
+      );
     }).join('');
   }
 
