@@ -768,28 +768,11 @@ BX.ready(function () {
         const border = !!c.border;
         const radius = parseInt(c.radius || 0, 10);
 
-        return `
-          <div class="block blockSection">
-            <div class="row">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <b>#${id}</b>
-                <span class="blockSectionBadge">SECTION</span>
-                <span class="muted">(sort ${sort})</span>
-              </div>
-
-              <div class="btns" style="margin-top:8px;">
-                <button class="ui-btn ui-btn-success ui-btn-xs" data-add-heading-after-section-id="${id}">+ Heading</button>
-                <button class="ui-btn ui-btn-success ui-btn-xs" data-add-text-after-section-id="${id}">+ Text</button>
-                <button class="ui-btn ui-btn-success ui-btn-xs" data-add-button-after-section-id="${id}">+ Button</button>
-                <button class="ui-btn ui-btn-success ui-btn-xs" data-add-cards-after-section-id="${id}">+ Cards</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-section-id="${id}">Редактировать</button>
-                <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
-                <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-              </div>
-            </div>
-
+        return buildBlockShell(
+          id,
+          type,
+          sort,
+          `
             <div class="blockSectionGrid">
               <div class="blockSectionItem">
                 <div class="blockSectionLabel">Контейнер</div>
@@ -819,9 +802,25 @@ BX.ready(function () {
                 <div class="blockSectionValue">${radius}px</div>
               </div>
             </div>
-          </div>
-        `;
+
+            <div class="btns" style="margin-top:10px;">
+              <button class="ui-btn ui-btn-success ui-btn-xs" data-add-heading-after-section-id="${id}">+ Heading</button>
+              <button class="ui-btn ui-btn-success ui-btn-xs" data-add-text-after-section-id="${id}">+ Text</button>
+              <button class="ui-btn ui-btn-success ui-btn-xs" data-add-button-after-section-id="${id}">+ Button</button>
+              <button class="ui-btn ui-btn-success ui-btn-xs" data-add-cards-after-section-id="${id}">+ Cards</button>
+            </div>
+          `,
+          `
+            ${commonBtns}
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-section-id="${id}">Редактировать</button>
+            <button class="ui-btn ui-btn-light ui-btn-xs" data-dup-block-id="${id}">Дублировать</button>
+            <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
+          `,
+          '',
+          'blockSection'
+        );
       }
+
 
       if (type === 'text') {
         const text = (b.content && typeof b.content.text === 'string') ? b.content.text : '';
@@ -834,7 +833,10 @@ BX.ready(function () {
             ${commonBtns}
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-text-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-          `
+          `,
+          '',
+          wrap.extraClass,
+          wrap.sectionMarkHtml
         );
       }
 
@@ -854,7 +856,10 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-image-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
-          `<span>fileId: ${fileId || '-'}</span>`
+          `<span>fileId: ${fileId || '-'}</span>`,
+          '',
+          wrap.extraClass,
+          wrap.sectionMarkHtml
         );
       }
 
@@ -877,7 +882,10 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-button-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
-          `<span>variant: ${BX.util.htmlspecialchars(variant)}</span>`
+          `<span>variant: ${BX.util.htmlspecialchars(variant)}</span>`,
+          '',
+          wrap.extraClass,
+          wrap.sectionMarkHtml
         );
       }
 
@@ -901,7 +909,10 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-heading-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
-          `<span>${BX.util.htmlspecialchars(tag)}</span><span>${BX.util.htmlspecialchars(al)}</span>`
+          `<span>${BX.util.htmlspecialchars(tag)}</span><span>${BX.util.htmlspecialchars(al)}</span>`,
+          '',
+          wrap.extraClass,
+          wrap.sectionMarkHtml
         );
       }
 
@@ -925,7 +936,10 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-cols2-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
-          `<span>ratio: ${BX.util.htmlspecialchars(ratio)}</span>`
+          `<span>ratio: ${BX.util.htmlspecialchars(ratio)}</span>`,
+          '',
+          wrap.extraClass,
+          wrap.sectionMarkHtml
         );
       }
 
@@ -949,7 +963,10 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-gallery-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
-          `<span>cols: ${columns}</span><span>images: ${imgs.length}</span>`
+          `<span>cols: ${columns}</span><span>images: ${imgs.length}</span>`,
+          '',
+          wrap.extraClass,
+          wrap.sectionMarkHtml
         );
       }
 
@@ -972,7 +989,10 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-spacer-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
-          `<span>${height}px</span><span>line: ${line ? 'yes' : 'no'}</span>`
+          `<span>${height}px</span><span>line: ${line ? 'yes' : 'no'}</span>`,
+          '',
+          wrap.extraClass,
+          wrap.sectionMarkHtml
         );
       }
 
@@ -998,7 +1018,10 @@ BX.ready(function () {
             ${commonBtns}
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-card-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
-          `
+          `,
+          '',
+          wrap.extraClass,
+          wrap.sectionMarkHtml
         );
       }
 
@@ -1015,7 +1038,10 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-cards-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
-          `<span>cols: ${columns}</span><span>items: ${items.length}</span>`
+          `<span>cols: ${columns}</span><span>items: ${items.length}</span>`,
+          '',
+          wrap.extraClass,
+          wrap.sectionMarkHtml
         );
       }
 
@@ -1023,7 +1049,10 @@ BX.ready(function () {
       return buildBlockShell(
         id, type, sort,
         `<div class="muted">Неизвестный тип: ${BX.util.htmlspecialchars(type)}</div>`,
-        `<button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>`
+        `<button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>`,
+        '',
+        wrap.extraClass,
+        wrap.sectionMarkHtml
       );
     }).join('');
   }
