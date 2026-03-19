@@ -242,6 +242,38 @@ $pageId = (int)($_GET['pageId'] ?? 0);
       color:#0f172a;
       word-break:break-word;
     }
+
+    .blockInSection{
+      margin-left:18px;
+      padding-left:12px;
+      border-left:2px solid #dbeafe;
+    }
+
+    .blockInSection .row{
+      position:relative;
+    }
+
+    .blockInSectionTag{
+      display:inline-flex;
+      align-items:center;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:600;
+      background:#eff6ff;
+      color:#1d4ed8;
+      border:1px solid #bfdbfe;
+      margin-left:8px;
+    }
+
+    .blockSectionDivider{
+      margin-top:8px;
+      margin-bottom:4px;
+      font-size:11px;
+      color:#64748b;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
   </style>
 </head>
 <body>
@@ -1440,72 +1472,162 @@ BX.ready(function () {
     });
   }
 
-  function addSectionBlock() {
-    BX.UI.Dialogs.MessageBox.show({
-      title: 'Новая Section',
-      message: `
-        <div>
-          <div class="field">
-            <label><input id="sec_boxed" type="checkbox" checked> Ограничить по контейнеру</label>
-          </div>
+  const SECTION_PRESETS = {
+    default: {
+        boxed: true,
+        background: '#FFFFFF',
+        paddingTop: 32,
+        paddingBottom: 32,
+        border: false,
+        radius: 0
+    },
+    hero: {
+        boxed: true,
+        background: '#F8FAFC',
+        paddingTop: 72,
+        paddingBottom: 72,
+        border: false,
+        radius: 0
+    },
+    light: {
+        boxed: true,
+        background: '#F9FAFB',
+        paddingTop: 40,
+        paddingBottom: 40,
+        border: false,
+        radius: 0
+    },
+    accent: {
+        boxed: false,
+        background: '#EEF2FF',
+        paddingTop: 56,
+        paddingBottom: 56,
+        border: false,
+        radius: 0
+    },
+    card: {
+        boxed: true,
+        background: '#FFFFFF',
+        paddingTop: 32,
+        paddingBottom: 32,
+        border: true,
+        radius: 16
+    }
+    };
 
-          <div class="field">
-            <label>Фон секции</label>
-            <input id="sec_bg" class="input" value="#FFFFFF" placeholder="#FFFFFF" />
-          </div>
+    function sectionPresetOptions(selected = 'default') {
+        return `
+            <option value="default" ${selected === 'default' ? 'selected' : ''}>Default</option>
+            <option value="hero" ${selected === 'hero' ? 'selected' : ''}>Hero</option>
+            <option value="light" ${selected === 'light' ? 'selected' : ''}>Light</option>
+            <option value="accent" ${selected === 'accent' ? 'selected' : ''}>Accent</option>
+            <option value="card" ${selected === 'card' ? 'selected' : ''}>Card</option>
+        `;
+    }
 
-          <div class="field">
-            <label>Отступ сверху (0..200)</label>
-            <input id="sec_pt" class="input" type="number" min="0" max="200" value="32" />
-          </div>
+    function applySectionPresetToForm(presetKey, suffix = '') {
+        const preset = SECTION_PRESETS[presetKey] || SECTION_PRESETS.default;
 
-          <div class="field">
-            <label>Отступ снизу (0..200)</label>
-            <input id="sec_pb" class="input" type="number" min="0" max="200" value="32" />
-          </div>
+        const boxedEl = document.getElementById('sec_boxed' + suffix);
+        const bgEl = document.getElementById('sec_bg' + suffix);
+        const ptEl = document.getElementById('sec_pt' + suffix);
+        const pbEl = document.getElementById('sec_pb' + suffix);
+        const borderEl = document.getElementById('sec_border' + suffix);
+        const radiusEl = document.getElementById('sec_radius' + suffix);
 
-          <div class="field">
-            <label><input id="sec_border" type="checkbox"> Граница</label>
-          </div>
+        if (boxedEl) boxedEl.checked = !!preset.boxed;
+        if (bgEl) bgEl.value = preset.background;
+        if (ptEl) ptEl.value = preset.paddingTop;
+        if (pbEl) pbEl.value = preset.paddingBottom;
+        if (borderEl) borderEl.checked = !!preset.border;
+        if (radiusEl) radiusEl.value = preset.radius;
+    }
 
-          <div class="field">
-            <label>Скругление (0..40)</label>
-            <input id="sec_radius" class="input" type="number" min="0" max="40" value="0" />
-          </div>
-        </div>
-      `,
-      buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
-      onOk: function (mb) {
-        const boxed = document.getElementById('sec_boxed')?.checked ? '1' : '0';
-        const background = (document.getElementById('sec_bg')?.value || '#FFFFFF').trim();
-        const paddingTop = parseInt(document.getElementById('sec_pt')?.value || '32', 10);
-        const paddingBottom = parseInt(document.getElementById('sec_pb')?.value || '32', 10);
-        const border = document.getElementById('sec_border')?.checked ? '1' : '0';
-        const radius = parseInt(document.getElementById('sec_radius')?.value || '0', 10);
 
-        api('block.create', {
-          pageId,
-          type: 'section',
-          boxed,
-          background,
-          paddingTop,
-          paddingBottom,
-          border,
-          radius
-        })
-          .then(res => {
-            if (!res || res.ok !== true) {
-              notify('Не удалось создать section');
-              return;
+    function addSectionBlock() {
+        const mb = BX.UI.Dialogs.MessageBox.show({
+            title: 'Новая Section',
+            message: `
+            <div>
+                <div class="field">
+                <label>Пресет</label>
+                <select id="sec_preset" class="input">
+                    ${sectionPresetOptions('default')}
+                </select>
+                </div>
+
+                <div class="field">
+                <label><input id="sec_boxed" type="checkbox" checked> Ограничить по контейнеру</label>
+                </div>
+
+                <div class="field">
+                <label>Цвет фона</label>
+                <input id="sec_bg" class="input" value="#FFFFFF" placeholder="#FFFFFF" />
+                </div>
+
+                <div class="field">
+                <label>Отступ сверху (0..200)</label>
+                <input id="sec_pt" class="input" type="number" min="0" max="200" value="32" />
+                </div>
+
+                <div class="field">
+                <label>Отступ снизу (0..200)</label>
+                <input id="sec_pb" class="input" type="number" min="0" max="200" value="32" />
+                </div>
+
+                <div class="field">
+                <label><input id="sec_border" type="checkbox"> Показать рамку</label>
+                </div>
+
+                <div class="field">
+                <label>Скругление (0..40)</label>
+                <input id="sec_radius" class="input" type="number" min="0" max="40" value="0" />
+                </div>
+            </div>
+            `,
+            buttons: BX.UI.Dialogs.MessageBoxButtons.OK_CANCEL,
+            onOk: function (mbox) {
+            const boxed = document.getElementById('sec_boxed')?.checked ? '1' : '0';
+            const background = (document.getElementById('sec_bg')?.value || '#FFFFFF').trim();
+            const paddingTop = parseInt(document.getElementById('sec_pt')?.value || '32', 10);
+            const paddingBottom = parseInt(document.getElementById('sec_pb')?.value || '32', 10);
+            const border = document.getElementById('sec_border')?.checked ? '1' : '0';
+            const radius = parseInt(document.getElementById('sec_radius')?.value || '0', 10);
+
+            api('block.create', {
+                pageId,
+                type: 'section',
+                boxed,
+                background,
+                paddingTop,
+                paddingBottom,
+                border,
+                radius
+            })
+                .then(res => {
+                if (!res || res.ok !== true) {
+                    notify('Не удалось создать section');
+                    return;
+                }
+                notify('Section создана');
+                mbox.close();
+                loadBlocks();
+                })
+                .catch(() => notify('Ошибка block.create (section)'));
             }
-            notify('Section создана');
-            mb.close();
-            loadBlocks();
-          })
-          .catch(() => notify('Ошибка block.create (section)'));
-      }
-    });
-  }
+        });
+
+        setTimeout(() => {
+            const presetEl = document.getElementById('sec_preset');
+            if (presetEl) {
+            presetEl.addEventListener('change', () => {
+                applySectionPresetToForm(presetEl.value);
+            });
+
+            applySectionPresetToForm('default');
+            }
+        }, 0);
+        }
 
   function addSpacerBlock() {
     BX.UI.Dialogs.MessageBox.show({
@@ -1751,6 +1873,12 @@ BX.ready(function () {
         message: `
           <div>
             <div class="field">
+                <label>Пресет</label>
+                <select id="sec_preset_e" class="input">
+                    ${sectionPresetOptions('default')}
+                </select>
+            </div>
+            <div class="field">
               <label><input id="sec_boxed_e" type="checkbox" ${cur.boxed ? 'checked' : ''}> Boxed контейнер</label>
             </div>
 
@@ -1809,6 +1937,14 @@ BX.ready(function () {
             .catch(() => notify('Ошибка block.update (section)'));
         }
       });
+      setTimeout(() => {
+        const presetEl = document.getElementById('sec_preset_e');
+        if (presetEl) {
+            presetEl.addEventListener('change', () => {
+            applySectionPresetToForm(presetEl.value, '_e');
+            });
+        }
+        }, 0);
     });
   }
 
