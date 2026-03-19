@@ -495,6 +495,39 @@ BX.ready(function () {
     };
   }
 
+  function quickAddHeadingAfterSection(sectionId) {
+    createBlockAfterSection(sectionId, 'heading', {
+      text: 'Новый заголовок',
+      level: 'h2',
+      align: 'left'
+    });
+  }
+
+  function quickAddTextAfterSection(sectionId) {
+    createBlockAfterSection(sectionId, 'text', {
+      text: 'Новый текст'
+    });
+  }
+
+  function quickAddButtonAfterSection(sectionId) {
+    createBlockAfterSection(sectionId, 'button', {
+      text: 'Кнопка',
+      url: '/',
+      variant: 'primary'
+    });
+  }
+
+  function quickAddCardsAfterSection(sectionId) {
+    createBlockAfterSection(sectionId, 'cards', {
+      columns: 3,
+      items: JSON.stringify([
+        { title: 'Карточка 1', text: 'Описание 1', imageFileId: 0, buttonText: '', buttonUrl: '' },
+        { title: 'Карточка 2', text: 'Описание 2', imageFileId: 0, buttonText: '', buttonUrl: '' },
+        { title: 'Карточка 3', text: 'Описание 3', imageFileId: 0, buttonText: '', buttonUrl: '' }
+      ])
+    });
+  }
+
   function cardsRenderBuilderItems(items, files) {
     const fileOptions = (selectedId) => {
       const opts = ['<option value="0">— без картинки —</option>'];
@@ -696,6 +729,19 @@ BX.ready(function () {
       blocksBox.innerHTML = '<div class="muted">Ничего не найдено.</div>';
       return;
     }
+    
+    let currentSectionId = null;
+
+    function wrapBlockHtml(innerHtml) {
+      if (!currentSectionId) return innerHtml;
+
+      return `
+        <div class="blockInSection">
+          <div class="blockSectionDivider">inside section #${currentSectionId}</div>
+          ${innerHtml}
+        </div>
+      `;
+    }
 
     blocksBox.innerHTML = filteredBlocks.map(b => {
       const type = b.type || '';
@@ -709,6 +755,8 @@ BX.ready(function () {
 
 
       if (type === 'section') {
+        currentSectionId = id;
+
         const c = (b.content && typeof b.content === 'object') ? b.content : {};
         const boxed = !!c.boxed;
         const background = c.background || '#FFFFFF';
@@ -726,7 +774,11 @@ BX.ready(function () {
                 <span class="muted">(sort ${sort})</span>
               </div>
 
-              <div class="btns">
+              <div class="btns" style="margin-top:8px;">
+                <button class="ui-btn ui-btn-success ui-btn-xs" data-add-heading-after-section-id="${id}">+ Heading</button>
+                <button class="ui-btn ui-btn-success ui-btn-xs" data-add-text-after-section-id="${id}">+ Text</button>
+                <button class="ui-btn ui-btn-success ui-btn-xs" data-add-button-after-section-id="${id}">+ Button</button>
+                <button class="ui-btn ui-btn-success ui-btn-xs" data-add-cards-after-section-id="${id}">+ Cards</button>
                 <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="up">↑</button>
                 <button class="ui-btn ui-btn-light ui-btn-xs" data-move-block-id="${id}" data-move-dir="down">↓</button>
                 <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-section-id="${id}">Редактировать</button>
@@ -770,7 +822,7 @@ BX.ready(function () {
 
       if (type === 'text') {
         const text = (b.content && typeof b.content.text === 'string') ? b.content.text : '';
-        return buildBlockShell(
+        return wrapBlockHtml(buildBlockShell(
           id, type, sort,
           `<pre>${BX.util.htmlspecialchars(text)}</pre>`,
           `
@@ -778,7 +830,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-text-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `
-        );
+        ));
       }
 
       if (type === 'image') {
@@ -788,7 +840,7 @@ BX.ready(function () {
           ? `<div class="imgPrev"><img src="${fileDownloadUrl(fileId)}" alt="${BX.util.htmlspecialchars(alt)}"></div>`
           : '<div class="muted" style="margin-top:10px;">Файл не выбран</div>';
 
-        return buildBlockShell(
+        return wrapBlockHtml(buildBlockShell(
           id, type, sort,
           `<div class="muted">alt: ${BX.util.htmlspecialchars(alt)}</div>${img}`,
           `
@@ -797,7 +849,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>fileId: ${fileId || '-'}</span>`
-        );
+        ));
       }
 
       if (type === 'button') {
@@ -805,7 +857,7 @@ BX.ready(function () {
         const url = (b.content && typeof b.content.url === 'string') ? b.content.url : '';
         const variant = (b.content && typeof b.content.variant === 'string') ? b.content.variant : 'primary';
 
-        return buildBlockShell(
+        return wrapBlockHtml(buildBlockShell(
           id, type, sort,
           `
             <div class="muted">url: ${BX.util.htmlspecialchars(url)}</div>
@@ -819,7 +871,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>variant: ${BX.util.htmlspecialchars(variant)}</span>`
-        );
+        ));
       }
 
       if (type === 'heading') {
@@ -829,7 +881,7 @@ BX.ready(function () {
         const tag = headingTag(level);
         const al = headingAlign(align);
 
-        return buildBlockShell(
+        return wrapBlockHtml(buildBlockShell(
           id, type, sort,
           `
             <div class="headingPreview" style="text-align:${BX.util.htmlspecialchars(al)};">
@@ -842,7 +894,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>${BX.util.htmlspecialchars(tag)}</span><span>${BX.util.htmlspecialchars(al)}</span>`
-        );
+        ));
       }
 
       if (type === 'columns2') {
@@ -851,7 +903,7 @@ BX.ready(function () {
         const ratio = (b.content && typeof b.content.ratio === 'string') ? b.content.ratio : '50-50';
         const tpl = colsGridTemplate(ratio);
 
-        return buildBlockShell(
+        return wrapBlockHtml(buildBlockShell(
           id, type, sort,
           `
             <div class="colsPreview" style="grid-template-columns:${tpl};">
@@ -865,7 +917,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>ratio: ${BX.util.htmlspecialchars(ratio)}</span>`
-        );
+        ));
       }
 
       if (type === 'gallery') {
@@ -879,7 +931,7 @@ BX.ready(function () {
           return `<img src="${fileDownloadUrl(fid)}" alt="${BX.util.htmlspecialchars(it.alt || '')}">`;
         }).join('');
 
-        return buildBlockShell(
+        return wrapBlockHtml(buildBlockShell(
           id, type, sort,
           `<div class="galPrev" style="grid-template-columns:${tpl};">${prev}</div>`,
           `
@@ -888,14 +940,14 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>cols: ${columns}</span><span>images: ${imgs.length}</span>`
-        );
+        ));
       }
 
       if (type === 'spacer') {
         const height = (b.content && b.content.height) ? parseInt(b.content.height, 10) : 40;
         const line = (b.content && (b.content.line === true || b.content.line === 'true')) ? true : false;
 
-        return buildBlockShell(
+        return wrapBlockHtml(buildBlockShell(
           id, type, sort,
           `
             <div style="margin-top:10px; border:1px dashed #e5e7ea; border-radius:10px; padding:10px;">
@@ -910,7 +962,7 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>${height}px</span><span>line: ${line ? 'yes' : 'no'}</span>`
-        );
+        ));
       }
 
       if (type === 'card') {
@@ -922,7 +974,7 @@ BX.ready(function () {
 
         const img = imageFileId ? `<div class="imgPrev"><img src="${fileDownloadUrl(imageFileId)}" alt=""></div>` : '';
 
-        return buildBlockShell(
+        return wrapBlockHtml(buildBlockShell(
           id, type, sort,
           `
             <div style="font-weight:700;">${BX.util.htmlspecialchars(title)}</div>
@@ -935,13 +987,13 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-light ui-btn-xs" data-edit-card-id="${id}">Редактировать</button>
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `
-        );
+        ));
       }
 
       if (type === 'cards') {
         const columns = (b.content && b.content.columns) ? parseInt(b.content.columns, 10) : 3;
         const items = (b.content && Array.isArray(b.content.items)) ? b.content.items : [];
-        return buildBlockShell(
+        return wrapBlockHtml(buildBlockShell(
           id, type, sort,
           `<pre>${BX.util.htmlspecialchars(JSON.stringify({columns, items}, null, 2))}</pre>`,
           `
@@ -950,14 +1002,14 @@ BX.ready(function () {
             <button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>
           `,
           `<span>cols: ${columns}</span><span>items: ${items.length}</span>`
-        );
+        ));
       }
 
-      return buildBlockShell(
+      return wrapBlockHtml(buildBlockShell(
         id, type, sort,
         `<div class="muted">Неизвестный тип: ${BX.util.htmlspecialchars(type)}</div>`,
         `<button class="ui-btn ui-btn-danger ui-btn-xs" data-del-block-id="${id}">Удалить</button>`
-      );
+      ));
     }).join('');
   }
 
@@ -1627,8 +1679,88 @@ BX.ready(function () {
             applySectionPresetToForm('default');
             }
         }, 0);
+      }
+
+      async function createBlockAfterSection(sectionId, type, payload = {}) {
+        const listRes = await api('block.list', { pageId });
+        if (!listRes || listRes.ok !== true) {
+          notify('Не удалось загрузить блоки страницы');
+          return;
         }
 
+        const blocks = Array.isArray(listRes.blocks) ? listRes.blocks.slice() : [];
+        const sectionIndex = blocks.findIndex(b => parseInt(b.id, 10) === parseInt(sectionId, 10));
+
+        if (sectionIndex < 0) {
+          notify('Section не найдена');
+          return;
+        }
+
+        const sectionSort = parseInt(blocks[sectionIndex].sort || 0, 10);
+
+        let insertSort = sectionSort + 10;
+        for (let i = sectionIndex + 1; i < blocks.length; i++) {
+          const next = blocks[i];
+          if ((next.type || '') === 'section') {
+            insertSort = parseInt(next.sort || insertSort, 10) - 1;
+            break;
+          }
+          insertSort = Math.max(insertSort, parseInt(next.sort || 0, 10) + 10);
+        }
+
+        const createRes = await api('block.create', {
+          pageId,
+          type,
+          ...payload
+        });
+
+        if (!createRes || createRes.ok !== true || !createRes.block) {
+          notify('Не удалось создать блок');
+          return;
+        }
+
+        const newBlockId = parseInt(createRes.block.id, 10);
+
+        const refreshRes = await api('block.list', { pageId });
+        if (!refreshRes || refreshRes.ok !== true) {
+          notify('Блок создан, но не удалось обновить порядок');
+          loadBlocks();
+          return;
+        }
+
+        const freshBlocks = Array.isArray(refreshRes.blocks) ? refreshRes.blocks.slice() : [];
+        const moved = freshBlocks.find(b => parseInt(b.id, 10) === newBlockId);
+        if (!moved) {
+          loadBlocks();
+          return;
+        }
+
+        const desiredOrder = freshBlocks
+          .sort((a, b) => parseInt(a.sort || 0, 10) - parseInt(b.sort || 0, 10))
+          .filter(b => parseInt(b.id, 10) !== newBlockId);
+
+        let targetIndex = desiredOrder.findIndex(b => parseInt(b.sort || 0, 10) > insertSort);
+        if (targetIndex < 0) targetIndex = desiredOrder.length;
+
+        desiredOrder.splice(targetIndex, 0, moved);
+
+        const order = desiredOrder.map(b => parseInt(b.id, 10));
+
+        const reorderRes = await api('block.reorder', {
+          pageId,
+          order: JSON.stringify(order)
+        });
+
+        if (!reorderRes || reorderRes.ok !== true) {
+          notify('Блок создан, но не удалось поставить после section');
+          loadBlocks();
+          return;
+        }
+
+        notify('Блок добавлен');
+        loadBlocks();
+      }
+  
   function addSpacerBlock() {
     BX.UI.Dialogs.MessageBox.show({
       title: 'Новый Spacer блок',
@@ -2351,6 +2483,30 @@ BX.ready(function () {
           loadBlocks();
         })
         .catch(() => notify('Ошибка block.move'));
+      return;
+    }
+
+    const addHeadingAfterSectionBtn = e.target.closest('[data-add-heading-after-section-id]');
+    if (addHeadingAfterSectionBtn) {
+      quickAddHeadingAfterSection(parseInt(addHeadingAfterSectionBtn.getAttribute('data-add-heading-after-section-id'), 10));
+      return;
+    }
+
+    const addTextAfterSectionBtn = e.target.closest('[data-add-text-after-section-id]');
+    if (addTextAfterSectionBtn) {
+      quickAddTextAfterSection(parseInt(addTextAfterSectionBtn.getAttribute('data-add-text-after-section-id'), 10));
+      return;
+    }
+
+    const addButtonAfterSectionBtn = e.target.closest('[data-add-button-after-section-id]');
+    if (addButtonAfterSectionBtn) {
+      quickAddButtonAfterSection(parseInt(addButtonAfterSectionBtn.getAttribute('data-add-button-after-section-id'), 10));
+      return;
+    }
+
+    const addCardsAfterSectionBtn = e.target.closest('[data-add-cards-after-section-id]');
+    if (addCardsAfterSectionBtn) {
+      quickAddCardsAfterSection(parseInt(addCardsAfterSectionBtn.getAttribute('data-add-cards-after-section-id'), 10));
       return;
     }
 
