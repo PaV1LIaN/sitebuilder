@@ -1,0 +1,31 @@
+<?php
+require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+
+header('Content-Type: text/html; charset=UTF-8');
+
+$basePath = rtrim(str_replace($_SERVER['DOCUMENT_ROOT'], '', __DIR__), '/');
+$siteId = (int)($_GET['siteId'] ?? 0);
+$pageId = isset($_GET['pageId']) ? (int)$_GET['pageId'] : null;
+
+require_once __DIR__ . '/lib/public_render.php';
+
+$vm = $siteId > 0 ? sb_public_build_view_model($siteId, $pageId, $basePath) : null;
+
+if (!$vm) {
+    ?>
+    <!doctype html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <title>SiteBuilder / Public</title>
+    </head>
+    <body style="font-family:Arial,sans-serif;padding:24px;">
+        <h1>Сайт не найден</h1>
+        <p><a href="<?= sb_public_h($basePath) ?>/index.php">К списку сайтов</a></p>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
+include __DIR__ . '/views/layout/public_page.php';
