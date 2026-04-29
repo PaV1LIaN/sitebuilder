@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/storage_db.php';
+require_once __DIR__ . '/storage_db_extra.php';
 
 if (!function_exists('sb_data_path')) {
     function sb_data_path(string $file): string

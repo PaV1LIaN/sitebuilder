@@ -4,25 +4,43 @@ class DiskCsrf
 {
     public static function validateFromRequest(): void
     {
-        $sessid = '';
-
-        if (isset($_POST['sessid'])) {
-            $sessid = (string)$_POST['sessid'];
-        } elseif (isset($_REQUEST['sessid'])) {
-            $sessid = (string)$_REQUEST['sessid'];
-        } else {
-            $json = disk_read_json_body();
-            if (isset($json['sessid'])) {
-                $sessid = (string)$json['sessid'];
-            }
-        }
+        $sessid = self::extractSessid();
 
         if ($sessid === '') {
             throw new RuntimeException('EMPTY_SESSID');
         }
 
-        if (!check_bitrix_sessid($sessid)) {
+        $currentSessid = (string)bitrix_sessid();
+
+        if ($currentSessid === '') {
             throw new RuntimeException('BAD_SESSID');
         }
+
+        if (!hash_equals($currentSessid, $sessid)) {
+            throw new RuntimeException('BAD_SESSID');
+        }
+    }
+
+    protected static function extractSessid(): string
+    {
+        if (!empty($_POST['sessid'])) {
+            return trim((string)$_POST['sessid']);
+        }
+
+        if (!empty($_REQUEST['sessid'])) {
+            return trim((string)$_REQUEST['sessid']);
+        }
+
+        $raw = file_get_contents('php://input');
+        if (!is_string($raw) || trim($raw) === '') {
+            return '';
+        }
+
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded) && !empty($decoded['sessid'])) {
+            return trim((string)$decoded['sessid']);
+        }
+
+        return '';
     }
 }

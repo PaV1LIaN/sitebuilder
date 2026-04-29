@@ -22,18 +22,87 @@ $rightHtml = sb_public_render_blocks($rightBlocks, $vm);
 $pageHtml = sb_public_render_blocks($pageBlocks, $vm);
 $menuHtml = sb_public_render_menu($menu, $basePath, $siteId);
 
+$pageHasDiskBlock = false;
+
+foreach ($pageBlocks as $pageBlock) {
+    if ((string)($pageBlock['type'] ?? '') === 'disk') {
+        $pageHasDiskBlock = true;
+        break;
+    }
+}
+
+if (!$pageHasDiskBlock) {
+    foreach ($headerBlocks as $layoutBlock) {
+        if ((string)($layoutBlock['type'] ?? '') === 'disk') {
+            $pageHasDiskBlock = true;
+            break;
+        }
+    }
+}
+
+if (!$pageHasDiskBlock) {
+    foreach ($footerBlocks as $layoutBlock) {
+        if ((string)($layoutBlock['type'] ?? '') === 'disk') {
+            $pageHasDiskBlock = true;
+            break;
+        }
+    }
+}
+
+if (!$pageHasDiskBlock) {
+    foreach ($leftBlocks as $layoutBlock) {
+        if ((string)($layoutBlock['type'] ?? '') === 'disk') {
+            $pageHasDiskBlock = true;
+            break;
+        }
+    }
+}
+
+if (!$pageHasDiskBlock) {
+    foreach ($rightBlocks as $layoutBlock) {
+        if ((string)($layoutBlock['type'] ?? '') === 'disk') {
+            $pageHasDiskBlock = true;
+            break;
+        }
+    }
+}
+
 $leftContentHtml = $vm['leftMode'] === 'menu' && $menuHtml !== '' ? $menuHtml : $leftHtml;
 
 if ($vm['leftMode'] === 'menu' && $vm['sectionNavHtml'] !== '') {
     $leftContentHtml = $vm['sectionNavHtml'];
+}
+
+global $APPLICATION;
+
+if ($pageHasDiskBlock) {
+    \CJSCore::Init([
+        'viewer',
+        'ui.viewer',
+    ]);
+
+    if (\Bitrix\Main\Loader::includeModule('disk')) {
+        \Bitrix\Main\UI\Extension::load([
+            'disk.viewer.document-item',
+        ]);
+    }
 }
 ?>
 <!doctype html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+
+    <?php $APPLICATION->ShowHead(); ?>
+
     <title><?= sb_public_h((string)($currentPage['title'] ?? $site['name'] ?? 'SiteBuilder')) ?></title>
+
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css">
+
+    <?php if ($pageHasDiskBlock): ?>
+        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css">
+    <?php endif; ?>
+
     <style>
         :root {
             --sb-accent: <?= sb_public_h($vm['accent']) ?>;
@@ -142,6 +211,10 @@ document.addEventListener('click', function (e) {
     toggle.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
 });
 </script>
+
+<?php if ($pageHasDiskBlock): ?>
+<script src="<?= sb_public_h($basePath) ?>/components/disk/script.js"></script>
+<?php endif; ?>
 
 </body>
 </html>

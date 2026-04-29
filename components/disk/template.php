@@ -1,4 +1,11 @@
+<?php if (!empty($arResult['ERROR'])): ?>
+    <pre style="padding:12px;background:#fff3f3;border:1px solid #f1b5b5;color:#8a1f1f;margin-bottom:16px;">
+<?= disk_h($arResult['ERROR']) ?>
+    </pre>
+<?php endif; ?>
 <?php
+
+
 $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPED_UNICODE));
 ?>
 <div class="sb-disk"
@@ -6,6 +13,7 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
      data-site-id="<?= (int)$arResult['SITE_ID'] ?>"
      data-page-id="<?= (int)$arResult['PAGE_ID'] ?>"
      data-block-id="<?= (int)$arResult['BLOCK_ID'] ?>"
+     data-sessid="<?= htmlspecialchars(bitrix_sessid(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
      data-initial-state="<?= $initialStateJson ?>">
 
     <div class="sb-disk__header">

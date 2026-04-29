@@ -1,18 +1,16 @@
 <?php
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/components/disk/class.php';
 
-global $USER;
+$currentUserId = DiskCurrentUser::requireId();
 
-$userId = (int)$USER->GetID();
 $siteId = 1;
 $pageId = 1;
 $blockId = 1;
 
 echo '<pre>';
-echo 'USER_ID=' . $userId . PHP_EOL;
-echo 'AUTHORIZED=' . ($USER->IsAuthorized() ? 'Y' : 'N') . PHP_EOL;
+echo 'USER_ID=' . $currentUserId . PHP_EOL;
 echo 'ROLE=';
-var_dump(SiteAccessRepository::getUserRole($siteId, $userId));
+var_dump(SiteAccessRepository::getUserRole($siteId, $currentUserId));
 echo 'BLOCK=';
 var_dump(BlockRepository::getDiskBlockByContext($siteId, $pageId, $blockId));
 echo '</pre>';

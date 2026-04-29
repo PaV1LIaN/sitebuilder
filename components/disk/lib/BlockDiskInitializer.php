@@ -1,7 +1,6 @@
 <?php
 
 use Bitrix\Disk\Folder;
-use Bitrix\Disk\Driver;
 
 class BlockDiskInitializer
 {
@@ -34,20 +33,37 @@ class BlockDiskInitializer
             throw new RuntimeException('SITE_ROOT_FOLDER_NOT_FOUND');
         }
 
-        $folderName = $blockTitle !== ''
-            ? ('Блок: ' . $blockTitle)
-            : ('Блок #' . $blockId);
+        $folderBaseName = $blockTitle !== ''
+            ? ('Блок ' . $blockTitle)
+            : ('Блок ' . $blockId);
 
-        $created = $siteRootFolder->addSubFolder([
-            'NAME' => $folderName,
-            'CREATED_BY' => $currentUserId,
-        ], Driver::getInstance()->getFakeSecurityContext($currentUserId));
+        $folderName = DiskNameSanitizer::sanitizeFolderName($folderBaseName, 'Блок');
 
-        if (!$created instanceof Folder) {
-            throw new RuntimeException('BLOCK_ROOT_CREATE_ERROR');
-        }
+            $created = $siteRootFolder->addSubFolder([
+                'NAME' => $folderName,
+                'CREATED_BY' => $currentUserId,
+            ], [], true);
+            
+            if (!$created instanceof Folder) {
+                $errors = [];
+            
+                if (is_object($siteRootFolder) && method_exists($siteRootFolder, 'getErrors')) {
+                    foreach ((array)$siteRootFolder->getErrors() as $error) {
+                        if (is_object($error) && method_exists($error, 'getMessage')) {
+                            $errors[] = $error->getMessage();
+                        } else {
+                            $errors[] = (string)$error;
+                        }
+                    }
+                }
+            
+                throw new RuntimeException(
+                    'BLOCK_ROOT_CREATE_ERROR' . (!empty($errors) ? ': ' . implode(' | ', $errors) : '')
+                );
+            }
 
         DiskSettingsRepository::save($blockId, [
+            'rootMode' => 'block',
             'rootFolderId' => (int)$created->getId(),
             'useSiteRootFallback' => true,
         ]);

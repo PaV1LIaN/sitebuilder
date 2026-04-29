@@ -15,7 +15,12 @@ if (
     $action === 'site.create' ||
     $action === 'site.update' ||
     $action === 'site.delete' ||
-    $action === 'site.setHome'
+    $action === 'site.setHome' ||
+    $action === 'site.syncAccess' ||
+    $action === 'site.ensureGroup' ||
+    $action === 'site.accessList' ||
+    $action === 'site.accessSet' ||
+    $action === 'site.accessRemove'
 ) {
     require __DIR__ . '/handlers/site.php';
     exit;
@@ -87,6 +92,24 @@ if (
 
 if (strpos($action, 'page.') === 0) {
     require __DIR__ . '/handlers/page.php';
+    exit;
+}
+
+if (
+    $action === 'section.list' ||
+    $action === 'section.create' ||
+    $action === 'section.update' ||
+    $action === 'section.delete' ||
+    $action === 'site.setSection'
+) {
+    require __DIR__ . '/handlers/section.php';
+    exit;
+}
+
+if (
+    $action === 'user.search'
+) {
+    require __DIR__ . '/handlers/user.php';
     exit;
 }
 

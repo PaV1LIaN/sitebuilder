@@ -69,6 +69,9 @@ try {
         case 'initBlockRoot':
             require __DIR__ . '/actions/init_block_root.php';
             break;
+        case 'bootstrap':
+            require __DIR__ . '/actions/bootstrap.php';
+            break;
 
         default:
             DiskResponse::error('UNKNOWN_ACTION', 'Неизвестное действие');

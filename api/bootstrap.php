@@ -5,6 +5,7 @@ define('NO_AGENT_STATISTIC', true);
 define('DisableEventsCheck', true);
 
 require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/db.php';
 
 use Bitrix\Main\Loader;
 use Bitrix\Disk\Storage;
