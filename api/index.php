@@ -20,7 +20,11 @@ if (
     $action === 'site.ensureGroup' ||
     $action === 'site.accessList' ||
     $action === 'site.accessSet' ||
-    $action === 'site.accessRemove'
+    $action === 'site.accessRemove' ||
+    $action === 'site.appearanceGet' ||
+    $action === 'site.appearanceUpdate' ||
+    $action === 'site.appearanceUpload' ||
+    $action === 'site.appearanceRemove' 
 ) {
     require __DIR__ . '/handlers/site.php';
     exit;

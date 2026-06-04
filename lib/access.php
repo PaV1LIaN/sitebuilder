@@ -7,6 +7,7 @@ if (!function_exists('sb_user_access_code')) {
     function sb_user_access_code(): string
     {
         global $USER;
+
         return 'U' . (int)$USER->GetID();
     }
 }
@@ -219,6 +220,10 @@ if (!function_exists('sb_map_sonet_role_to_sitebuilder_role')) {
         }
 
         if ($sonetRole === $moderatorRole || $sonetRole === 'E') {
+            /*
+             * В новой матрице прав EDITOR — это не редактор конструктора,
+             * а пользователь, который может работать с файлами диска.
+             */
             return 'EDITOR';
         }
 
@@ -255,6 +260,15 @@ if (!function_exists('sb_role_rank')) {
 if (!function_exists('sb_require_site_role')) {
     function sb_require_site_role(int $siteId, int $minRank): void
     {
+        global $USER;
+
+        /*
+         * Администратор Битрикс24 имеет полный доступ ко всем сайтам конструктора.
+         */
+        if ($USER && $USER->IsAdmin()) {
+            return;
+        }
+
         $role = sb_get_role($siteId, sb_user_access_code());
 
         if (sb_role_rank($role) < $minRank) {
@@ -281,9 +295,31 @@ if (!function_exists('sb_require_admin')) {
     }
 }
 
+if (!function_exists('sb_require_content_manager')) {
+    function sb_require_content_manager(int $siteId): void
+    {
+        /*
+         * Контент сайта: страницы, блоки, меню, layout, шаблоны.
+         *
+         * Доступ только:
+         * - ADMIN сайта
+         * - OWNER сайта
+         * - администратор Битрикс24
+         *
+         * EDITOR сюда НЕ проходит.
+         * EDITOR теперь нужен только для работы с файлами диска.
+         */
+        sb_require_site_role($siteId, 3);
+    }
+}
+
 if (!function_exists('sb_require_editor')) {
     function sb_require_editor(int $siteId): void
     {
+        /*
+         * Оставляем старую функцию для совместимости.
+         * EDITOR = файловый редактор диска.
+         */
         sb_require_site_role($siteId, 2);
     }
 }

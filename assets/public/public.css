@@ -122,7 +122,7 @@ a {
 
 .sb-page-title {
     margin: 0 0 24px;
-    font-size: 34px;
+    font-size: 20px;
     line-height: 1.15;
     font-weight: 700;
     color: #111827;
@@ -539,5 +539,396 @@ a {
         min-height: 34px;
         padding: 7px 10px;
         font-size: 14px;
+    }
+}
+
+.sb-public-menu {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.sb-public-menu__item {
+    position: relative;
+}
+
+.sb-public-menu__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: 10px;
+    color: #111827;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background .15s ease, color .15s ease;
+}
+
+.sb-public-menu__link:hover,
+.sb-public-menu__item.is-active > .sb-public-menu__link {
+    background: rgba(37, 99, 235, 0.08);
+    color: var(--sb-accent, #2563eb);
+}
+
+.sb-public-menu__arrow {
+    font-size: 11px;
+    opacity: .7;
+}
+
+.sb-public-menu__dropdown {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 6px);
+    z-index: 50;
+    min-width: 220px;
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, .14);
+}
+
+.sb-public-menu__dropdown .sb-public-menu__item {
+    width: 100%;
+}
+
+.sb-public-menu__dropdown .sb-public-menu__link {
+    width: 100%;
+    justify-content: space-between;
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 9px;
+    white-space: nowrap;
+}
+
+.sb-public-menu__item:hover > .sb-public-menu__dropdown {
+    display: flex;
+}
+
+.sb-public-menu__dropdown .sb-public-menu__dropdown {
+    left: calc(100% + 8px);
+    top: 0;
+}
+
+@media (max-width: 760px) {
+    .sb-public-menu {
+        align-items: stretch;
+        width: 100%;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .sb-public-menu__item {
+        width: 100%;
+    }
+
+    .sb-public-menu__link {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .sb-public-menu__dropdown {
+        position: static;
+        display: flex;
+        box-shadow: none;
+        border-radius: 12px;
+        margin: 4px 0 4px 12px;
+        min-width: 0;
+    }
+
+    .sb-public-menu__dropdown .sb-public-menu__dropdown {
+        position: static;
+        margin-left: 12px;
+    }
+}
+
+.sb-public-root {
+    min-height: 100vh;
+    background-attachment: fixed;
+}
+
+.sb-public-header {
+    background: rgba(255, 255, 255, .92);
+    backdrop-filter: blur(10px);
+}
+
+.sb-public-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    color: #111827;
+    text-decoration: none;
+    font-weight: 800;
+}
+
+.sb-public-brand:hover {
+    color: var(--sb-accent, #2563eb);
+}
+
+.sb-public-brand__logo {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.sb-public-brand__logo img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.sb-public-brand__text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sb-public-main,
+.sb-public-page,
+.sb-public-content {
+    position: relative;
+}
+
+@media (max-width: 760px) {
+    .sb-public-root {
+        background-attachment: scroll;
+    }
+
+    .sb-public-brand__logo {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+    }
+}
+
+.sb-public-shell {
+    min-height: 100vh;
+    background-attachment: fixed;
+}
+
+.sb-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.sb-brand__logo {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.sb-brand__logo img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.sb-brand__text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* =========================================================
+   BRAND / LOGO SIZE / LONG SITE NAME FIX
+   ========================================================= */
+
+.sb-public-header .sb-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-width: 0;
+}
+
+.sb-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    max-width: 55%;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+}
+
+.sb-brand__logo {
+    width: var(--sb-logo-size, 42px);
+    height: var(--sb-logo-size, 42px);
+    min-width: var(--sb-logo-size, 42px);
+    max-width: var(--sb-logo-size, 42px);
+    min-height: var(--sb-logo-size, 42px);
+    max-height: var(--sb-logo-size, 42px);
+    flex: 0 0 var(--sb-logo-size, 42px);
+}
+
+.sb-brand__text {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sb-public-menu {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+/* =========================================================
+   HEADER FIX: бренд сверху, меню под ним
+   ========================================================= */
+
+.sb-public-header .sb-container.sb-header-container {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    min-width: 0 !important;
+}
+
+.sb-header-brand-row {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 16px;
+}
+
+.sb-header-custom {
+	display: flex;
+	margin-right: 100px; 
+    min-width: 0;
+    flex: 1 1 auto;
+	flex-direction: row-reverse;
+}
+
+.sb-header-menu-row {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.sb-header-menu-row .sb-public-menu {
+    justify-content: flex-start !important;
+    align-items: center;
+    width: auto;
+    max-width: 100%;
+}
+
+.sb-brand {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 0 1 auto !important;
+    flex-wrap: nowrap !important;
+}
+
+.sb-brand__logo {
+    width: var(--sb-logo-size, 42px) !important;
+    height: var(--sb-logo-size, 42px) !important;
+    min-width: var(--sb-logo-size, 42px) !important;
+    max-width: var(--sb-logo-size, 42px) !important;
+    min-height: var(--sb-logo-size, 42px) !important;
+    max-height: var(--sb-logo-size, 42px) !important;
+    flex: 0 0 var(--sb-logo-size, 42px) !important;
+}
+
+.sb-brand__text {
+    display: block !important;
+    min-width: 0 !important;
+    max-width: min(760px, calc(100vw - 160px)) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* Перебиваем старое правило, которое уводило меню вправо */
+.sb-public-header .sb-public-menu {
+    margin-left: 0 !important;
+}
+
+@media (max-width: 760px) {
+    .sb-header-brand-row {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .sb-brand {
+        width: 100% !important;
+    }
+
+    .sb-brand__text {
+        max-width: calc(100vw - 96px) !important;
+    }
+
+    .sb-header-menu-row {
+        width: 100%;
+    }
+
+    .sb-header-menu-row .sb-public-menu {
+        width: 100%;
+    }
+}
+
+@media (max-width: 760px) {
+    .sb-public-header .sb-container {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .sb-brand {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .sb-public-menu {
+        width: 100%;
+    }
+}
+
+@media (max-width: 760px) {
+    .sb-public-shell {
+        background-attachment: scroll;
+    }
+
+    .sb-brand__logo {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
     }
 }

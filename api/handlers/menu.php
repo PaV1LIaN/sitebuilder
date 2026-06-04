@@ -40,7 +40,7 @@ if ($action === 'menu.create') {
         sb_json_error('NAME_REQUIRED', 422);
     }
 
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $menus = sb_read_menus();
 
@@ -80,7 +80,7 @@ if ($action === 'menu.update') {
     }
 
     $siteId = (int)($menu['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $menus = sb_read_menus();
     $updated = null;
@@ -119,7 +119,7 @@ if ($action === 'menu.delete') {
     }
 
     $siteId = (int)($menu['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $menus = sb_read_menus();
     $before = count($menus);
@@ -162,7 +162,7 @@ if ($action === 'menu.setTop') {
         sb_json_error('SITE_ID_REQUIRED', 422);
     }
 
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     if ($menuId > 0) {
         $menu = sb_find_menu($menuId);
@@ -220,7 +220,7 @@ if ($action === 'menu.item.add') {
     }
 
     $siteId = (int)($menu['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     if ($type === 'page') {
         if ($pageId <= 0) {
@@ -309,7 +309,7 @@ if ($action === 'menu.item.update') {
     }
 
     $siteId = (int)($menu['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     if ($type === 'page') {
         if ($pageId <= 0) {
@@ -392,7 +392,7 @@ if ($action === 'menu.item.delete') {
     }
 
     $siteId = (int)($menu['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $menus = sb_read_menus();
     $updatedMenu = null;
@@ -455,7 +455,7 @@ if ($action === 'menu.item.move') {
     }
 
     $siteId = (int)($menu['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $menus = sb_read_menus();
     $updatedMenu = null;

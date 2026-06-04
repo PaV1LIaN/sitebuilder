@@ -39,7 +39,7 @@ if ($action === 'block.create') {
     }
 
     $siteId = (int)($page['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $blocks = sb_read_blocks();
 
@@ -81,7 +81,7 @@ if ($action === 'block.update') {
     }
 
     $siteId = (int)($page['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $contentRaw = $_POST['content'] ?? null;
     $propsRaw = $_POST['props'] ?? null;
@@ -174,7 +174,7 @@ if ($action === 'block.delete') {
     }
 
     $siteId = (int)($page['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $blocks = sb_read_blocks();
     $before = count($blocks);
@@ -209,7 +209,7 @@ if ($action === 'block.duplicate') {
     }
 
     $siteId = (int)($page['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $blocks = sb_read_blocks();
     $srcSort = (int)($src['sort'] ?? 500);
@@ -265,7 +265,7 @@ if ($action === 'block.move') {
     }
 
     $siteId = (int)($page['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $blocks = sb_read_blocks();
 
@@ -341,7 +341,7 @@ if ($action === 'block.reorder') {
     }
 
     $siteId = (int)($page['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $orderRaw = $_POST['order'] ?? null;
     if ($orderRaw === null) {

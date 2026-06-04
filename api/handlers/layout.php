@@ -25,7 +25,7 @@ if ($action === 'layout.updateSettings') {
         sb_json_error('SITE_ID_REQUIRED', 422);
     }
 
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $settingsRaw = $_POST['settings'] ?? null;
     if ($settingsRaw === null) {
@@ -159,7 +159,7 @@ if ($action === 'layout.block.create') {
         sb_json_error('TYPE_REQUIRED', 422);
     }
 
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $layouts = sb_read_layouts();
     $updatedLayout = null;
@@ -241,7 +241,7 @@ if ($action === 'layout.block.update') {
         sb_json_error('ID_REQUIRED', 422);
     }
 
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $contentRaw = $_POST['content'] ?? null;
     $propsRaw = $_POST['props'] ?? null;
@@ -361,7 +361,7 @@ if ($action === 'layout.block.delete') {
         sb_json_error('ID_REQUIRED', 422);
     }
 
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $layouts = sb_read_layouts();
     $updatedLayout = null;
@@ -432,7 +432,7 @@ if ($action === 'layout.block.move') {
         sb_json_error('DIR_REQUIRED', 422);
     }
 
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $layouts = sb_read_layouts();
     $updatedLayout = null;
@@ -492,7 +492,7 @@ if ($action === 'layout.block.move') {
                 if ($sortCmp !== 0) {
                     return $sortCmp;
                 }
-                return (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);
+                return (int)($a['id'] ?? 0) <=> (int)$b['id'];
             });
 
             $layout['updatedAt'] = date('c');

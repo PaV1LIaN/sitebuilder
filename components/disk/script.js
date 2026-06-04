@@ -33,6 +33,7 @@
   };
 
   DiskComponent.prototype.init = async function () {
+    this.prepareModernUi();
     this.bindStaticEvents();
 
     try {
@@ -55,6 +56,7 @@
       this.state.currentFolderId = data.currentFolderId || null;
       this.state.viewMode = (this.state.settings && this.state.settings.viewMode) || 'table';
 
+      this.prepareModernUi();
       this.applyInitialViewMode();
 
       if (!this.state.permissions.canView) {
@@ -72,6 +74,36 @@
       console.error(e);
       this.state.error = e.message || 'BOOTSTRAP_ERROR';
       this.renderState('error');
+    }
+  };
+
+  DiskComponent.prototype.prepareModernUi = function () {
+    this.root.classList.add('sb-disk--modern');
+
+    var toolbarCandidates = [
+      '[data-role="search-input"]',
+      '[data-role="sort-select"]',
+      '[data-action="upload"]',
+      '[data-action="create-folder"]',
+      '[data-action="refresh"]',
+      '[data-action="settings"]',
+      '.sb-disk__view-btn'
+    ];
+
+    toolbarCandidates.forEach(function (selector) {
+      this.root.querySelectorAll(selector).forEach(function (node) {
+        node.classList.add('sb-disk-modern-control');
+      });
+    }, this);
+
+    var uploadBtn = this.root.querySelector('[data-action="upload"]');
+    if (uploadBtn) {
+      uploadBtn.classList.add('sb-disk-modern-primary');
+    }
+
+    var searchInput = this.root.querySelector('[data-role="search-input"]');
+    if (searchInput && !searchInput.getAttribute('placeholder')) {
+      searchInput.setAttribute('placeholder', 'Поиск файлов и папок');
     }
   };
 
@@ -655,11 +687,114 @@
   };
 
   DiskComponent.prototype.renderAll = function () {
+    this.prepareModernUi();
     this.renderSubtitle();
     this.renderBreadcrumbs();
     this.renderItemsTable();
     this.renderItemsGrid();
     this.syncSelectedState();
+    this.arrangeModernLayout();
+  };
+
+  DiskComponent.prototype.arrangeModernLayout = function () {
+    var root = this.root;
+
+    var breadcrumbs = root.querySelector('[data-role="breadcrumbs"]');
+    var refreshBtn = root.querySelector('[data-action="refresh"]');
+    var settingsBtn = root.querySelector('[data-action="settings"]');
+
+    var searchInput = root.querySelector('[data-role="search-input"]');
+    var sortSelect = root.querySelector('[data-role="sort-select"]');
+    var uploadBtn = root.querySelector('[data-action="upload"]');
+    var createFolderBtn = root.querySelector('[data-action="create-folder"]');
+
+    var viewButtons = Array.prototype.slice.call(root.querySelectorAll('.sb-disk__view-btn'));
+
+    var tableContainer = root.querySelector('[data-view-container="table"]');
+    var gridContainer = root.querySelector('[data-view-container="grid"]');
+    var bulkbar = root.querySelector('[data-role="bulkbar"]');
+
+    var anchor = bulkbar || tableContainer || gridContainer || root.firstElementChild;
+
+    if (!anchor) {
+      return;
+    }
+
+    var header = root.querySelector('.sb-disk__smart-header');
+    if (!header) {
+      header = document.createElement('div');
+      header.className = 'sb-disk__smart-header';
+
+      var headerLeft = document.createElement('div');
+      headerLeft.className = 'sb-disk__smart-header-left';
+
+      var headerRight = document.createElement('div');
+      headerRight.className = 'sb-disk__smart-header-right';
+
+      header.appendChild(headerLeft);
+      header.appendChild(headerRight);
+
+      root.insertBefore(header, anchor);
+    }
+
+    var headerLeftNode = header.querySelector('.sb-disk__smart-header-left');
+    var headerRightNode = header.querySelector('.sb-disk__smart-header-right');
+
+    if (breadcrumbs) {
+      headerLeftNode.appendChild(breadcrumbs);
+    }
+
+    if (refreshBtn) {
+      headerRightNode.appendChild(refreshBtn);
+    }
+
+    if (settingsBtn) {
+      headerRightNode.appendChild(settingsBtn);
+    }
+
+    var toolbar = root.querySelector('.sb-disk__smart-toolbar');
+    if (!toolbar) {
+      toolbar = document.createElement('div');
+      toolbar.className = 'sb-disk__smart-toolbar';
+
+      var toolbarLeft = document.createElement('div');
+      toolbarLeft.className = 'sb-disk__smart-toolbar-left';
+
+      var toolbarRight = document.createElement('div');
+      toolbarRight.className = 'sb-disk__smart-toolbar-right';
+
+      toolbar.appendChild(toolbarLeft);
+      toolbar.appendChild(toolbarRight);
+
+      if (header.nextSibling) {
+        root.insertBefore(toolbar, header.nextSibling);
+      } else {
+        root.appendChild(toolbar);
+      }
+    }
+
+    var toolbarLeftNode = toolbar.querySelector('.sb-disk__smart-toolbar-left');
+    var toolbarRightNode = toolbar.querySelector('.sb-disk__smart-toolbar-right');
+
+    if (searchInput) {
+      toolbarLeftNode.appendChild(searchInput);
+    }
+
+    if (sortSelect) {
+      toolbarLeftNode.appendChild(sortSelect);
+    }
+
+    if (uploadBtn) {
+      toolbarRightNode.appendChild(uploadBtn);
+    }
+
+    if (createFolderBtn) {
+      toolbarRightNode.appendChild(createFolderBtn);
+    }
+
+    viewButtons.forEach(function (btn) {
+      toolbarRightNode.appendChild(btn);
+    });
   };
 
   DiskComponent.prototype.renderSubtitle = function () {
@@ -668,7 +803,18 @@
       return;
     }
 
-    node.textContent = this.state.items.length + ' эл.';
+    var folders = 0;
+    var files = 0;
+
+    this.state.items.forEach(function (item) {
+      if (item.entityType === 'folder') {
+        folders++;
+      } else {
+        files++;
+      }
+    });
+
+    node.textContent = files + ' файлов · ' + folders + ' папок';
   };
 
   DiskComponent.prototype.renderBreadcrumbs = function () {
@@ -700,7 +846,7 @@
       return '<button type="button" class="sb-disk__crumb" data-folder-id="' + escapeHtml(item.id) + '">' +
         escapeHtml(item.name) +
       '</button>';
-    }).join('<span>/</span>');
+    }).join('<span class="sb-disk__crumb-separator">/</span>');
   };
 
   DiskComponent.prototype.renderItemsTable = function () {
@@ -710,32 +856,10 @@
     }
 
     tbody.innerHTML = this.state.items.map(function (item) {
-      var typeText = item.entityType === 'folder' ? 'Папка' : (item.extension || 'Файл');
-      var sizeText = item.size ? formatBytes(item.size) : '';
-      var badge = item.entityType === 'folder'
-        ? '<span class="sb-disk__badge">Папка</span>'
-        : '<span class="sb-disk__badge">' + escapeHtml(item.extension || 'Файл') + '</span>';
-
-      var openControl = '';
-
-      if (item.entityType === 'folder') {
-        openControl = '<button type="button" class="sb-disk__row-btn" data-row-action="open">Открыть</button>';
-      } else if (item.previewMode === 'office') {
-        openControl =
-          '<span ' +
-            'class="sb-disk__row-btn sb-disk__viewer-btn disk-detail-sidebar-editor-item disk-detail-sidebar-editor-item-show" ' +
-            'data-viewer="" ' +
-            'data-viewer-type="cloud-document" ' +
-            'data-src="' + escapeHtml(item.previewUrl || '') + '" ' +
-            'data-viewer-type-class="BX.Disk.Viewer.DocumentItem" ' +
-            'data-viewer-extension="disk.viewer.document-item" ' +
-            'data-object-id="' + escapeHtml(item.id) + '" ' +
-            'data-title="' + escapeHtml(item.name) + '" ' +
-            'data-actions="' + escapeHtml(JSON.stringify([{ type: 'download' }])) + '"' +
-          '>Открыть</span>';
-      } else {
-        openControl = '<button type="button" class="sb-disk__row-btn" data-row-action="open">Открыть</button>';
-      }
+      var typeText = getItemTypeText(item);
+      var sizeText = item.entityType === 'folder' ? '—' : (item.size ? formatBytes(item.size) : '—');
+      var iconHtml = renderItemIcon(item);
+      var openControl = renderOpenControl(item);
 
       return '' +
         '<tr class="sb-disk__row ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
@@ -745,18 +869,21 @@
           'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" ' +
           'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" ' +
           'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">' +
-            '<td>' +
+            '<td class="sb-disk__check-cell">' +
               '<input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">' +
             '</td>' +
-            '<td>' +
-              '<div class="sb-disk__item-name">' +
-                badge +
-                '<span class="sb-disk__item-name-label">' + escapeHtml(item.name) + '</span>' +
+            '<td class="sb-disk__name-cell">' +
+              '<div class="sb-disk__modern-name">' +
+                iconHtml +
+                '<div class="sb-disk__modern-name-main">' +
+                  '<div class="sb-disk__modern-name-title">' + escapeHtml(item.name) + '</div>' +
+                  '<div class="sb-disk__modern-name-sub">' + escapeHtml(typeText) + '</div>' +
+                '</div>' +
               '</div>' +
             '</td>' +
-            '<td>' + escapeHtml(typeText) + '</td>' +
+            '<td><span class="sb-disk__type-pill">' + escapeHtml(typeText) + '</span></td>' +
             '<td>' + escapeHtml(sizeText) + '</td>' +
-            '<td>' + escapeHtml(item.updatedAt || '') + '</td>' +
+            '<td>' + escapeHtml(item.updatedAt || '—') + '</td>' +
             '<td>' +
               '<div class="sb-disk__actions">' +
                 openControl +
@@ -764,7 +891,7 @@
                   ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
                   : '') +
                 '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' +
-                '<button type="button" class="sb-disk__row-btn" data-row-action="delete">Удалить</button>' +
+                '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' +
               '</div>' +
             '</td>' +
         '</tr>';
@@ -780,29 +907,9 @@
     container.classList.add('sb-disk__grid');
 
     container.innerHTML = this.state.items.map(function (item) {
-      var typeText = item.entityType === 'folder' ? 'Папка' : (item.extension || 'Файл');
-      var sizeText = item.size ? formatBytes(item.size) : '—';
-
-      var openControl = '';
-
-      if (item.entityType === 'folder') {
-        openControl = '<button type="button" class="sb-disk__row-btn" data-row-action="open">Открыть</button>';
-      } else if (item.previewMode === 'office') {
-        openControl =
-          '<span ' +
-            'class="sb-disk__row-btn sb-disk__viewer-btn disk-detail-sidebar-editor-item disk-detail-sidebar-editor-item-show" ' +
-            'data-viewer="" ' +
-            'data-viewer-type="cloud-document" ' +
-            'data-src="' + escapeHtml(item.previewUrl || '') + '" ' +
-            'data-viewer-type-class="BX.Disk.Viewer.DocumentItem" ' +
-            'data-viewer-extension="disk.viewer.document-item" ' +
-            'data-object-id="' + escapeHtml(item.id) + '" ' +
-            'data-title="' + escapeHtml(item.name) + '" ' +
-            'data-actions="' + escapeHtml(JSON.stringify([{ type: 'download' }])) + '"' +
-          '>Открыть</span>';
-      } else {
-        openControl = '<button type="button" class="sb-disk__row-btn" data-row-action="open">Открыть</button>';
-      }
+      var typeText = getItemTypeText(item);
+      var sizeText = item.entityType === 'folder' ? 'Папка' : (item.size ? formatBytes(item.size) : '—');
+      var openControl = renderOpenControl(item);
 
       return '' +
         '<div class="sb-disk__card ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
@@ -813,14 +920,17 @@
              'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" ' +
              'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">' +
             '<div class="sb-disk__card-top">' +
-              '<label>' +
+              '<label class="sb-disk__card-check">' +
                 '<input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">' +
               '</label>' +
-              '<span class="sb-disk__badge">' + escapeHtml(typeText) + '</span>' +
+              '<span class="sb-disk__type-pill">' + escapeHtml(typeText) + '</span>' +
+            '</div>' +
+            '<div class="sb-disk__card-preview">' +
+              renderItemIcon(item) +
             '</div>' +
             '<div class="sb-disk__card-name">' + escapeHtml(item.name) + '</div>' +
             '<div class="sb-disk__card-meta">' +
-              '<span class="sb-disk__card-sub">Размер: ' + escapeHtml(sizeText) + '</span>' +
+              '<span class="sb-disk__card-sub">' + escapeHtml(sizeText) + '</span>' +
             '</div>' +
             '<div class="sb-disk__card-meta">' +
               '<span class="sb-disk__card-sub">' + escapeHtml(item.updatedAt || '') + '</span>' +
@@ -831,7 +941,7 @@
                 ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
                 : '') +
               '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' +
-              '<button type="button" class="sb-disk__row-btn" data-row-action="delete">Удалить</button>' +
+              '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' +
             '</div>' +
         '</div>';
     }).join('');
@@ -851,6 +961,18 @@
 
     nodes.forEach(function (node) {
       node.hidden = true;
+
+      if (node.getAttribute('data-state') === 'empty') {
+        node.classList.add('sb-disk-empty-enhanced');
+
+        if (!node.getAttribute('data-modern-empty-ready')) {
+          node.setAttribute('data-modern-empty-ready', '1');
+          node.innerHTML = '' +
+            '<div class="sb-disk-empty-icon">📁</div>' +
+            '<strong>Пока здесь пусто</strong>' +
+            '<span>Загрузите первый файл или создайте новую папку.</span>';
+        }
+      }
     });
 
     if (!stateName) {
@@ -1083,6 +1205,95 @@
       this.renderState('no-root');
     }
   };
+
+  function getItemExtension(item) {
+    var ext = String(item.extension || '').trim().toLowerCase();
+
+    if (ext) {
+      return ext.replace(/^\./, '');
+    }
+
+    var name = String(item.name || '');
+    var parts = name.split('.');
+
+    if (parts.length < 2) {
+      return '';
+    }
+
+    return String(parts.pop() || '').toLowerCase();
+  }
+
+  function getItemTypeText(item) {
+    if (item.entityType === 'folder') {
+      return 'Папка';
+    }
+
+    var ext = getItemExtension(item);
+
+    return ext ? ext.toUpperCase() : 'Файл';
+  }
+
+  function getItemIconText(item) {
+    if (item.entityType === 'folder') {
+      return '📁';
+    }
+
+    var ext = getItemExtension(item);
+
+    if (ext === 'pdf') return 'PDF';
+    if (['doc', 'docx', 'rtf'].indexOf(ext) !== -1) return 'DOC';
+    if (['xls', 'xlsx', 'csv'].indexOf(ext) !== -1) return 'XLS';
+    if (['ppt', 'pptx'].indexOf(ext) !== -1) return 'PPT';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].indexOf(ext) !== -1) return 'IMG';
+    if (['zip', 'rar', '7z'].indexOf(ext) !== -1) return 'ZIP';
+    if (['txt', 'log'].indexOf(ext) !== -1) return 'TXT';
+
+    return 'FILE';
+  }
+
+  function getItemIconClass(item) {
+    if (item.entityType === 'folder') {
+      return 'sb-disk__modern-icon sb-disk__modern-icon--folder';
+    }
+
+    var ext = getItemExtension(item);
+
+    if (ext === 'pdf') return 'sb-disk__modern-icon sb-disk__modern-icon--pdf';
+    if (['doc', 'docx', 'rtf'].indexOf(ext) !== -1) return 'sb-disk__modern-icon sb-disk__modern-icon--doc';
+    if (['xls', 'xlsx', 'csv'].indexOf(ext) !== -1) return 'sb-disk__modern-icon sb-disk__modern-icon--xls';
+    if (['ppt', 'pptx'].indexOf(ext) !== -1) return 'sb-disk__modern-icon sb-disk__modern-icon--ppt';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].indexOf(ext) !== -1) return 'sb-disk__modern-icon sb-disk__modern-icon--img';
+    if (['zip', 'rar', '7z'].indexOf(ext) !== -1) return 'sb-disk__modern-icon sb-disk__modern-icon--zip';
+
+    return 'sb-disk__modern-icon sb-disk__modern-icon--file';
+  }
+
+  function renderItemIcon(item) {
+    return '<span class="' + escapeHtml(getItemIconClass(item)) + '">' + escapeHtml(getItemIconText(item)) + '</span>';
+  }
+
+  function renderOpenControl(item) {
+    if (item.entityType === 'folder') {
+      return '<button type="button" class="sb-disk__row-btn sb-disk__row-btn--primary is-primary" data-row-action="open">Открыть</button>';
+    }
+
+    if (item.previewMode === 'office') {
+      return '' +
+        '<span ' +
+          'class="sb-disk__row-btn sb-disk__row-btn--primary is-primary sb-disk__viewer-btn disk-detail-sidebar-editor-item disk-detail-sidebar-editor-item-show" ' +
+          'data-viewer="" ' +
+          'data-viewer-type="cloud-document" ' +
+          'data-src="' + escapeHtml(item.previewUrl || '') + '" ' +
+          'data-viewer-type-class="BX.Disk.Viewer.DocumentItem" ' +
+          'data-viewer-extension="disk.viewer.document-item" ' +
+          'data-object-id="' + escapeHtml(item.id) + '" ' +
+          'data-title="' + escapeHtml(item.name) + '" ' +
+          'data-actions="' + escapeHtml(JSON.stringify([{ type: 'download' }])) + '"' +
+        '>Открыть</span>';
+    }
+
+    return '<button type="button" class="sb-disk__row-btn sb-disk__row-btn--primary is-primary" data-row-action="open">Открыть</button>';
+  }
 
   function formatBytes(bytes) {
     bytes = Number(bytes || 0);

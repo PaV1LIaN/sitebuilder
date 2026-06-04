@@ -621,7 +621,7 @@ $isBitrixAdmin = $USER->IsAdmin();
 
         html += '<a class="sb-btn sb-btn-light sb-btn-small" href="' + BASE_PATH + '/public.php?siteId=' + siteId + '" target="_blank">Публичная</a>';
 
-        if (userRoleRank >= 2) {
+        if (userRoleRank >= 3) {
             html += '<a class="sb-btn sb-btn-primary sb-btn-small" href="' + BASE_PATH + '/editor.php?siteId=' + siteId + '">Редактор</a>';
         }
 
@@ -830,7 +830,7 @@ $isBitrixAdmin = $USER->IsAdmin();
                         +        escapeHtml(s.name || '')
                         + '  </a>'
                         + '  <div class="sb-user-site-actions">'
-                        +        (currentUserRoleRank >= 2
+                        +        (currentUserRoleRank >= 3
                                     ? '<a class="sb-btn sb-btn-primary sb-btn-small" href="' + BASE_PATH + '/editor.php?siteId=' + siteId + '">Редактор</a>'
                                     : '')
                         + '  </div>'

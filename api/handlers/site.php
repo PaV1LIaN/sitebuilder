@@ -1,5 +1,7 @@
 <?php
 
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteAppearanceService.php';
+
 global $USER;
 
 $siteBitrixGroupServicePath = $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteBitrixGroupService.php';
@@ -901,6 +903,153 @@ if ($action === 'site.accessRemove') {
         sb_json_error($e->getMessage(), 500, [
             'handler' => 'site',
             'action' => 'site.accessRemove',
+            'file' => __FILE__,
+        ]);
+    }
+}
+
+if ($action === 'site.appearanceGet') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+
+    if ($siteId <= 0) {
+        sb_json_error('SITE_ID_REQUIRED', 422);
+    }
+
+    sb_require_content_manager($siteId);
+
+    try {
+        $appearance = SiteAppearanceService::get($siteId);
+
+        sb_json_ok([
+            'appearance' => $appearance,
+            'handler' => 'site',
+            'action' => $action,
+            'file' => __FILE__,
+        ]);
+    } catch (Throwable $e) {
+        sb_json_error($e->getMessage(), 500, [
+            'handler' => 'site',
+            'action' => $action,
+            'file' => __FILE__,
+        ]);
+    }
+}
+
+if ($action === 'site.appearanceUpdate') {
+    global $USER;
+
+    $siteId = (int)($_POST['siteId'] ?? 0);
+
+    if ($siteId <= 0) {
+        sb_json_error('SITE_ID_REQUIRED', 422);
+    }
+
+    sb_require_content_manager($siteId);
+
+    try {
+        $data = $_POST;
+
+        unset($data['action'], $data['sessid'], $data['siteId']);
+
+        $appearance = SiteAppearanceService::update(
+            $siteId,
+            $data,
+            (int)$USER->GetID()
+        );
+
+        sb_json_ok([
+            'appearance' => $appearance,
+            'handler' => 'site',
+            'action' => $action,
+            'file' => __FILE__,
+        ]);
+    } catch (Throwable $e) {
+        sb_json_error($e->getMessage(), 500, [
+            'handler' => 'site',
+            'action' => $action,
+            'file' => __FILE__,
+        ]);
+    }
+}
+
+if ($action === 'site.appearanceUpload') {
+    global $USER;
+
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    $type = trim((string)($_POST['type'] ?? ''));
+
+    if ($siteId <= 0) {
+        sb_json_error('SITE_ID_REQUIRED', 422);
+    }
+
+    if ($type === '') {
+        sb_json_error('TYPE_REQUIRED', 422);
+    }
+
+    sb_require_content_manager($siteId);
+
+    $file = $_FILES['file'] ?? null;
+
+    if (!is_array($file)) {
+        sb_json_error('FILE_REQUIRED', 422);
+    }
+
+    try {
+        $appearance = SiteAppearanceService::upload(
+            $siteId,
+            $type,
+            $file,
+            (int)$USER->GetID()
+        );
+
+        sb_json_ok([
+            'appearance' => $appearance,
+            'handler' => 'site',
+            'action' => $action,
+            'file' => __FILE__,
+        ]);
+    } catch (Throwable $e) {
+        sb_json_error($e->getMessage(), 500, [
+            'handler' => 'site',
+            'action' => $action,
+            'file' => __FILE__,
+        ]);
+    }
+}
+
+if ($action === 'site.appearanceRemove') {
+    global $USER;
+
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    $type = trim((string)($_POST['type'] ?? ''));
+
+    if ($siteId <= 0) {
+        sb_json_error('SITE_ID_REQUIRED', 422);
+    }
+
+    if ($type === '') {
+        sb_json_error('TYPE_REQUIRED', 422);
+    }
+
+    sb_require_content_manager($siteId);
+
+    try {
+        $appearance = SiteAppearanceService::remove(
+            $siteId,
+            $type,
+            (int)$USER->GetID()
+        );
+
+        sb_json_ok([
+            'appearance' => $appearance,
+            'handler' => 'site',
+            'action' => $action,
+            'file' => __FILE__,
+        ]);
+    } catch (Throwable $e) {
+        sb_json_error($e->getMessage(), 500, [
+            'handler' => 'site',
+            'action' => $action,
             'file' => __FILE__,
         ]);
     }

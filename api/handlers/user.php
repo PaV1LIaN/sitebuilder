@@ -66,6 +66,13 @@ if (!function_exists('sb_user_search_normalize')) {
         $login = (string)($row['LOGIN'] ?? '');
         $email = (string)($row['EMAIL'] ?? '');
 
+        $photoId = (int)($row['PERSONAL_PHOTO'] ?? 0);
+        $avatarUrl = '';
+
+        if ($photoId > 0 && class_exists('CFile')) {
+            $avatarUrl = (string)CFile::GetPath($photoId);
+        }
+
         $title = $fio !== '' ? $fio : ($login !== '' ? $login : ('Пользователь #' . $id));
 
         return [
@@ -74,6 +81,8 @@ if (!function_exists('sb_user_search_normalize')) {
             'login' => $login,
             'email' => $email,
             'title' => $title,
+            'avatarUrl' => $avatarUrl,
+            'photoUrl' => $avatarUrl,
             'active' => (string)($row['ACTIVE'] ?? ''),
         ];
     }
@@ -168,6 +177,7 @@ if (!function_exists('sb_user_search_by_filter')) {
                     'NAME',
                     'LAST_NAME',
                     'SECOND_NAME',
+                    'PERSONAL_PHOTO',
                     'ACTIVE',
                 ],
             ]

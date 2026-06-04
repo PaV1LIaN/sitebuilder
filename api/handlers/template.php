@@ -32,7 +32,7 @@ if ($action === 'template.createFromPage') {
         sb_json_error('NAME_REQUIRED', 422);
     }
 
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $page = sb_find_page($pageId);
     if (!$page || (int)($page['siteId'] ?? 0) !== $siteId) {
@@ -96,7 +96,7 @@ if ($action === 'template.applyToPage') {
         sb_json_error('TEMPLATE_NOT_IN_SITE', 422);
     }
 
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $blocks = sb_read_blocks();
 
@@ -153,7 +153,7 @@ if ($action === 'template.rename') {
     }
 
     $siteId = (int)($template['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $templates = sb_read_templates();
     $updated = null;
@@ -192,7 +192,7 @@ if ($action === 'template.delete') {
     }
 
     $siteId = (int)($template['siteId'] ?? 0);
-    sb_require_editor($siteId);
+    sb_require_content_manager($siteId);
 
     $templates = sb_read_templates();
     $before = count($templates);
