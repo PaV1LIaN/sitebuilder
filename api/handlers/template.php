@@ -2,212 +2,165 @@
 
 global $USER;
 
+$servicePath = $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteTemplateService.php';
+if (file_exists($servicePath)) {
+    require_once $servicePath;
+}
+
+if (!class_exists('SiteTemplateService')) {
+    sb_json_error('SiteTemplateService.php не подключен', 500);
+}
+
 if ($action === 'template.list') {
-    $siteId = (int)($_POST['siteId'] ?? 0);
-    if ($siteId <= 0) {
-        sb_json_error('SITE_ID_REQUIRED', 422);
-    }
-
-    sb_require_viewer($siteId);
-
-    $templates = array_map('sb_normalize_template_record', sb_templates_for_site($siteId));
-
     sb_json_ok([
-        'templates' => $templates,
+        'templates' => SiteTemplateService::listSiteTemplates(),
+        'handler' => 'template',
+        'action' => $action,
     ]);
 }
 
-if ($action === 'template.createFromPage') {
-    $siteId = (int)($_POST['siteId'] ?? 0);
-    $pageId = (int)($_POST['pageId'] ?? 0);
-    $name = trim((string)($_POST['name'] ?? ''));
-
-    if ($siteId <= 0) {
-        sb_json_error('SITE_ID_REQUIRED', 422);
-    }
-    if ($pageId <= 0) {
-        sb_json_error('PAGE_ID_REQUIRED', 422);
-    }
-    if ($name === '') {
-        sb_json_error('NAME_REQUIRED', 422);
-    }
-
-    sb_require_content_manager($siteId);
-
-    $page = sb_find_page($pageId);
-    if (!$page || (int)($page['siteId'] ?? 0) !== $siteId) {
-        sb_json_error('PAGE_NOT_IN_SITE', 422);
-    }
-
-    $pageBlocks = sb_blocks_for_page($pageId);
-
-    $storedBlocks = [];
-    foreach ($pageBlocks as $block) {
-        $copy = sb_normalize_block_record($block);
-        unset($copy['pageId']);
-        $storedBlocks[] = $copy;
-    }
-
-    $templates = sb_read_templates();
-
-    $template = [
-        'id' => sb_next_template_id($templates),
-        'siteId' => $siteId,
-        'name' => $name,
-        'sourcePageId' => $pageId,
-        'blocks' => $storedBlocks,
-        'createdBy' => (int)$USER->GetID(),
-        'createdAt' => date('c'),
-        'updatedAt' => date('c'),
-        'updatedBy' => (int)$USER->GetID(),
-    ];
-
-    $templates[] = $template;
-    sb_write_templates($templates);
-
-    sb_json_ok([
-        'template' => sb_normalize_template_record($template),
-    ]);
-}
-
-if ($action === 'template.applyToPage') {
-    $templateId = (int)($_POST['templateId'] ?? 0);
-    $pageId = (int)($_POST['pageId'] ?? 0);
+if ($action === 'template.get') {
+    $templateId = (int)($_POST['templateId'] ?? $_POST['id'] ?? 0);
 
     if ($templateId <= 0) {
         sb_json_error('TEMPLATE_ID_REQUIRED', 422);
     }
-    if ($pageId <= 0) {
-        sb_json_error('PAGE_ID_REQUIRED', 422);
-    }
 
-    $template = sb_find_template($templateId);
-    if (!$template) {
+    $template = SiteTemplateService::getTemplate($templateId);
+    if (!$template || (string)($template['kind'] ?? 'site') !== 'site') {
         sb_json_error('TEMPLATE_NOT_FOUND', 404);
     }
 
-    $page = sb_find_page($pageId);
-    if (!$page) {
-        sb_json_error('PAGE_NOT_FOUND', 404);
-    }
-
-    $siteId = (int)($page['siteId'] ?? 0);
-    if ((int)($template['siteId'] ?? 0) !== $siteId) {
-        sb_json_error('TEMPLATE_NOT_IN_SITE', 422);
-    }
-
-    sb_require_content_manager($siteId);
-
-    $blocks = sb_read_blocks();
-
-    $blocks = array_values(array_filter($blocks, static function ($b) use ($pageId) {
-        return (int)($b['pageId'] ?? 0) !== $pageId;
-    }));
-
-    $nextBlockId = sb_next_block_id($blocks);
-
-    $templateBlocks = $template['blocks'] ?? [];
-    usort($templateBlocks, static function ($a, $b) {
-        $sortCmp = (int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500);
-        if ($sortCmp !== 0) {
-            return $sortCmp;
-        }
-        return (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);
-    });
-
-    $sort = 10;
-    foreach ($templateBlocks as $tplBlock) {
-        $newBlock = sb_normalize_block_record($tplBlock);
-        $newBlock['id'] = $nextBlockId++;
-        $newBlock['pageId'] = $pageId;
-        $newBlock['sort'] = $sort;
-        $newBlock['createdBy'] = (int)$USER->GetID();
-        $newBlock['createdAt'] = date('c');
-        $newBlock['updatedAt'] = date('c');
-        $newBlock['updatedBy'] = (int)$USER->GetID();
-        $blocks[] = $newBlock;
-        $sort += 10;
-    }
-
-    sb_write_blocks($blocks);
-
     sb_json_ok([
-        'blocks' => array_map('sb_normalize_block_record', sb_blocks_for_page($pageId)),
+        'template' => SiteTemplateService::publicTemplateRecord($template),
+        'handler' => 'template',
+        'action' => $action,
     ]);
 }
 
-if ($action === 'template.rename') {
-    $id = (int)($_POST['id'] ?? 0);
-    $name = trim((string)($_POST['name'] ?? ''));
+if ($action === 'template.createFromSite') {
+    sb_require_bitrix_admin();
 
-    if ($id <= 0) {
-        sb_json_error('ID_REQUIRED', 422);
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    $name = trim((string)($_POST['name'] ?? ''));
+    $description = trim((string)($_POST['description'] ?? ''));
+
+    if ($siteId <= 0) {
+        sb_json_error('SITE_ID_REQUIRED', 422);
     }
+
     if ($name === '') {
         sb_json_error('NAME_REQUIRED', 422);
     }
 
-    $template = sb_find_template($id);
-    if (!$template) {
-        sb_json_error('TEMPLATE_NOT_FOUND', 404);
+    try {
+        $template = SiteTemplateService::createFromSite(
+            $siteId,
+            $name,
+            $description,
+            (int)$USER->GetID()
+        );
+
+        sb_json_ok([
+            'template' => $template,
+            'handler' => 'template',
+            'action' => $action,
+        ]);
+    } catch (Throwable $e) {
+        sb_json_error($e->getMessage(), 500, [
+            'handler' => 'template',
+            'action' => $action,
+        ]);
+    }
+}
+
+if ($action === 'template.update') {
+    sb_require_bitrix_admin();
+
+    $templateId = (int)($_POST['templateId'] ?? $_POST['id'] ?? 0);
+    $name = trim((string)($_POST['name'] ?? ''));
+    $description = trim((string)($_POST['description'] ?? ''));
+
+    if ($templateId <= 0) {
+        sb_json_error('TEMPLATE_ID_REQUIRED', 422);
     }
 
-    $siteId = (int)($template['siteId'] ?? 0);
-    sb_require_content_manager($siteId);
-
-    $templates = sb_read_templates();
-    $updated = null;
-
-    foreach ($templates as &$tpl) {
-        if ((int)($tpl['id'] ?? 0) === $id) {
-            $tpl['name'] = $name;
-            $tpl['updatedAt'] = date('c');
-            $tpl['updatedBy'] = (int)$USER->GetID();
-            $updated = $tpl;
-            break;
-        }
-    }
-    unset($tpl);
-
-    if (!$updated) {
-        sb_json_error('TEMPLATE_NOT_FOUND', 404);
+    if ($name === '') {
+        sb_json_error('NAME_REQUIRED', 422);
     }
 
-    sb_write_templates($templates);
+    try {
+        $template = SiteTemplateService::rename($templateId, $name, $description, (int)$USER->GetID());
 
-    sb_json_ok([
-        'template' => sb_normalize_template_record($updated),
-    ]);
+        sb_json_ok([
+            'template' => $template,
+            'handler' => 'template',
+            'action' => $action,
+        ]);
+    } catch (Throwable $e) {
+        sb_json_error($e->getMessage(), 500, [
+            'handler' => 'template',
+            'action' => $action,
+        ]);
+    }
 }
 
 if ($action === 'template.delete') {
-    $id = (int)($_POST['id'] ?? 0);
-    if ($id <= 0) {
-        sb_json_error('ID_REQUIRED', 422);
+    sb_require_bitrix_admin();
+
+    $templateId = (int)($_POST['templateId'] ?? $_POST['id'] ?? 0);
+
+    if ($templateId <= 0) {
+        sb_json_error('TEMPLATE_ID_REQUIRED', 422);
     }
 
-    $template = sb_find_template($id);
-    if (!$template) {
-        sb_json_error('TEMPLATE_NOT_FOUND', 404);
+    try {
+        SiteTemplateService::delete($templateId);
+
+        sb_json_ok([
+            'deleted' => true,
+            'handler' => 'template',
+            'action' => $action,
+        ]);
+    } catch (Throwable $e) {
+        sb_json_error($e->getMessage(), 500, [
+            'handler' => 'template',
+            'action' => $action,
+        ]);
+    }
+}
+
+if ($action === 'template.createSite') {
+    sb_require_bitrix_admin();
+
+    $templateId = (int)($_POST['templateId'] ?? 0);
+    $name = trim((string)($_POST['name'] ?? ''));
+    $slug = trim((string)($_POST['slug'] ?? ''));
+    $sectionId = (int)($_POST['sectionId'] ?? 0);
+
+    if ($templateId <= 0) {
+        sb_json_error('TEMPLATE_ID_REQUIRED', 422);
     }
 
-    $siteId = (int)($template['siteId'] ?? 0);
-    sb_require_content_manager($siteId);
+    try {
+        $result = SiteTemplateService::createSiteFromTemplate(
+            $templateId,
+            $name,
+            $slug,
+            $sectionId,
+            (int)$USER->GetID()
+        );
 
-    $templates = sb_read_templates();
-    $before = count($templates);
-
-    $templates = array_values(array_filter($templates, static function ($tpl) use ($id) {
-        return (int)($tpl['id'] ?? 0) !== $id;
-    }));
-
-    if (count($templates) === $before) {
-        sb_json_error('TEMPLATE_NOT_FOUND', 404);
+        sb_json_ok($result + [
+            'handler' => 'template',
+            'action' => $action,
+        ]);
+    } catch (Throwable $e) {
+        sb_json_error($e->getMessage(), 500, [
+            'handler' => 'template',
+            'action' => $action,
+        ]);
     }
-
-    sb_write_templates($templates);
-
-    sb_json_ok();
 }
 
 sb_json_error('NOT_MOVED_YET', 501, [

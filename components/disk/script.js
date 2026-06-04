@@ -105,7 +105,27 @@
     if (searchInput && !searchInput.getAttribute('placeholder')) {
       searchInput.setAttribute('placeholder', 'Поиск файлов и папок');
     }
+
+    this.renameTypeColumnToAddedBy();
   };
+
+  DiskComponent.prototype.renameTypeColumnToAddedBy = function () {
+    var table = this.root.querySelector('table');
+
+    if (!table) {
+        return;
+    }
+
+    var headers = table.querySelectorAll('thead th');
+
+    headers.forEach(function (th) {
+        var text = String(th.textContent || '').trim().toLowerCase();
+
+        if (text === 'тип') {
+        th.textContent = 'Добавил';
+        }
+    });
+    };
 
   DiskComponent.prototype.getBasePayload = function () {
     return {
@@ -263,8 +283,720 @@
     }
   };
 
+  /* =========================================================
+     DISPLAY ORDER / HISTORY HELPERS
+     ========================================================= */
+
+     DiskComponent.prototype.getHistoryNameInfo = function (item) {
+        var name = String(item && item.name ? item.name : '');
+
+        var prefixes = [
+            '_history__',
+            'history__',
+            '_history_',
+            'history_'
+        ];
+
+        for (var i = 0; i < prefixes.length; i++) {
+            var prefix = prefixes[i];
+
+            if (name.indexOf(prefix) !== 0) {
+            continue;
+            }
+
+            var rest = name.slice(prefix.length);
+            var sepIndex = rest.indexOf('__');
+
+            if (sepIndex < 0) {
+            return {
+                isHistory: true,
+                originalName: name,
+                timestamp: 0
+            };
+            }
+
+            var timePart = rest.slice(0, sepIndex);
+            var originalName = rest.slice(sepIndex + 2);
+            var timestamp = Number(String(timePart).split('_')[0] || 0);
+
+            return {
+            isHistory: true,
+            originalName: originalName || name,
+            timestamp: timestamp > 0 ? timestamp : 0
+            };
+        }
+
+        return {
+            isHistory: false,
+            originalName: name,
+            timestamp: 0
+        };
+        };
+
+        DiskComponent.prototype.isHistoryItem = function (item) {
+        return this.getHistoryNameInfo(item).isHistory;
+        };
+
+        DiskComponent.prototype.getHistoryOriginalName = function (item) {
+        return this.getHistoryNameInfo(item).originalName;
+        };
+
+        DiskComponent.prototype.getHistoryTime = function (item) {
+        return this.getHistoryNameInfo(item).timestamp;
+        };
+
+        DiskComponent.prototype.formatHistoryDate = function (timestamp) {
+        timestamp = Number(timestamp || 0);
+
+        if (!timestamp) {
+            return 'Старая версия';
+        }
+
+        var date = new Date(timestamp);
+
+        return date.toLocaleString('ru-RU');
+        };
+
+        DiskComponent.prototype.buildHistoryFileName = function (originalName) {
+        originalName = String(originalName || '').trim();
+
+        if (!originalName) {
+            originalName = 'file';
+        }
+
+        var stamp = Date.now() + '_' + Math.floor(Math.random() * 100000);
+
+        return 'history__' + stamp + '__' + originalName;
+        };
+
+  DiskComponent.prototype.getHistoryItemsForFile = function (fileName) {
+    fileName = String(fileName || '').trim().toLowerCase();
+
+    if (!fileName) {
+      return [];
+    }
+
+    return this.state.items
+      .filter(function (item) {
+        if (!this.isHistoryItem(item)) {
+          return false;
+        }
+
+        return String(this.getHistoryOriginalName(item) || '').trim().toLowerCase() === fileName;
+      }, this)
+      .sort(function (a, b) {
+        return this.getHistoryTime(b) - this.getHistoryTime(a);
+      }.bind(this));
+  };
+
+  DiskComponent.prototype.getDisplayItems = function () {
+    var folders = [];
+    var files = [];
+
+    this.state.items.forEach(function (item) {
+      if (this.isHistoryItem(item)) {
+        return;
+      }
+
+      if (String(item.entityType || '').toLowerCase() === 'folder') {
+        folders.push(item);
+      } else {
+        files.push(item);
+      }
+    }, this);
+
+    return folders.concat(files);
+  };
+
+  DiskComponent.prototype.renderHistoryControl = function (item) {
+    if (!item || String(item.entityType || '') !== 'file') {
+      return '';
+    }
+
+    if (this.isHistoryItem(item)) {
+      return '';
+    }
+
+    var historyItems = this.getHistoryItemsForFile(item.name);
+
+    if (!historyItems.length) {
+      return '';
+    }
+
+    return '<button type="button" class="sb-disk__row-btn" data-row-action="history">История</button>';
+  };
+
+  DiskComponent.prototype.openHistoryModalForFile = function (fileName) {
+    var self = this;
+    var historyItems = this.getHistoryItemsForFile(fileName);
+
+    if (!historyItems.length) {
+      alert('Истории замен для этого файла пока нет');
+      return;
+    }
+
+    var modal = document.createElement('div');
+    modal.className = 'sb-disk-history-modal';
+
+    modal.innerHTML = ''
+      + '<div class="sb-disk-history-modal__backdrop" data-history-action="close"></div>'
+      + '<div class="sb-disk-history-modal__dialog">'
+      + '  <div class="sb-disk-history-modal__head">'
+      + '    <div>'
+      + '      <div class="sb-disk-history-modal__title">История файла</div>'
+      + '      <div class="sb-disk-history-modal__subtitle">' + escapeHtml(fileName) + '</div>'
+      + '    </div>'
+      + '    <button type="button" class="sb-disk-history-modal__close" data-history-action="close">×</button>'
+      + '  </div>'
+      + '  <div class="sb-disk-history-modal__body">'
+      + historyItems.map(function (item) {
+        var time = self.formatHistoryDate(self.getHistoryTime(item));
+        var size = item.size ? formatBytes(item.size) : '—';
+        var addedByText = getItemAddedByText(item);
+
+          return ''
+            + '<div class="sb-disk-history-item" data-history-id="' + escapeHtml(item.id) + '">'
+            + '  <div class="sb-disk-history-item__main">'
+            + '    <div class="sb-disk-history-item__name">' + escapeHtml(self.getHistoryOriginalName(item)) + '</div>'
+            + '    <div class="sb-disk-history-item__meta">'
+            + '      <span>' + escapeHtml(time) + '</span>'
+            + '      <span>' + escapeHtml(size) + '</span>'
+            + '      <span>Добавил: ' + escapeHtml(addedByText) + '</span>'
+            + '    </div>'
+            + '  </div>'
+            + '  <div class="sb-disk-history-item__actions">'
+            + '    <button type="button" class="sb-disk-history-btn is-primary" data-history-action="open" data-history-id="' + escapeHtml(item.id) + '">Открыть</button>'
+            + (item.downloadUrl
+                ? '    <button type="button" class="sb-disk-history-btn" data-history-action="download" data-history-id="' + escapeHtml(item.id) + '">Скачать</button>'
+                : '')
+            + '  </div>'
+            + '</div>';
+        }).join('')
+      + '  </div>'
+      + '</div>';
+
+    function findHistoryItem(id) {
+      id = Number(id || 0);
+
+      for (var i = 0; i < historyItems.length; i++) {
+        if (Number(historyItems[i].id || 0) === id) {
+          return historyItems[i];
+        }
+      }
+
+      return null;
+    }
+
+    function close() {
+      if (modal && modal.parentNode) {
+        modal.parentNode.removeChild(modal);
+      }
+
+      document.removeEventListener('keydown', onKeyDown);
+    }
+
+    function onKeyDown(e) {
+      if (e.key === 'Escape') {
+        close();
+      }
+    }
+
+    modal.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-history-action]');
+
+      if (!btn) {
+        return;
+      }
+
+      var action = btn.getAttribute('data-history-action');
+
+      if (action === 'close') {
+        close();
+        return;
+      }
+
+      var id = Number(btn.getAttribute('data-history-id') || 0);
+      var item = findHistoryItem(id);
+
+      if (!item) {
+        return;
+      }
+
+      if (action === 'open') {
+        if (item.previewUrl) {
+          window.open(item.previewUrl, '_blank');
+          return;
+        }
+
+        if (item.downloadUrl) {
+          window.open(item.downloadUrl, '_blank');
+        }
+
+        return;
+      }
+
+      if (action === 'download') {
+        if (item.downloadUrl) {
+          window.open(item.downloadUrl, '_blank');
+        }
+      }
+    });
+
+    document.addEventListener('keydown', onKeyDown);
+    document.body.appendChild(modal);
+  };
+
+  DiskComponent.prototype.renameDiskItem = async function (item, newName) {
+    var payload = this.getBasePayload();
+
+    payload.entityType = item.entityType || 'file';
+    payload.entityId = Number(item.id || 0);
+    payload.newName = newName;
+    payload.sessid = this.getSessid();
+
+    var res = await this.api('rename', payload);
+
+    if (!res || !res.ok) {
+      throw new Error((res && (res.message || res.error)) || 'RENAME_ERROR');
+    }
+
+    return res;
+  };
+
+  DiskComponent.prototype.archiveExistingFileToHistory = async function (existingItem) {
+    if (!existingItem || String(existingItem.entityType || '') !== 'file') {
+      return;
+    }
+
+    var oldName = String(existingItem.name || '').trim();
+
+    if (!oldName) {
+      return;
+    }
+
+    var historyName = this.buildHistoryFileName(oldName);
+
+    await this.renameDiskItem(existingItem, historyName);
+
+    existingItem.name = historyName;
+  };
+
+  /* =========================================================
+     DOUBLE CLICK OPEN
+     ========================================================= */
+
+  DiskComponent.prototype.openFileFromElement = function (element) {
+    if (!element) {
+      return;
+    }
+
+    var entityType = element.getAttribute('data-entity-type') || '';
+
+    if (entityType !== 'file') {
+      return;
+    }
+
+    var entityId = Number(element.getAttribute('data-id') || 0);
+    var previewMode = element.getAttribute('data-preview-mode') || '';
+    var previewUrl = element.getAttribute('data-preview-url') || '';
+    var downloadUrl = element.getAttribute('data-download-url') || '';
+
+    var openUrl = previewUrl || downloadUrl || '';
+    var openKey = 'file:' + entityId + ':' + openUrl;
+    var now = Date.now();
+
+    window.__SB_DISK_OPEN_LOCK__ = window.__SB_DISK_OPEN_LOCK__ || {
+      key: '',
+      time: 0
+    };
+
+    if (
+      window.__SB_DISK_OPEN_LOCK__.key === openKey &&
+      now - window.__SB_DISK_OPEN_LOCK__.time < 1200
+    ) {
+      return;
+    }
+
+    window.__SB_DISK_OPEN_LOCK__.key = openKey;
+    window.__SB_DISK_OPEN_LOCK__.time = now;
+
+    if (previewMode === 'office') {
+      var viewerBtn = element.querySelector('[data-viewer]');
+
+      if (viewerBtn) {
+        viewerBtn.click();
+        return;
+      }
+    }
+
+    if (previewUrl) {
+      window.open(previewUrl, '_blank');
+      return;
+    }
+
+    if (downloadUrl) {
+      window.open(downloadUrl, '_blank');
+    }
+  };
+
+  /* =========================================================
+     DUPLICATE FILE UPLOAD
+     ========================================================= */
+
+  DiskComponent.prototype.findExistingFileByName = function (fileName) {
+    fileName = String(fileName || '').trim().toLowerCase();
+
+    if (!fileName) {
+      return null;
+    }
+
+    for (var i = 0; i < this.state.items.length; i++) {
+      var item = this.state.items[i];
+
+      if (this.isHistoryItem(item)) {
+        continue;
+      }
+
+      if (String(item.entityType || '').toLowerCase() !== 'file') {
+        continue;
+      }
+
+      if (String(item.name || '').trim().toLowerCase() === fileName) {
+        return item;
+      }
+    }
+
+    return null;
+  };
+
+  DiskComponent.prototype.splitFileName = function (fileName) {
+    fileName = String(fileName || '').trim();
+
+    var dotIndex = fileName.lastIndexOf('.');
+
+    if (dotIndex <= 0) {
+      return {
+        base: fileName,
+        ext: ''
+      };
+    }
+
+    return {
+      base: fileName.slice(0, dotIndex),
+      ext: fileName.slice(dotIndex)
+    };
+  };
+
+  DiskComponent.prototype.suggestDuplicateFileName = function (fileName) {
+    var parts = this.splitFileName(fileName);
+    var base = parts.base || 'file';
+    var ext = parts.ext || '';
+    var index = 1;
+    var candidate = base + ' (копия)' + ext;
+
+    while (this.findExistingFileByName(candidate)) {
+      index++;
+      candidate = base + ' (копия ' + index + ')' + ext;
+    }
+
+    return candidate;
+  };
+
+  DiskComponent.prototype.makeRenamedFile = function (file, newName) {
+    newName = String(newName || '').trim();
+
+    if (!newName) {
+      throw new Error('EMPTY_FILE_NAME');
+    }
+
+    if (typeof File === 'function') {
+      return new File([file], newName, {
+        type: file.type,
+        lastModified: file.lastModified
+      });
+    }
+
+    throw new Error('Ваш браузер не поддерживает переименование файла перед загрузкой');
+  };
+
+  DiskComponent.prototype.deleteDiskItems = async function (items) {
+    var payload = this.getBasePayload();
+
+    payload.items = items;
+    payload.sessid = this.getSessid();
+
+    var res = await this.api('delete', payload);
+
+    if (!res || !res.ok) {
+      throw new Error((res && (res.message || res.error)) || 'DELETE_ERROR');
+    }
+
+    return res;
+  };
+
+  DiskComponent.prototype.askDuplicateUploadAction = function (file, existingItem) {
+    var self = this;
+
+    return new Promise(function (resolve) {
+      var fileName = String(file && file.name ? file.name : '');
+      var suggestedName = self.suggestDuplicateFileName(fileName);
+
+      var modal = document.createElement('div');
+      modal.className = 'sb-disk-duplicate-modal';
+
+      modal.innerHTML = ''
+        + '<div class="sb-disk-duplicate-modal__backdrop" data-duplicate-action="cancel"></div>'
+        + '<div class="sb-disk-duplicate-modal__dialog">'
+        + '  <div class="sb-disk-duplicate-modal__head">'
+        + '    <div>'
+        + '      <div class="sb-disk-duplicate-modal__title">Файл уже существует</div>'
+        + '      <div class="sb-disk-duplicate-modal__subtitle">В этой папке уже есть файл с таким именем.</div>'
+        + '    </div>'
+        + '    <button type="button" class="sb-disk-duplicate-modal__close" data-duplicate-action="cancel">×</button>'
+        + '  </div>'
+        + ''
+        + '  <div class="sb-disk-duplicate-modal__body">'
+        + '    <div class="sb-disk-duplicate-file">'
+        + '      <div class="sb-disk-duplicate-file__label">Файл:</div>'
+        + '      <div class="sb-disk-duplicate-file__name">' + escapeHtml(fileName) + '</div>'
+        + '    </div>'
+        + ''
+        + '    <div class="sb-disk-duplicate-field">'
+        + '      <label>Новое имя, если выбрать “Переименовать”</label>'
+        + '      <input type="text" class="sb-disk-duplicate-input" value="' + escapeHtml(suggestedName) + '">'
+        + '    </div>'
+        + ''
+        + '    <div class="sb-disk-duplicate-note">'
+        + '      “Заменить” сохранит старый файл в историю и загрузит новый с тем же именем.'
+        + '    </div>'
+        + '  </div>'
+        + ''
+        + '  <div class="sb-disk-duplicate-modal__footer">'
+        + '    <button type="button" class="sb-disk-duplicate-btn" data-duplicate-action="cancel">Отмена</button>'
+        + '    <button type="button" class="sb-disk-duplicate-btn" data-duplicate-action="rename">Переименовать</button>'
+        + '    <button type="button" class="sb-disk-duplicate-btn is-primary" data-duplicate-action="replace">Заменить</button>'
+        + '  </div>'
+        + '</div>';
+
+      function close(result) {
+        if (modal && modal.parentNode) {
+          modal.parentNode.removeChild(modal);
+        }
+
+        document.removeEventListener('keydown', onKeyDown);
+
+        resolve(result);
+      }
+
+      function onKeyDown(e) {
+        if (e.key === 'Escape') {
+          close({
+            action: 'cancel'
+          });
+        }
+      }
+
+      modal.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-duplicate-action]');
+
+        if (!btn) {
+          return;
+        }
+
+        var action = btn.getAttribute('data-duplicate-action');
+
+        if (action === 'cancel') {
+          close({
+            action: 'cancel'
+          });
+          return;
+        }
+
+        if (action === 'replace') {
+          close({
+            action: 'replace',
+            existingItem: existingItem
+          });
+          return;
+        }
+
+        if (action === 'rename') {
+          var input = modal.querySelector('.sb-disk-duplicate-input');
+          var newName = input ? String(input.value || '').trim() : '';
+
+          if (!newName) {
+            alert('Введите новое имя файла');
+            if (input) input.focus();
+            return;
+          }
+
+          if (self.findExistingFileByName(newName)) {
+            alert('Файл с таким именем уже есть. Укажите другое имя.');
+            if (input) input.focus();
+            return;
+          }
+
+          close({
+            action: 'rename',
+            name: newName
+          });
+        }
+      });
+
+      document.addEventListener('keydown', onKeyDown);
+      document.body.appendChild(modal);
+
+      setTimeout(function () {
+        var input = modal.querySelector('.sb-disk-duplicate-input');
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }, 50);
+    });
+  };
+
+  /* =========================================================
+     EVENTS
+     ========================================================= */
+
+     DiskComponent.prototype.setDragOver = function (active) {
+        this.root.classList.toggle('is-dragover', !!active);
+        };
+
+        DiskComponent.prototype.uploadFiles = async function (files) {
+        files = Array.prototype.slice.call(files || []);
+
+        if (!files.length) {
+            return;
+        }
+
+        if (!this.state.permissions.canUpload) {
+            alert('У вас нет прав на загрузку файлов');
+            return;
+        }
+
+        var preparedFiles = [];
+
+        try {
+            for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+
+            if (!file || !file.name) {
+                continue;
+            }
+
+            var existingItem = this.findExistingFileByName(file.name);
+
+            if (!existingItem) {
+                preparedFiles.push(file);
+                continue;
+            }
+
+            var decision = await this.askDuplicateUploadAction(file, existingItem);
+
+            if (!decision || decision.action === 'cancel') {
+                continue;
+            }
+
+            if (decision.action === 'replace') {
+                await this.archiveExistingFileToHistory(existingItem);
+
+                preparedFiles.push(file);
+                continue;
+            }
+
+            if (decision.action === 'rename') {
+                preparedFiles.push(this.makeRenamedFile(file, decision.name));
+            }
+            }
+
+            if (!preparedFiles.length) {
+            return;
+            }
+
+            var formData = new FormData();
+
+            formData.append('siteId', this.state.siteId);
+            formData.append('pageId', this.state.pageId);
+            formData.append('blockId', this.state.blockId);
+            formData.append('currentFolderId', this.state.currentFolderId);
+            formData.append('sessid', this.getSessid());
+
+            preparedFiles.forEach(function (file) {
+            formData.append('files[]', file);
+            });
+
+            var res = await this.api('upload', formData, true);
+
+            if (!res || !res.ok) {
+            window.alert((res && (res.message || res.error)) || 'Ошибка загрузки');
+            return;
+            }
+
+            await this.loadFolder(this.state.currentFolderId);
+        } catch (err) {
+            console.error(err);
+            window.alert(err && err.message ? err.message : 'Ошибка загрузки');
+        }
+        };
+
   DiskComponent.prototype.bindStaticEvents = function () {
     var self = this;
+
+    this.root.addEventListener('dblclick', async function (e) {
+      var item = e.target.closest(
+        '.sb-disk__row[data-id][data-entity-type], .sb-disk__card[data-id][data-entity-type]'
+      );
+
+      if (!item || !self.root.contains(item)) {
+        return;
+      }
+
+      if (e.target.closest('button, input, label, a')) {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === 'function') {
+        e.stopImmediatePropagation();
+      }
+
+      var entityType = item.getAttribute('data-entity-type') || '';
+      var entityId = Number(item.getAttribute('data-id') || 0);
+
+      var clickKey = entityType + ':' + entityId;
+      var now = Date.now();
+
+      window.__SB_DISK_DBLCLICK_LOCK__ = window.__SB_DISK_DBLCLICK_LOCK__ || {
+        key: '',
+        time: 0
+      };
+
+      if (
+        window.__SB_DISK_DBLCLICK_LOCK__.key === clickKey &&
+        now - window.__SB_DISK_DBLCLICK_LOCK__.time < 1200
+      ) {
+        return;
+      }
+
+      window.__SB_DISK_DBLCLICK_LOCK__.key = clickKey;
+      window.__SB_DISK_DBLCLICK_LOCK__.time = now;
+
+      if (entityType === 'folder') {
+        if (entityId > 0) {
+          await self.loadFolder(entityId);
+        }
+
+        return;
+      }
+
+      if (entityType === 'file') {
+        self.openFileFromElement(item);
+      }
+    }, true);
 
     var refreshBtn = this.root.querySelector('[data-action="refresh"]');
     if (refreshBtn) {
@@ -314,31 +1046,89 @@
 
       uploadInput.addEventListener('change', async function (e) {
         var files = Array.prototype.slice.call(e.target.files || []);
-        if (!files.length) {
-          return;
+
+        try {
+            await self.uploadFiles(files);
+        } finally {
+            uploadInput.value = '';
         }
-
-        var formData = new FormData();
-        formData.append('siteId', self.state.siteId);
-        formData.append('pageId', self.state.pageId);
-        formData.append('blockId', self.state.blockId);
-        formData.append('currentFolderId', self.state.currentFolderId);
-        formData.append('sessid', self.getSessid());
-
-        files.forEach(function (file) {
-          formData.append('files[]', file);
         });
 
-        var res = await self.api('upload', formData, true);
-        if (!res || !res.ok) {
-          window.alert((res && (res.message || res.error)) || 'Ошибка загрузки');
-          return;
-        }
-
-        uploadInput.value = '';
-        await self.loadFolder(self.state.currentFolderId);
-      });
     }
+
+    var dragDepth = 0;
+
+    function hasDraggedFiles(e) {
+    var types = e.dataTransfer && e.dataTransfer.types;
+
+    if (!types) {
+        return false;
+    }
+
+    return Array.prototype.indexOf.call(types, 'Files') !== -1;
+    }
+
+    this.root.addEventListener('dragenter', function (e) {
+    if (!hasDraggedFiles(e)) {
+        return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    dragDepth++;
+    self.setDragOver(true);
+    });
+
+    this.root.addEventListener('dragover', function (e) {
+    if (!hasDraggedFiles(e)) {
+        return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = self.state.permissions.canUpload ? 'copy' : 'none';
+    }
+
+    self.setDragOver(true);
+    });
+
+    this.root.addEventListener('dragleave', function (e) {
+    if (!hasDraggedFiles(e)) {
+        return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    dragDepth--;
+
+    if (dragDepth <= 0) {
+        dragDepth = 0;
+        self.setDragOver(false);
+    }
+    });
+
+    this.root.addEventListener('drop', async function (e) {
+    if (!hasDraggedFiles(e)) {
+        return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    dragDepth = 0;
+    self.setDragOver(false);
+
+    var files = Array.prototype.slice.call(
+        e.dataTransfer && e.dataTransfer.files ? e.dataTransfer.files : []
+    );
+
+    await self.uploadFiles(files);
+    });
+
 
     var sortSelect = this.root.querySelector('[data-role="sort-select"]');
     if (sortSelect) {
@@ -434,17 +1224,6 @@
     }
 
     this.root.addEventListener('click', async function (e) {
-      var clickableRow = e.target.closest('.sb-disk__row[data-id][data-entity-type="folder"], .sb-disk__card[data-id][data-entity-type="folder"]');
-      if (clickableRow && !e.target.closest('button, input, label, a, span[data-viewer]')) {
-        var clickFolderId = Number(clickableRow.getAttribute('data-id') || 0);
-
-        if (clickFolderId > 0) {
-          await self.loadFolder(clickFolderId);
-        }
-
-        return;
-      }
-
       var crumb = e.target.closest('.sb-disk__crumb');
       if (crumb) {
         var crumbFolderId = Number(crumb.getAttribute('data-folder-id') || 0);
@@ -490,6 +1269,20 @@
           return;
         }
 
+        return;
+      }
+
+      var historyBtn = e.target.closest('[data-row-action="history"]');
+      if (historyBtn) {
+        var historyRow = e.target.closest('[data-id][data-entity-type="file"]');
+
+        if (!historyRow) {
+          return;
+        }
+
+        var fileName = historyRow.getAttribute('data-name') || '';
+
+        self.openHistoryModalForFile(fileName);
         return;
       }
 
@@ -807,12 +1600,16 @@
     var files = 0;
 
     this.state.items.forEach(function (item) {
+      if (this.isHistoryItem(item)) {
+        return;
+      }
+
       if (item.entityType === 'folder') {
         folders++;
       } else {
         files++;
       }
-    });
+    }, this);
 
     node.textContent = files + ' файлов · ' + folders + ' папок';
   };
@@ -855,11 +1652,15 @@
       return;
     }
 
-    tbody.innerHTML = this.state.items.map(function (item) {
+    var self = this;
+
+    tbody.innerHTML = this.getDisplayItems().map(function (item) {
       var typeText = getItemTypeText(item);
+      var addedByText = getItemAddedByText(item);
       var sizeText = item.entityType === 'folder' ? '—' : (item.size ? formatBytes(item.size) : '—');
       var iconHtml = renderItemIcon(item);
       var openControl = renderOpenControl(item);
+      var historyControl = self.renderHistoryControl(item);
 
       return '' +
         '<tr class="sb-disk__row ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
@@ -881,7 +1682,7 @@
                 '</div>' +
               '</div>' +
             '</td>' +
-            '<td><span class="sb-disk__type-pill">' + escapeHtml(typeText) + '</span></td>' +
+            '<td><span class="sb-disk__added-by">' + escapeHtml(addedByText) + '</span></td>' +
             '<td>' + escapeHtml(sizeText) + '</td>' +
             '<td>' + escapeHtml(item.updatedAt || '—') + '</td>' +
             '<td>' +
@@ -890,6 +1691,7 @@
                 (item.entityType === 'file'
                   ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
                   : '') +
+                historyControl +
                 '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' +
                 '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' +
               '</div>' +
@@ -906,10 +1708,14 @@
 
     container.classList.add('sb-disk__grid');
 
-    container.innerHTML = this.state.items.map(function (item) {
-      var typeText = getItemTypeText(item);
-      var sizeText = item.entityType === 'folder' ? 'Папка' : (item.size ? formatBytes(item.size) : '—');
-      var openControl = renderOpenControl(item);
+    var self = this;
+
+    container.innerHTML = this.getDisplayItems().map(function (item) {
+        var typeText = getItemTypeText(item);
+        var addedByText = getItemAddedByText(item);
+        var sizeText = item.entityType === 'folder' ? 'Папка' : (item.size ? formatBytes(item.size) : '—');
+        var openControl = renderOpenControl(item);
+        var historyControl = self.renderHistoryControl(item);
 
       return '' +
         '<div class="sb-disk__card ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
@@ -933,6 +1739,9 @@
               '<span class="sb-disk__card-sub">' + escapeHtml(sizeText) + '</span>' +
             '</div>' +
             '<div class="sb-disk__card-meta">' +
+              '<span class="sb-disk__card-sub">Добавил: ' + escapeHtml(addedByText) + '</span>' +
+            '</div>' +
+            '<div class="sb-disk__card-meta">' +
               '<span class="sb-disk__card-sub">' + escapeHtml(item.updatedAt || '') + '</span>' +
             '</div>' +
             '<div class="sb-disk__card-actions">' +
@@ -940,6 +1749,7 @@
               (item.entityType === 'file'
                 ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
                 : '') +
+              historyControl +
               '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' +
               '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' +
             '</div>' +
@@ -985,6 +1795,10 @@
     }
   };
 
+  /* =========================================================
+     SETTINGS
+     ========================================================= */
+
   DiskComponent.prototype.openSettingsModal = async function () {
     var modal = this.root.querySelector('[data-role="settings-modal"]');
     if (!modal) {
@@ -1016,10 +1830,79 @@
         rootOptionsRes.data || {}
       );
 
+      this.arrangeSettingsModal();
+
       this.setSettingsMessage('');
     } catch (e) {
       console.error(e);
       this.setSettingsMessage('Не удалось загрузить настройки.');
+    }
+  };
+
+  DiskComponent.prototype.arrangeSettingsModal = function () {
+    var modal = this.root.querySelector('[data-role="settings-modal"]');
+    var form = this.root.querySelector('[data-role="settings-form"]');
+
+    if (!modal || !form) {
+      return;
+    }
+
+    modal.classList.add('sb-disk-settings-modal');
+
+    var shell = modal.firstElementChild;
+    if (shell) {
+      shell.classList.add('sb-disk-settings-shell');
+    }
+
+    if (!form.querySelector('.sb-disk-settings-section-main')) {
+      var mainTitle = document.createElement('div');
+      mainTitle.className = 'sb-disk-settings-section-main';
+      mainTitle.textContent = 'Основные настройки';
+      form.insertBefore(mainTitle, form.firstChild);
+    }
+
+    var checkboxLabels = Array.prototype.slice.call(
+      form.querySelectorAll('label')
+    ).filter(function (label) {
+      return !!label.querySelector('input[type="checkbox"]');
+    });
+
+    if (checkboxLabels.length && !form.querySelector('.sb-disk-settings-checks')) {
+      var checksTitle = document.createElement('div');
+      checksTitle.className = 'sb-disk-settings-section-title';
+      checksTitle.textContent = 'Возможности';
+
+      var checksWrap = document.createElement('div');
+      checksWrap.className = 'sb-disk-settings-checks';
+
+      checkboxLabels.forEach(function (label) {
+        checksWrap.appendChild(label);
+      });
+
+      form.appendChild(checksTitle);
+      form.appendChild(checksWrap);
+    }
+
+    var actionButtons = Array.prototype.slice.call(
+      modal.querySelectorAll('[data-action="save-settings"], [data-action="close-settings"]')
+    ).filter(function (button) {
+      var text = String(button.textContent || '').trim().toLowerCase();
+      return text !== '×' && text !== 'x';
+    });
+
+    if (actionButtons.length && !modal.querySelector('.sb-disk-settings-footer')) {
+      var footer = document.createElement('div');
+      footer.className = 'sb-disk-settings-footer';
+
+      actionButtons.forEach(function (button) {
+        footer.appendChild(button);
+      });
+
+      if (shell) {
+        shell.appendChild(footer);
+      } else {
+        modal.appendChild(footer);
+      }
     }
   };
 
@@ -1206,6 +2089,46 @@
     }
   };
 
+  /* =========================================================
+     HELPERS
+     ========================================================= */
+
+     function getItemAddedByText(item) {
+        if (!item) {
+            return '—';
+        }
+
+        var value =
+            item.createdByName ||
+            item.createdByTitle ||
+            item.createdByFullName ||
+            item.authorName ||
+            item.userName ||
+            item.createdBy ||
+            item.author ||
+            '';
+
+        value = String(value || '').trim();
+
+        if (value) {
+            return value;
+        }
+
+        var id =
+            item.createdById ||
+            item.authorId ||
+            item.userId ||
+            0;
+
+        id = Number(id || 0);
+
+        if (id > 0) {
+            return 'ID ' + id;
+        }
+
+        return '—';
+        }
+
   function getItemExtension(item) {
     var ext = String(item.extension || '').trim().toLowerCase();
 
@@ -1274,14 +2197,15 @@
 
   function renderOpenControl(item) {
     if (item.entityType === 'folder') {
-      return '<button type="button" class="sb-disk__row-btn sb-disk__row-btn--primary is-primary" data-row-action="open">Открыть</button>';
+      return '';
     }
 
     if (item.previewMode === 'office') {
       return '' +
         '<span ' +
-          'class="sb-disk__row-btn sb-disk__row-btn--primary is-primary sb-disk__viewer-btn disk-detail-sidebar-editor-item disk-detail-sidebar-editor-item-show" ' +
+          'class="sb-disk__hidden-viewer disk-detail-sidebar-editor-item disk-detail-sidebar-editor-item-show" ' +
           'data-viewer="" ' +
+          'data-row-action="open" ' +
           'data-viewer-type="cloud-document" ' +
           'data-src="' + escapeHtml(item.previewUrl || '') + '" ' +
           'data-viewer-type-class="BX.Disk.Viewer.DocumentItem" ' +
@@ -1289,10 +2213,10 @@
           'data-object-id="' + escapeHtml(item.id) + '" ' +
           'data-title="' + escapeHtml(item.name) + '" ' +
           'data-actions="' + escapeHtml(JSON.stringify([{ type: 'download' }])) + '"' +
-        '>Открыть</span>';
+        '></span>';
     }
 
-    return '<button type="button" class="sb-disk__row-btn sb-disk__row-btn--primary is-primary" data-row-action="open">Открыть</button>';
+    return '';
   }
 
   function formatBytes(bytes) {
@@ -1355,10 +2279,23 @@
     return res && res.data ? res.data : {};
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
+  function initDisks() {
     document.querySelectorAll('.sb-disk').forEach(function (root) {
+      if (root.getAttribute('data-disk-component-ready') === '1') {
+        return;
+      }
+
+      root.setAttribute('data-disk-component-ready', '1');
+
       var component = new DiskComponent(root);
+      root.__diskComponent = component;
       component.init();
     });
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDisks);
+  } else {
+    initDisks();
+  }
 })();

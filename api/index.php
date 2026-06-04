@@ -24,7 +24,7 @@ if (
     $action === 'site.appearanceGet' ||
     $action === 'site.appearanceUpdate' ||
     $action === 'site.appearanceUpload' ||
-    $action === 'site.appearanceRemove' 
+    $action === 'site.appearanceRemove'
 ) {
     require __DIR__ . '/handlers/site.php';
     exit;
@@ -107,6 +107,18 @@ if (
     $action === 'site.setSection'
 ) {
     require __DIR__ . '/handlers/section.php';
+    exit;
+}
+
+if (
+    $action === 'template.list' ||
+    $action === 'template.get' ||
+    $action === 'template.createFromSite' ||
+    $action === 'template.update' ||
+    $action === 'template.delete' ||
+    $action === 'template.createSite'
+) {
+    require __DIR__ . '/handlers/template.php';
     exit;
 }
 

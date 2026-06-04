@@ -1,5 +1,5 @@
 <?php
-
+    
 require_once __DIR__ . '/json.php';
 
 if (!function_exists('sb_normalize_page_record')) {
@@ -520,6 +520,30 @@ if (!function_exists('sb_count_site_owners')) {
         }
 
         return $count;
+    }
+}
+
+
+
+if (!function_exists('sb_is_bitrix_admin')) {
+    function sb_is_bitrix_admin(): bool
+    {
+        global $USER;
+
+        return is_object($USER)
+            && method_exists($USER, 'IsAdmin')
+            && $USER->IsAdmin();
+    }
+}
+
+if (!function_exists('sb_require_bitrix_admin')) {
+    function sb_require_bitrix_admin(): void
+    {
+        if (!sb_is_bitrix_admin()) {
+            sb_json_error('BITRIX_ADMIN_REQUIRED', 403, [
+                'message' => 'Создавать и изменять шаблоны может только администратор Битрикса.',
+            ]);
+        }
     }
 }
 

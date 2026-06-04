@@ -265,6 +265,67 @@ $isBitrixAdmin = $USER->IsAdmin();
             background: #f9fafb;
         }
 
+        .sb-template-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+        }
+
+        .sb-template-card {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 160px;
+            padding: 14px;
+            border: 1px solid #eef2f7;
+            border-radius: 16px;
+            background: #fff;
+        }
+
+        .sb-template-card:hover {
+            border-color: #c7d2fe;
+            background: #fcfcff;
+        }
+
+        .sb-template-card__title {
+            margin: 0;
+            color: #111827;
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1.3;
+        }
+
+        .sb-template-card__description {
+            margin: 0;
+            color: #6b7280;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .sb-template-card__meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: auto;
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .sb-template-card__actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .sb-template-empty {
+            padding: 18px;
+            border: 1px dashed #cbd5e1;
+            border-radius: 16px;
+            background: #fff;
+            color: #6b7280;
+            font-size: 13px;
+        }
+
         @media (max-width: 700px) {
             .sb-section-manager-item {
                 grid-template-columns: 1fr;
@@ -298,6 +359,7 @@ $isBitrixAdmin = $USER->IsAdmin();
 
                 <?php if ($canCreateSite): ?>
                     <button class="sb-btn sb-btn-light" type="button" id="createSectionBtn">Секции</button>
+                    <button class="sb-btn sb-btn-light" type="button" id="reloadTemplatesBtn">Шаблоны</button>
                     <button class="sb-btn sb-btn-primary" type="button" id="createSiteQuickBtn">Создать сайт</button>
                 <?php endif; ?>
             </div>
@@ -343,6 +405,25 @@ $isBitrixAdmin = $USER->IsAdmin();
             <?php endif; ?>
         </section>
 
+        <?php if ($isBitrixAdmin): ?>
+            <section class="sb-dash-card" id="templatesCard">
+                <div class="sb-dash-card__head">
+                    <div>
+                        <h2>Шаблоны сайтов</h2>
+                        <div class="sb-muted">Создавать и удалять шаблоны может только администратор Битрикса</div>
+                    </div>
+                    <div class="sb-dash-toolbar">
+                        <span class="sb-badge" id="templatesCountBadge">0 шаблонов</span>
+                        <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="templatesReloadBtn">Обновить</button>
+                    </div>
+                </div>
+
+                <div id="templatesList" class="sb-template-list">
+                    <div class="sb-template-empty">Загрузка шаблонов...</div>
+                </div>
+            </section>
+        <?php endif; ?>
+
         <?php if ($canCreateSite): ?>
             <div class="sb-modal" id="createSiteModal" hidden>
                 <div class="sb-modal__backdrop" data-close-create-modal></div>
@@ -384,6 +465,51 @@ $isBitrixAdmin = $USER->IsAdmin();
                     </div>
                 </div>
             </div>
+
+            <?php if ($isBitrixAdmin): ?>
+                <div class="sb-modal" id="createFromTemplateModal" hidden>
+                    <div class="sb-modal__backdrop" data-close-template-site-modal></div>
+
+                    <div class="sb-modal__dialog">
+                        <div class="sb-modal__head">
+                            <div>
+                                <h2 class="sb-modal__title">Создать сайт из шаблона</h2>
+                                <p class="sb-modal__subtitle" id="templateSiteModalSubtitle">
+                                    Выбери название, slug и секцию для нового сайта.
+                                </p>
+                            </div>
+
+                            <button class="sb-modal__close" type="button" data-close-template-site-modal>×</button>
+                        </div>
+
+                        <div class="sb-modal__body">
+                            <input type="hidden" id="templateSiteTemplateId" value="0">
+
+                            <div class="sb-field">
+                                <label for="templateSiteName">Название сайта</label>
+                                <input class="sb-input" type="text" id="templateSiteName" placeholder="Например: Новый портал">
+                            </div>
+
+                            <div class="sb-field" style="margin-top:12px;">
+                                <label for="templateSiteSlug">Slug</label>
+                                <input class="sb-input" type="text" id="templateSiteSlug" placeholder="Например: new-portal">
+                            </div>
+
+                            <div class="sb-field" style="margin-top:12px;">
+                                <label for="templateSiteSectionId">Секция</label>
+                                <select class="sb-select" id="templateSiteSectionId">
+                                    <option value="0">Без секции</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="sb-modal__footer">
+                            <button class="sb-btn sb-btn-light" type="button" data-close-template-site-modal>Отмена</button>
+                            <button class="sb-btn sb-btn-primary" type="button" id="createFromTemplateBtn">Создать сайт</button>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
 
             <div class="sb-modal" id="createSectionModal" hidden>
                 <div class="sb-modal__backdrop" data-close-section-modal></div>
@@ -459,6 +585,7 @@ $isBitrixAdmin = $USER->IsAdmin();
 
     var allSites = [];
     var allSections = [];
+    var allTemplates = [];
 
     function print(data) {
         if (!output) {
@@ -903,6 +1030,202 @@ $isBitrixAdmin = $USER->IsAdmin();
         renderSitesTable(filtered);
     }
 
+    function loadTemplates() {
+        if (!IS_BITRIX_ADMIN) {
+            return;
+        }
+
+        var list = document.getElementById('templatesList');
+        var badge = document.getElementById('templatesCountBadge');
+
+        if (list) {
+            list.innerHTML = '<div class="sb-template-empty">Загрузка шаблонов...</div>';
+        }
+
+        api('template.list', {}, function (res) {
+            allTemplates = Array.isArray(res.templates) ? res.templates : [];
+            renderTemplates();
+        }, function (err) {
+            if (list) {
+                list.innerHTML = '<div class="sb-template-empty">Не удалось загрузить шаблоны</div>';
+            }
+            if (badge) {
+                badge.textContent = 'Ошибка';
+            }
+        });
+    }
+
+    function renderTemplates() {
+        var list = document.getElementById('templatesList');
+        var badge = document.getElementById('templatesCountBadge');
+
+        if (!list) {
+            return;
+        }
+
+        if (badge) {
+            badge.textContent = allTemplates.length + ' шаблонов';
+        }
+
+        if (!allTemplates.length) {
+            list.innerHTML = '<div class="sb-template-empty">Шаблонов пока нет. Открой сайт в редакторе и нажми “Сохранить как шаблон”.</div>';
+            return;
+        }
+
+        list.innerHTML = allTemplates.map(function (template) {
+            var id = Number(template.id || 0);
+            var name = String(template.name || 'Шаблон #' + id);
+            var description = String(template.description || '');
+            var pagesCount = Number(template.pagesCount || 0);
+            var blocksCount = Number(template.blocksCount || 0);
+            var sourceSiteName = String(template.sourceSiteName || '');
+            var updatedAt = String(template.updatedAt || template.createdAt || '');
+
+            return ''
+                + '<div class="sb-template-card" data-template-id="' + id + '">'
+                + '  <h3 class="sb-template-card__title">' + escapeHtml(name) + '</h3>'
+                + '  <p class="sb-template-card__description">' + escapeHtml(description || 'Без описания') + '</p>'
+                + '  <div class="sb-template-card__meta">'
+                + '      <span class="sb-badge">' + pagesCount + ' стр.</span>'
+                + '      <span class="sb-badge">' + blocksCount + ' блоков</span>'
+                +        (sourceSiteName ? '<span class="sb-badge">Источник: ' + escapeHtml(sourceSiteName) + '</span>' : '')
+                +        (updatedAt ? '<span class="sb-muted">' + escapeHtml(updatedAt) + '</span>' : '')
+                + '  </div>'
+                + '  <div class="sb-template-card__actions">'
+                + '      <button class="sb-btn sb-btn-primary sb-btn-small" type="button" data-action="create-from-template" data-template-id="' + id + '">Создать сайт</button>'
+                + '      <button class="sb-btn sb-btn-danger sb-btn-small" type="button" data-action="delete-template" data-template-id="' + id + '" data-template-name="' + escapeHtml(name) + '">Удалить</button>'
+                + '  </div>'
+                + '</div>';
+        }).join('');
+    }
+
+    function findTemplate(templateId) {
+        templateId = Number(templateId || 0);
+        return allTemplates.find(function (template) {
+            return Number(template.id || 0) === templateId;
+        }) || null;
+    }
+
+    function fillTemplateSiteSectionSelect() {
+        var select = document.getElementById('templateSiteSectionId');
+        if (!select) return;
+
+        var html = '<option value="0">Без секции</option>';
+        allSections.forEach(function (section) {
+            html += '<option value="' + Number(section.id || 0) + '">' + escapeHtml(section.name || '') + '</option>';
+        });
+        select.innerHTML = html;
+    }
+
+    function openCreateFromTemplateModal(templateId) {
+        if (!IS_BITRIX_ADMIN) {
+            return;
+        }
+
+        var template = findTemplate(templateId);
+        if (!template) {
+            alert('Шаблон не найден');
+            return;
+        }
+
+        fillTemplateSiteSectionSelect();
+
+        var modal = document.getElementById('createFromTemplateModal');
+        var idInput = document.getElementById('templateSiteTemplateId');
+        var nameInput = document.getElementById('templateSiteName');
+        var slugInput = document.getElementById('templateSiteSlug');
+        var sectionInput = document.getElementById('templateSiteSectionId');
+        var subtitle = document.getElementById('templateSiteModalSubtitle');
+
+        if (!modal || !idInput || !nameInput) {
+            return;
+        }
+
+        idInput.value = String(templateId);
+        nameInput.value = template.name || '';
+        if (slugInput) slugInput.value = '';
+        if (sectionInput) sectionInput.value = '0';
+        if (subtitle) subtitle.textContent = 'Шаблон: ' + (template.name || ('#' + templateId));
+
+        modal.hidden = false;
+
+        setTimeout(function () {
+            nameInput.focus();
+            nameInput.select();
+        }, 50);
+    }
+
+    function closeCreateFromTemplateModal() {
+        var modal = document.getElementById('createFromTemplateModal');
+        if (modal) {
+            modal.hidden = true;
+        }
+    }
+
+    function createSiteFromTemplate() {
+        if (!IS_BITRIX_ADMIN) {
+            return;
+        }
+
+        var idInput = document.getElementById('templateSiteTemplateId');
+        var nameInput = document.getElementById('templateSiteName');
+        var slugInput = document.getElementById('templateSiteSlug');
+        var sectionInput = document.getElementById('templateSiteSectionId');
+
+        var templateId = idInput ? Number(idInput.value || 0) : 0;
+        var name = nameInput ? String(nameInput.value || '').trim() : '';
+        var slug = slugInput ? String(slugInput.value || '').trim() : '';
+        var sectionId = sectionInput ? Number(sectionInput.value || 0) : 0;
+
+        if (templateId <= 0) {
+            alert('Шаблон не выбран');
+            return;
+        }
+
+        if (!name) {
+            alert('Введите название сайта');
+            if (nameInput) nameInput.focus();
+            return;
+        }
+
+        api('template.createSite', {
+            templateId: templateId,
+            name: name,
+            slug: slug,
+            sectionId: sectionId
+        }, function (res) {
+            var site = res.site || {};
+            closeCreateFromTemplateModal();
+            alert('Сайт создан из шаблона');
+            loadSites();
+            if (site.id) {
+                window.location.href = BASE_PATH + '/editor.php?siteId=' + Number(site.id || 0);
+            }
+        }, function (err) {
+            var message = err && (err.error || err.message) ? (err.error || err.message) : 'UNKNOWN_ERROR';
+            alert('Не удалось создать сайт из шаблона: ' + message);
+        });
+    }
+
+    function deleteTemplate(templateId, templateName) {
+        templateId = Number(templateId || 0);
+        if (templateId <= 0) return;
+
+        var name = templateName || ('#' + templateId);
+        if (!confirm('Удалить шаблон "' + name + '"?')) {
+            return;
+        }
+
+        api('template.delete', {
+            templateId: templateId
+        }, function () {
+            loadTemplates();
+        }, function (err) {
+            var message = err && (err.error || err.message) ? (err.error || err.message) : 'UNKNOWN_ERROR';
+            alert('Не удалось удалить шаблон: ' + message);
+        });
+    }
+
     function loadSites() {
         loadSections(function () {
             api('site.list', {}, function (res) {
@@ -1203,6 +1526,26 @@ $isBitrixAdmin = $USER->IsAdmin();
         });
     }
 
+    var templatesList = document.getElementById('templatesList');
+    if (templatesList) {
+        templatesList.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-action]');
+            if (!btn) return;
+
+            var action = btn.getAttribute('data-action');
+            var templateId = Number(btn.getAttribute('data-template-id') || 0);
+
+            if (action === 'create-from-template') {
+                openCreateFromTemplateModal(templateId);
+                return;
+            }
+
+            if (action === 'delete-template') {
+                deleteTemplate(templateId, btn.getAttribute('data-template-name') || '');
+            }
+        });
+    }
+
     sitesTableBody.addEventListener('click', function (e) {
         var btn = e.target.closest('[data-action]');
         if (!btn) {
@@ -1281,6 +1624,21 @@ $isBitrixAdmin = $USER->IsAdmin();
         createSectionBtn.addEventListener('click', openSectionModal);
     }
 
+    var reloadTemplatesBtn = document.getElementById('reloadTemplatesBtn');
+    if (reloadTemplatesBtn) {
+        reloadTemplatesBtn.addEventListener('click', loadTemplates);
+    }
+
+    var templatesReloadBtn = document.getElementById('templatesReloadBtn');
+    if (templatesReloadBtn) {
+        templatesReloadBtn.addEventListener('click', loadTemplates);
+    }
+
+    var createFromTemplateBtn = document.getElementById('createFromTemplateBtn');
+    if (createFromTemplateBtn) {
+        createFromTemplateBtn.addEventListener('click', createSiteFromTemplate);
+    }
+
     var saveSectionBtn = document.getElementById('saveSectionBtn');
     if (saveSectionBtn) {
         saveSectionBtn.addEventListener('click', createSection);
@@ -1294,10 +1652,15 @@ $isBitrixAdmin = $USER->IsAdmin();
         btn.addEventListener('click', closeSectionModal);
     });
 
+    document.querySelectorAll('[data-close-template-site-modal]').forEach(function (btn) {
+        btn.addEventListener('click', closeCreateFromTemplateModal);
+    });
+
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
             closeCreateSiteModal();
             closeSectionModal();
+            closeCreateFromTemplateModal();
         }
     });
 
@@ -1316,6 +1679,7 @@ $isBitrixAdmin = $USER->IsAdmin();
     };
 
     loadSites();
+    loadTemplates();
 })();
 </script>
 </body>
