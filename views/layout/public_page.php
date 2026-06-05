@@ -312,7 +312,15 @@ $headerHtml = sb_public_render_blocks($headerBlocks, $vm);
 $footerHtml = sb_public_render_blocks($footerBlocks, $vm);
 $leftHtml = sb_public_render_blocks($leftBlocks, $vm);
 $rightHtml = sb_public_render_blocks($rightBlocks, $vm);
-$pageHtml = sb_public_render_blocks($pageBlocks, $vm);
+$pageSections = is_array($vm['pageSections'] ?? null) ? $vm['pageSections'] : [];
+
+if (empty($pageSections) && function_exists('sb_public_page_sections')) {
+    $pageSections = sb_public_page_sections($siteId, (int)($currentPage['id'] ?? 0));
+}
+
+$pageHtml = function_exists('sb_public_render_page_sections')
+    ? sb_public_render_page_sections($pageSections, $pageBlocks, $vm)
+    : sb_public_render_blocks($pageBlocks, $vm);
 $menuHtml = sb_public_render_auto_pages_menu($pages, $basePath, $siteId, (int)($currentPage['id'] ?? 0));
 
 $pageHasDiskBlock = false;
@@ -390,7 +398,7 @@ if ($pageHasDiskBlock) {
 
     <title><?= sb_public_h((string)($currentPage['title'] ?? $site['name'] ?? 'SiteBuilder')) ?></title>
 
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=4">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=9">
 
     <?php if ($pageHasDiskBlock): ?>
         <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=4">

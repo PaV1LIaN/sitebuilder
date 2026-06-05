@@ -10,6 +10,42 @@ if (!function_exists('sb_public_h')) {
     }
 }
 
+if (!function_exists('sb_public_to_array')) {
+    function sb_public_to_array($value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && trim($value) !== '') {
+            $decoded = json_decode($value, true);
+
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return [];
+    }
+}
+
+if (!function_exists('sb_public_clamp_int')) {
+    function sb_public_clamp_int($value, int $min, int $max): int
+    {
+        $value = (int)$value;
+
+        if ($value < $min) {
+            return $min;
+        }
+
+        if ($value > $max) {
+            return $max;
+        }
+
+        return $value;
+    }
+}
+
 if (!function_exists('sb_public_find_site')) {
     function sb_public_find_site(int $siteId): ?array
     {
@@ -72,6 +108,321 @@ if (!function_exists('sb_public_page_blocks')) {
         });
 
         return array_map('sb_normalize_block_record', $blocks);
+    }
+}
+
+
+if (!function_exists('sb_public_normalize_page_section')) {
+    function sb_public_normalize_page_section(array $section, int $siteId, int $pageId): array
+    {
+        $layout = sb_public_to_array($section['layout'] ?? $section['layout_json'] ?? []);
+        $props = sb_public_to_array($section['props'] ?? $section['props_json'] ?? []);
+
+        $columns = sb_public_clamp_int($layout['columns'] ?? 1, 1, 4);
+        $gap = sb_public_clamp_int($layout['gap'] ?? 24, 0, 120);
+
+        $container = (string)($layout['container'] ?? 'default');
+        if (!in_array($container, ['default', 'wide', 'full'], true)) {
+            $container = 'default';
+        }
+
+        $layout['columns'] = $columns;
+        $layout['gap'] = $gap;
+        $layout['container'] = $container;
+
+        return [
+            'id' => (int)($section['id'] ?? 0),
+            'siteId' => (int)($section['siteId'] ?? $section['site_id'] ?? $siteId),
+            'pageId' => (int)($section['pageId'] ?? $section['page_id'] ?? $pageId),
+            'title' => (string)($section['title'] ?? 'Секция'),
+            'sort' => (int)($section['sort'] ?? 500),
+            'layout' => $layout,
+            'props' => $props,
+        ];
+    }
+}
+
+if (!function_exists('sb_public_extract_sections_result')) {
+    function sb_public_extract_sections_result($result): array
+    {
+        if (!is_array($result)) {
+            return [];
+        }
+
+        if (isset($result['sections']) && is_array($result['sections'])) {
+            return $result['sections'];
+        }
+
+        if (isset($result['data']['sections']) && is_array($result['data']['sections'])) {
+            return $result['data']['sections'];
+        }
+
+        return $result;
+    }
+}
+
+if (!function_exists('sb_public_page_sections')) {
+    function sb_public_page_sections(int $siteId, int $pageId): array
+    {
+        if ($siteId <= 0 || $pageId <= 0) {
+            return [];
+        }
+
+        $sections = [];
+
+        if (function_exists('sb_read_page_sections')) {
+            try {
+                $sections = sb_read_page_sections();
+            } catch (Throwable $e) {
+                $sections = [];
+            }
+        }
+
+        if (empty($sections) && function_exists('sb_read_json_file')) {
+            foreach (['page_sections.json', 'pageSections.json'] as $jsonFile) {
+                try {
+                    $rows = sb_read_json_file($jsonFile);
+                    if (is_array($rows) && !empty($rows)) {
+                        $sections = $rows;
+                        break;
+                    }
+                } catch (Throwable $e) {
+                }
+            }
+        }
+
+        $repoFile = __DIR__ . '/PageSectionRepository.php';
+        if (empty($sections) && file_exists($repoFile)) {
+            require_once $repoFile;
+        }
+
+        if (empty($sections) && class_exists('PageSectionRepository')) {
+            $methods = [
+                'listByPage',
+                'getByPage',
+                'getList',
+                'getByPageId',
+                'getForPage',
+                'findByPage',
+                'forPage',
+                'pageSections',
+            ];
+
+            foreach ($methods as $method) {
+                if (!method_exists('PageSectionRepository', $method)) {
+                    continue;
+                }
+
+                foreach ([[ $siteId, $pageId ], [ $pageId ]] as $args) {
+                    try {
+                        $result = call_user_func_array(['PageSectionRepository', $method], $args);
+                        $rows = sb_public_extract_sections_result($result);
+                        if (!empty($rows)) {
+                            $sections = $rows;
+                            break 2;
+                        }
+                    } catch (Throwable $e) {
+                    }
+                }
+            }
+        }
+
+        if (empty($sections) && function_exists('sb_db_fetch_all')) {
+            $queries = [
+                "SELECT id, site_id, page_id, title, sort, layout, props FROM sitebuilder.page_section WHERE page_id = :page_id ORDER BY sort ASC, id ASC",
+                "SELECT id, site_id, page_id, title, sort, layout_json AS layout, props_json AS props FROM sitebuilder.page_section WHERE page_id = :page_id ORDER BY sort ASC, id ASC",
+                "SELECT id, site_id, page_id, title, sort, layout, props FROM sitebuilder.page_sections WHERE page_id = :page_id ORDER BY sort ASC, id ASC",
+                "SELECT id, site_id, page_id, title, sort, layout_json AS layout, props_json AS props FROM sitebuilder.page_sections WHERE page_id = :page_id ORDER BY sort ASC, id ASC",
+            ];
+
+            foreach ($queries as $sql) {
+                try {
+                    $rows = sb_db_fetch_all($sql, [':page_id' => $pageId]);
+                    if (is_array($rows) && !empty($rows)) {
+                        $sections = $rows;
+                        break;
+                    }
+                } catch (Throwable $e) {
+                }
+            }
+        }
+
+        if (!is_array($sections)) {
+            return [];
+        }
+
+        $sections = array_values(array_filter($sections, static function ($section) use ($siteId, $pageId) {
+            if (!is_array($section)) {
+                return false;
+            }
+
+            $sectionPageId = (int)($section['pageId'] ?? $section['page_id'] ?? 0);
+            $sectionSiteId = (int)($section['siteId'] ?? $section['site_id'] ?? 0);
+
+            if ($sectionPageId > 0 && $sectionPageId !== $pageId) {
+                return false;
+            }
+
+            if ($sectionSiteId > 0 && $sectionSiteId !== $siteId) {
+                return false;
+            }
+
+            return true;
+        }));
+
+        $sections = array_map(static function ($section) use ($siteId, $pageId) {
+            return sb_public_normalize_page_section($section, $siteId, $pageId);
+        }, $sections);
+
+        usort($sections, static function ($a, $b) {
+            $sortCmp = (int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500);
+
+            if ($sortCmp !== 0) {
+                return $sortCmp;
+            }
+
+            return (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);
+        });
+
+        return $sections;
+    }
+}
+
+if (!function_exists('sb_public_block_section_id')) {
+    function sb_public_block_section_id(array $block): int
+    {
+        $props = sb_public_to_array($block['props'] ?? []);
+        $placement = sb_public_to_array($props['_placement'] ?? []);
+
+        $sectionId = (int)($block['sectionId'] ?? $block['section_id'] ?? 0);
+
+        if ($sectionId <= 0) {
+            $sectionId = (int)($props['sectionId'] ?? $props['section_id'] ?? 0);
+        }
+
+        if ($sectionId <= 0) {
+            $sectionId = (int)($placement['sectionId'] ?? $placement['section_id'] ?? 0);
+        }
+
+        return $sectionId;
+    }
+}
+
+if (!function_exists('sb_public_block_column')) {
+    function sb_public_block_column(array $block): int
+    {
+        $props = sb_public_to_array($block['props'] ?? []);
+        $placement = sb_public_to_array($props['_placement'] ?? []);
+
+        $column = (int)($block['column'] ?? 0);
+
+        if ($column <= 0) {
+            $column = (int)($props['column'] ?? 0);
+        }
+
+        if ($column <= 0) {
+            $column = (int)($placement['column'] ?? 0);
+        }
+
+        return $column > 0 ? $column : 1;
+    }
+}
+
+if (!function_exists('sb_public_group_blocks_by_section')) {
+    function sb_public_group_blocks_by_section(array $pageBlocks, array $sections): array
+    {
+        $result = [];
+        $firstSectionId = 0;
+
+        foreach ($sections as $section) {
+            $sectionId = (int)($section['id'] ?? 0);
+
+            if ($sectionId <= 0) {
+                continue;
+            }
+
+            if ($firstSectionId <= 0) {
+                $firstSectionId = $sectionId;
+            }
+
+            $result[$sectionId] = [];
+        }
+
+        foreach ($pageBlocks as $block) {
+            $sectionId = sb_public_block_section_id($block);
+
+            if ($sectionId <= 0 || !isset($result[$sectionId])) {
+                $sectionId = $firstSectionId;
+            }
+
+            if ($sectionId > 0 && isset($result[$sectionId])) {
+                $result[$sectionId][] = $block;
+            }
+        }
+
+        return $result;
+    }
+}
+
+if (!function_exists('sb_public_group_blocks_by_column')) {
+    function sb_public_group_blocks_by_column(array $blocks, int $columns): array
+    {
+        $columns = max(1, min(4, $columns));
+        $result = [];
+
+        for ($i = 1; $i <= $columns; $i++) {
+            $result[$i] = [];
+        }
+
+        foreach ($blocks as $block) {
+            $column = sb_public_block_column($block);
+            $column = max(1, min($columns, $column));
+            $result[$column][] = $block;
+        }
+
+        return $result;
+    }
+}
+
+if (!function_exists('sb_public_render_page_sections')) {
+    function sb_public_render_page_sections(array $sections, array $pageBlocks, array $context = []): string
+    {
+        if (empty($sections)) {
+            return sb_public_render_blocks($pageBlocks, $context);
+        }
+
+        $blocksBySection = sb_public_group_blocks_by_section($pageBlocks, $sections);
+        $html = '<div class="sb-page-sections">';
+
+        foreach ($sections as $section) {
+            $sectionId = (int)($section['id'] ?? 0);
+
+            if ($sectionId <= 0) {
+                continue;
+            }
+
+            $layout = sb_public_to_array($section['layout'] ?? []);
+            $columns = sb_public_clamp_int($layout['columns'] ?? 1, 1, 4);
+            $gap = sb_public_clamp_int($layout['gap'] ?? 24, 0, 120);
+
+            $sectionBlocks = $blocksBySection[$sectionId] ?? [];
+            $columnBlocks = sb_public_group_blocks_by_column($sectionBlocks, $columns);
+
+            $html .= '<section class="sb-page-section sb-page-section--columns-' . $columns . '">';
+            $html .= '<div class="sb-page-section__grid" style="display:grid;grid-template-columns:repeat(' . $columns . ',minmax(0,1fr));gap:' . $gap . 'px;width:100%;min-width:0;align-items:start;box-sizing:border-box;">';
+
+            for ($column = 1; $column <= $columns; $column++) {
+                $html .= '<div class="sb-page-section__column sb-page-section__column--' . $column . '" style="min-width:0;box-sizing:border-box;">';
+                $html .= sb_public_render_blocks($columnBlocks[$column] ?? [], $context);
+                $html .= '</div>';
+            }
+
+            $html .= '</div>';
+            $html .= '</section>';
+        }
+
+        $html .= '</div>';
+        return $html;
     }
 }
 
@@ -138,9 +489,15 @@ if (!function_exists('sb_public_render_block')) {
             $template = dirname(__DIR__) . '/views/blocks/text.php';
         }
 
+        $rawContent = $block['content'] ?? [];
+        $rawProps = $block['props'] ?? [];
+
         $block = sb_normalize_block_record($block);
-        $content = (array)($block['content'] ?? []);
-        $props = (array)($block['props'] ?? []);
+        $content = sb_public_to_array($rawContent);
+        $props = sb_public_to_array($rawProps);
+
+        $block['content'] = $content;
+        $block['props'] = $props;
 
         ob_start();
         include $template;
@@ -495,6 +852,7 @@ if (!function_exists('sb_public_build_view_model')) {
         $layout = sb_public_layout_for_site($siteId);
         $menu = sb_public_menu_for_site($site);
         $pageBlocks = $currentPage ? sb_public_page_blocks((int)$currentPage['id']) : [];
+        $pageSections = $currentPage ? sb_public_page_sections($siteId, (int)$currentPage['id']) : [];
 
         $settings = isset($site['settings']) && is_array($site['settings']) ? $site['settings'] : [];
         $layoutSettings = isset($layout['settings']) && is_array($layout['settings']) ? $layout['settings'] : [];
@@ -514,6 +872,7 @@ if (!function_exists('sb_public_build_view_model')) {
             'pages' => $pages,
             'currentPage' => $currentPage,
             'pageBlocks' => $pageBlocks,
+            'pageSections' => $pageSections,
             'layout' => $layout,
             'menu' => $menu,
             'basePath' => $basePath,

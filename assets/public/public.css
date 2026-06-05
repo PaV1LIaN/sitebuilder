@@ -932,3 +932,60 @@ a {
         border-radius: 10px;
     }
 }
+
+/* =========================================================
+   SITEBUILDER PAGE SECTIONS FIX
+   Секции и колонки на публичной странице. Добавлено в конец,
+   чтобы не ломать существующий визуал сайта.
+   ========================================================= */
+
+.sb-page-sections {
+    width: 100%;
+    min-width: 0;
+}
+
+.sb-page-section {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.sb-page-section + .sb-page-section {
+    margin-top: 24px;
+}
+
+.sb-page-section__grid,
+.sb-section-grid {
+    display: grid !important;
+    grid-template-columns: repeat(var(--sb-section-columns, 1), minmax(0, 1fr)) !important;
+    gap: var(--sb-section-gap, 24px) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: start !important;
+    box-sizing: border-box !important;
+}
+
+.sb-page-section__column,
+.sb-section-column {
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}
+
+.sb-page-section__column > *,
+.sb-section-column > * {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.sb-page-section__column > * + *,
+.sb-section-column > * + * {
+    margin-top: 16px;
+}
+
+@media (max-width: 640px) {
+    .sb-page-section__grid,
+    .sb-section-grid {
+        grid-template-columns: 1fr !important;
+    }
+}

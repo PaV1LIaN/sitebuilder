@@ -1,8 +1,13 @@
 <?php
-$html = (string)($content['html'] ?? '');
+$text = (string)($content['text'] ?? '');
+
+if ($text === '') {
+    return;
+}
 ?>
-<section class="sb-block sb-block--text">
-    <div class="sb-block__inner sb-text">
-        <?= $html ?>
+
+<div class="sb-public-block sb-public-block--text">
+    <div class="sb-public-text">
+        <?= nl2br(sb_public_h($text)) ?>
     </div>
-</section>
+</div>

@@ -129,6 +129,18 @@ if (
     exit;
 }
 
+if (
+    $action === 'pageSection.list' ||
+    $action === 'pageSection.create' ||
+    $action === 'pageSection.update' ||
+    $action === 'pageSection.move' ||
+    $action === 'pageSection.delete' ||
+    $action === 'pageSection.assignBlock'
+) {
+    require __DIR__ . '/handlers/page_section.php';
+    exit;
+}
+
 sb_json_error('UNKNOWN_ACTION', 400, [
     'action' => $action,
     'file' => __FILE__,
