@@ -39,7 +39,7 @@ if ($siteId <= 0) {
         <title>SiteBuilder / Editor</title>
         <?php $APPLICATION->ShowHead(); ?>
         <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css">
+        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=2">
     </head>
     <body class="sb-admin-body">
     <div class="sb-page">
@@ -67,7 +67,7 @@ if (!$USER->IsAdmin()) {
     <title>SiteBuilder / Editor</title>
     <?php $APPLICATION->ShowHead(); ?>
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=2">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">
@@ -195,6 +195,11 @@ if (!$USER->IsAdmin()) {
                             <button class="sb-editor-add-card" type="button" data-add-block="disk">
                                 <span class="sb-editor-add-card__title">Диск</span>
                                 <span class="sb-editor-add-card__text">Файлы, папки, загрузка и доступы</span>
+                            </button>
+
+                            <button class="sb-editor-add-card" type="button" data-add-block="table">
+                                <span class="sb-editor-add-card__title">Таблица</span>
+                                <span class="sb-editor-add-card__text">Свои столбцы и строки для любых данных</span>
                             </button>
                         </div>
 
@@ -338,6 +343,41 @@ if (!$USER->IsAdmin()) {
                                 <p class="sb-block-form-note">
                                     Используй только проверенный HTML. Скрипты лучше не вставлять.
                                 </p>
+                            </div>
+                        </div>
+
+                        <div id="tableBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                            <div class="sb-field">
+                                <label for="tableTitleInput">Заголовок таблицы</label>
+                                <input class="sb-input" type="text" id="tableTitleInput" placeholder="Например: Прайс-лист, контакты, расписание">
+                            </div>
+
+                            <div class="sb-table-editor" style="margin-top:12px;">
+                                <div class="sb-table-editor__head">
+                                    <div>
+                                        <strong>Столбцы</strong>
+                                        <p class="sb-editor-note">Задай любое количество столбцов и назови их как нужно</p>
+                                    </div>
+
+                                    <button class="sb-btn sb-btn-light sb-btn-small" type="button" data-table-action="add-column">
+                                        + Столбец
+                                    </button>
+                                </div>
+
+                                <div id="tableColumnsEditor" class="sb-table-editor__columns"></div>
+
+                                <div class="sb-table-editor__head" style="margin-top:16px;">
+                                    <div>
+                                        <strong>Строки</strong>
+                                        <p class="sb-editor-note">Добавляй строки и заполняй значения по столбцам</p>
+                                    </div>
+
+                                    <button class="sb-btn sb-btn-primary sb-btn-small" type="button" data-table-action="add-row">
+                                        + Строка
+                                    </button>
+                                </div>
+
+                                <div id="tableRowsEditor" class="sb-table-editor__rows"></div>
                             </div>
                         </div>
 
@@ -551,7 +591,13 @@ window.SB_EDITOR_CONFIG = {
 </script>
 
 <script src="/bitrix/js/main/core/core.js"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.js?v=1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=2"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=2"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=2"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=2"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=2"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=2"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=2"></script>
 
 </body>
 </html>

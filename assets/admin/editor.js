@@ -15,6 +15,7 @@
         pageSections: [],
         currentSectionId: 0,
         currentColumn: 1,
+        draggedBlockId: 0,
         accessItems: [],
         userSearchResults: [],
         selectedAccessUser: null,
@@ -981,7 +982,7 @@
                 var active = Number(block.id || 0) === state.currentBlockId ? ' is-active' : '';
 
                 return ''
-                    + '<div class="sb-editor-block' + active + '" data-block-id="' + Number(block.id || 0) + '">'
+                    + '<div class="sb-editor-block' + active + '" draggable="true" data-block-id="' + Number(block.id || 0) + '">'
                     + '  <div class="sb-editor-block-head">'
                     + '      <div>'
                     + '          <h3 class="sb-editor-block-title">' + escapeHtml(block.type || 'block') + '</h3>'
@@ -1042,7 +1043,7 @@
                         var active = Number(block.id || 0) === state.currentBlockId ? ' is-active' : '';
 
                         return ''
-                            + '<div class="sb-editor-block' + active + '" data-block-id="' + Number(block.id || 0) + '">'
+                            + '<div class="sb-editor-block' + active + '" draggable="true" data-block-id="' + Number(block.id || 0) + '">'
                             + '  <div class="sb-editor-block-head">'
                             + '      <div>'
                             + '          <h3 class="sb-editor-block-title">' + escapeHtml(block.type || 'block') + '</h3>'
@@ -2089,6 +2090,116 @@
         renderBlocks();
         fillBlockForm();
     });
+
+    blocksList.addEventListener('dragstart', function (e) {
+        var blockNode = e.target.closest('.sb-editor-block[data-block-id]');
+        if (!blockNode) {
+            return;
+        }
+
+        var blockId = Number(blockNode.getAttribute('data-block-id') || 0);
+
+        if (blockId <= 0) {
+            return;
+        }
+
+        state.draggedBlockId = blockId;
+        blockNode.classList.add('is-dragging');
+
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', String(blockId));
+        }
+    });
+
+    blocksList.addEventListener('dragend', function (e) {
+        var blockNode = e.target.closest('.sb-editor-block[data-block-id]');
+        if (blockNode) {
+            blockNode.classList.remove('is-dragging');
+        }
+
+        state.draggedBlockId = 0;
+
+        blocksList.querySelectorAll('.sb-editor-section-preview__column.is-drag-over').forEach(function (columnNode) {
+            columnNode.classList.remove('is-drag-over');
+        });
+    });
+
+    blocksList.addEventListener('dragover', function (e) {
+        var columnNode = e.target.closest('.sb-editor-section-preview__column[data-section-id][data-column]');
+        if (!columnNode) {
+            return;
+        }
+
+        e.preventDefault();
+
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
+
+        blocksList.querySelectorAll('.sb-editor-section-preview__column.is-drag-over').forEach(function (node) {
+            if (node !== columnNode) {
+                node.classList.remove('is-drag-over');
+            }
+        });
+
+        columnNode.classList.add('is-drag-over');
+    });
+
+    blocksList.addEventListener('dragleave', function (e) {
+        var columnNode = e.target.closest('.sb-editor-section-preview__column[data-section-id][data-column]');
+        if (!columnNode) {
+            return;
+        }
+
+        var related = e.relatedTarget;
+
+        if (related && columnNode.contains(related)) {
+            return;
+        }
+
+        columnNode.classList.remove('is-drag-over');
+    });
+
+    blocksList.addEventListener('drop', async function (e) {
+        var columnNode = e.target.closest('.sb-editor-section-preview__column[data-section-id][data-column]');
+        if (!columnNode) {
+            return;
+        }
+
+        e.preventDefault();
+
+        columnNode.classList.remove('is-drag-over');
+
+        var blockId = Number(state.draggedBlockId || 0);
+
+        if (!blockId && e.dataTransfer) {
+            blockId = Number(e.dataTransfer.getData('text/plain') || 0);
+        }
+
+        var sectionId = Number(columnNode.getAttribute('data-section-id') || 0);
+        var column = Number(columnNode.getAttribute('data-column') || 1);
+
+        if (blockId <= 0 || sectionId <= 0) {
+            return;
+        }
+
+        try {
+            await assignBlockToSection(blockId, sectionId, column);
+
+            state.currentBlockId = blockId;
+            state.currentSectionId = sectionId;
+            state.currentColumn = column;
+
+            await loadBlocks();
+
+            setPageSectionsMessage('Блок перенесён в секцию #' + sectionId + ', колонку ' + column, 'success');
+        } catch (err) {
+            console.error(err);
+            setPageSectionsMessage('Не удалось перенести блок', 'error');
+        }
+    });
+
 
     var addPageSectionBtn = document.getElementById('addPageSectionBtn');
     if (addPageSectionBtn) {

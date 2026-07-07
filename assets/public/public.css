@@ -983,9 +983,622 @@ a {
     margin-top: 16px;
 }
 
+/*
 @media (max-width: 640px) {
     .sb-page-section__grid,
     .sb-section-grid {
         grid-template-columns: 1fr !important;
     }
+}
+*/
+
+/* =========================================================
+   Public table edit mode
+   ========================================================= */
+
+.sb-public-table-editbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border: 1px dashed rgba(37, 99, 235, .45);
+    border-radius: 14px;
+    background: rgba(37, 99, 235, .06);
+}
+
+.sb-public-table-editbar__text {
+    color: #1e40af;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.sb-public-table-editbar__btn {
+    min-height: 34px;
+    padding: 7px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.sb-public-table-editbar__btn:disabled {
+    opacity: .65;
+    cursor: wait;
+}
+
+.sb-block--table.is-dirty .sb-public-table-editbar {
+    border-color: rgba(245, 158, 11, .75);
+    background: rgba(245, 158, 11, .08);
+}
+
+.sb-public-table--editable {
+    table-layout: fixed;
+}
+
+.sb-public-table--editable th {
+    position: relative;
+    user-select: none;
+}
+
+.sb-public-table__th-text {
+    display: block;
+    padding-right: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sb-public-table-resizer {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 5;
+}
+
+.sb-public-table-resizer::after {
+    content: "";
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 3px;
+    width: 2px;
+    border-radius: 99px;
+    background: rgba(37, 99, 235, .35);
+    opacity: 0;
+    transition: opacity .15s ease;
+}
+
+.sb-public-table-resizer:hover::after,
+.sb-public-table-resizing .sb-public-table-resizer::after {
+    opacity: 1;
+}
+
+body.sb-public-table-resizing {
+    cursor: col-resize !important;
+    user-select: none;
+}
+
+.sb-public-table--editable {
+    table-layout: fixed !important;
+    width: auto;
+}
+
+.sb-public-table--editable th {
+    position: relative;
+    user-select: none;
+    overflow: visible;
+}
+
+.sb-public-table-resizer {
+    position: absolute;
+    top: 0;
+    right: -6px;
+    width: 14px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 50;
+    touch-action: none;
+}
+
+.sb-public-table-resizer::after {
+    content: "";
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 6px;
+    width: 2px;
+    border-radius: 99px;
+    background: rgba(37, 99, 235, .55);
+    opacity: .35;
+}
+
+.sb-public-table-resizer:hover::after,
+body.sb-public-table-resizing .sb-public-table-resizer::after {
+    opacity: 1;
+    background: rgba(37, 99, 235, .95);
+}
+
+body.sb-public-table-resizing,
+body.sb-public-table-resizing * {
+    cursor: col-resize !important;
+    user-select: none !important;
+}
+
+.sb-public-table-resize-layer {
+    pointer-events: none;
+}
+
+.sb-public-table-resize-handle {
+    background: rgba(37, 99, 235, .06);
+    border-left: 2px solid rgba(37, 99, 235, .45);
+}
+
+.sb-public-table-resize-handle:hover {
+    background: rgba(37, 99, 235, .14);
+    border-left-color: rgba(37, 99, 235, .95);
+}
+
+body.sb-public-table-resizing,
+body.sb-public-table-resizing * {
+    cursor: col-resize !important;
+    user-select: none !important;
+}
+
+.sb-public-table--editable {
+    table-layout: fixed !important;
+    width: auto !important;
+}
+
+.sb-public-table--editable th[data-column-id] {
+    position: relative !important;
+    user-select: none !important;
+}
+
+.sb-public-table--editable th[data-column-id]:hover {
+    cursor: default;
+}
+
+.sb-public-table-resizer {
+    position: absolute !important;
+    top: 0 !important;
+    right: -8px !important;
+    width: 18px !important;
+    height: 100% !important;
+    cursor: col-resize !important;
+    z-index: 999 !important;
+    touch-action: none !important;
+    background: rgba(37, 99, 235, .08) !important;
+}
+
+.sb-public-table-resizer::after {
+    content: "" !important;
+    position: absolute !important;
+    top: 8px !important;
+    bottom: 8px !important;
+    left: 8px !important;
+    width: 2px !important;
+    border-radius: 99px !important;
+    background: rgba(37, 99, 235, .8) !important;
+}
+
+body.sb-public-table-resizing,
+body.sb-public-table-resizing * {
+    cursor: col-resize !important;
+    user-select: none !important;
+}
+
+/* =========================================================
+   Public table inline edit
+   ========================================================= */
+
+.sb-public-table-editbar__main {
+    min-width: 240px;
+    flex: 1;
+}
+
+.sb-public-table-editbar__label {
+    display: grid;
+    gap: 5px;
+    color: #1e40af;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.sb-public-table-title-input {
+    width: 100%;
+    min-height: 36px;
+    box-sizing: border-box;
+    padding: 7px 10px;
+    border: 1px solid rgba(37, 99, 235, .35);
+    border-radius: 10px;
+    background: #fff;
+    color: #0f172a;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.sb-public-table-editbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sb-public-table-editbar__btn--light {
+    background: #fff !important;
+    color: #1e40af !important;
+    border: 1px solid rgba(37, 99, 235, .35) !important;
+}
+
+.sb-public-table__control-col {
+    width: 72px !important;
+}
+
+.sb-public-table__control-th,
+.sb-public-table__control-td {
+    width: 72px !important;
+    min-width: 72px !important;
+    max-width: 72px !important;
+    text-align: center !important;
+    background: #f8fafc !important;
+}
+
+.sb-public-table-row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.sb-public-table-row-num {
+    min-width: 20px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.sb-public-table-row-delete {
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 8px;
+    background: #fee2e2;
+    color: #991b1b;
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.sb-public-table-row-delete:hover {
+    background: #fecaca;
+}
+
+.sb-public-table--editable [contenteditable="true"] {
+    outline: none;
+    cursor: text;
+}
+
+.sb-public-table--editable [contenteditable="true"]:focus {
+    box-shadow: inset 0 0 0 2px rgba(37, 99, 235, .45);
+    background: #eff6ff;
+}
+
+.sb-public-table--editable td[data-cell-editable] {
+    white-space: pre-wrap;
+}
+
+.sb-public-table--editable .sb-public-table__th-text {
+    min-height: 22px;
+    border-radius: 8px;
+    padding: 3px 8px 3px 3px;
+}
+
+.sb-public-table--editable .sb-public-table__th-text:focus {
+    background: #eff6ff;
+}
+
+/* =========================================================
+   Public table columns and align
+   ========================================================= */
+
+.sb-public-table-th-inner {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.sb-public-table-align-select {
+    width: 100%;
+    min-height: 28px;
+    box-sizing: border-box;
+    padding: 3px 7px;
+    border: 1px solid rgba(148, 163, 184, .7);
+    border-radius: 8px;
+    background: #fff;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.sb-public-table-align-select:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+
+.sb-public-table-editbar__actions {
+    flex-wrap: wrap;
+}
+
+.sb-public-table-column-delete {
+    min-height: 26px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 8px;
+    background: #fee2e2;
+    color: #991b1b;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.sb-public-table-column-delete:hover {
+    background: #fecaca;
+}
+
+/* =========================================================
+   Public table data types
+   ========================================================= */
+
+.sb-public-table-column-code {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #475569;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1.3;
+}
+
+.sb-public-table-type-select,
+.sb-public-table-formula-input {
+    width: 100%;
+    min-height: 28px;
+    box-sizing: border-box;
+    padding: 3px 7px;
+    border: 1px solid rgba(148, 163, 184, .7);
+    border-radius: 8px;
+    background: #fff;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.sb-public-table-formula-input {
+    font-family: monospace;
+    font-weight: 700;
+}
+
+.sb-public-table-cell-link,
+.sb-public-table-cell-image {
+    display: grid;
+    gap: 5px;
+}
+
+.sb-public-table-cell-link input,
+.sb-public-table-cell-image input {
+    width: 100%;
+    min-height: 30px;
+    box-sizing: border-box;
+    padding: 5px 8px;
+    border: 1px solid rgba(148, 163, 184, .7);
+    border-radius: 8px;
+    background: #fff;
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.sb-public-table-formula-value {
+    display: inline-flex;
+    min-height: 20px;
+    align-items: center;
+    font-weight: 900;
+    color: #0f172a;
+}
+
+.sb-public-table-image {
+    display: block;
+    max-width: 160px;
+    max-height: 120px;
+    border-radius: 10px;
+    object-fit: contain;
+}
+
+/* =========================================================
+   Public table UX improvements
+   ========================================================= */
+
+.sb-public-table th {
+    vertical-align: top;
+}
+
+.sb-public-table-th-inner {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.sb-public-table-column-code {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #475569;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1.3;
+}
+
+.sb-public-table-column-code::before {
+    content: "Код: ";
+    opacity: .75;
+}
+
+.sb-public-table-cell-input,
+.sb-public-table-cell-link input,
+.sb-public-table-cell-image input {
+    display: block;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    min-height: 32px;
+    box-sizing: border-box;
+}
+
+.sb-public-table--editable td {
+    min-width: 0;
+}
+
+.sb-public-table--editable td[data-column-id] {
+    padding: 8px;
+}
+
+.sb-public-table-formula-tools {
+    display: grid;
+    gap: 5px;
+    padding: 6px;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, .45);
+}
+
+.sb-public-table-formula-tools__row {
+    display: flex;
+    gap: 5px;
+}
+
+.sb-public-table-formula-tools select,
+.sb-public-table-formula-tools button {
+    min-height: 26px;
+    box-sizing: border-box;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.sb-public-table-formula-tools select {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid rgba(148, 163, 184, .7);
+    background: #fff;
+    color: #334155;
+}
+
+.sb-public-table-formula-tools button {
+    border: 0;
+    padding: 3px 7px;
+    background: #dbeafe;
+    color: #1e40af;
+    cursor: pointer;
+}
+
+.sb-public-table-formula-tools button:hover {
+    background: #bfdbfe;
+}
+
+/* =========================================================
+   Public table settings and pagination
+   ========================================================= */
+
+.sb-public-table-settings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    align-items: end;
+}
+
+.sb-public-table-settings__field {
+    display: grid;
+    gap: 4px;
+    min-width: 130px;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.sb-public-table-settings__field input {
+    width: 100%;
+    min-height: 32px;
+    box-sizing: border-box;
+    padding: 5px 8px;
+    border: 1px solid rgba(148, 163, 184, .7);
+    border-radius: 9px;
+    background: #fff;
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.sb-public-table-settings__check {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 9px;
+    border-radius: 9px;
+    background: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, .45);
+    color: #475569;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.sb-public-table-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.sb-public-table-pagination:empty {
+    display: none;
+}
+
+.sb-public-table-pagination button {
+    min-height: 30px;
+    padding: 5px 10px;
+    border: 1px solid rgba(148, 163, 184, .65);
+    border-radius: 9px;
+    background: #fff;
+    color: #1e40af;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.sb-public-table-pagination button:disabled {
+    opacity: .45;
+    cursor: default;
+}
+
+.sb-public-table-pagination__info {
+    color: #475569;
+    font-size: 12px;
+    font-weight: 900;
 }

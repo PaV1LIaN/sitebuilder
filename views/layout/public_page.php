@@ -512,5 +512,31 @@ document.addEventListener('click', function (e) {
     <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=4"></script>
 <?php endif; ?>
 
+<?php
+global $USER;
+
+$isPublicEditMode = (
+    (string)($_GET['edit'] ?? '') === 'Y'
+    && is_object($USER)
+    && $USER->IsAuthorized()
+    && $USER->IsAdmin()
+);
+?>
+
+<link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/table/styles.css">
+<script src="<?= sb_public_h($basePath) ?>/components/table/view.js"></script>
+
+<?php if ($isPublicEditMode): ?>
+    <script>
+        window.SB_PUBLIC_EDIT_CONFIG = <?= json_encode([
+            'apiUrl' => $basePath . '/api.php',
+            'sessid' => bitrix_sessid(),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    </script>
+
+    <script src="<?= sb_public_h($basePath) ?>/components/table/edit.js"></script>
+	
+<?php endif; ?>
+
 </body>
 </html>

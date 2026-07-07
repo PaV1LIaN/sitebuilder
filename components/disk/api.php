@@ -1,8 +1,77 @@
 <?php
 
-require_once __DIR__ . '/bootstrap.php';
-
 $action = (string)($_GET['action'] ?? '');
+
+/*
+ * Для обычных JSON-действий включаем буфер сразу,
+ * чтобы если PHP выдаст warning/fatal/HTML — мы смогли вернуть нормальный JSON.
+ * Для download буфер не включаем, чтобы не сломать скачивание файла.
+ */
+$sbDiskShouldBuffer = $action !== 'download';
+
+if ($sbDiskShouldBuffer) {
+    ob_start();
+}
+
+if (!function_exists('sb_disk_force_json_error')) {
+    function sb_disk_force_json_error(string $error, string $message, array $details = []): void
+    {
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+
+        if (!headers_sent()) {
+            http_response_code(200);
+            header('Content-Type: application/json; charset=UTF-8');
+        }
+
+        echo json_encode([
+            'ok' => false,
+            'data' => [],
+            'meta' => [],
+            'error' => $error,
+            'message' => $message,
+            'details' => $details,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        exit;
+    }
+}
+
+register_shutdown_function(static function () use ($sbDiskShouldBuffer) {
+    if (!$sbDiskShouldBuffer) {
+        return;
+    }
+
+    $error = error_get_last();
+
+    if ($error === null) {
+        return;
+    }
+
+    $fatalTypes = [
+        E_ERROR,
+        E_PARSE,
+        E_CORE_ERROR,
+        E_COMPILE_ERROR,
+        E_USER_ERROR,
+    ];
+
+    if (!in_array((int)$error['type'], $fatalTypes, true)) {
+        return;
+    }
+
+    sb_disk_force_json_error(
+        'PHP_FATAL',
+        (string)($error['message'] ?? 'PHP_FATAL'),
+        [
+            'file' => (string)($error['file'] ?? ''),
+            'line' => (int)($error['line'] ?? 0),
+        ]
+    );
+});
+
+require_once __DIR__ . '/bootstrap.php';
 
 if (!function_exists('sb_disk_user_name_by_id')) {
     function sb_disk_user_name_by_id(int $userId): string
@@ -96,12 +165,6 @@ if (!function_exists('sb_disk_enrich_item_user_name')) {
         $item['createdByName'] = $createdByName;
         $item['createdByFullName'] = $createdByName;
         $item['authorName'] = $createdByName;
-
-        /*
-         * Важно:
-         * Раньше createdBy мог быть числом, из-за этого JS показывал ID.
-         * Теперь createdBy отдаём уже как ФИО.
-         */
         $item['createdBy'] = $createdByName;
 
         return $item;
@@ -156,8 +219,8 @@ if (!function_exists('sb_disk_enrich_json_response_with_user_names')) {
 }
 
 /*
- * Включаем перехват только для JSON-действий.
- * Для download нельзя включать, иначе можно сломать скачивание файла.
+ * Обогащение ФИО включаем только для JSON-действий со списком.
+ * Для upload/unpack не включаем, чтобы не мешать ответам.
  */
 if (in_array($action, ['list', 'search', 'bootstrap'], true)) {
     ob_start('sb_disk_enrich_json_response_with_user_names');
@@ -221,6 +284,18 @@ try {
             require __DIR__ . '/actions/download.php';
             break;
 
+        case 'unpackArchive':
+            require __DIR__ . '/actions/unpack_archive.php';
+            break;
+
+        case 'unpackArchiveStart':
+            require __DIR__ . '/actions/unpack_archive_start.php';
+            break;
+            
+        case 'unpackArchiveStep':
+            require __DIR__ . '/actions/unpack_archive_step.php';
+            break;
+
         case 'initSiteRoot':
             require __DIR__ . '/actions/init_site_root.php';
             break;
@@ -237,5 +312,23 @@ try {
             DiskResponse::error('UNKNOWN_ACTION', 'Неизвестное действие');
     }
 } catch (Throwable $e) {
-    DiskResponse::error('SERVER_ERROR', $e->getMessage());
+    while (ob_get_level() > 0) {
+        @ob_end_clean();
+    }
+
+    if (class_exists('DiskResponse')) {
+        DiskResponse::error('SERVER_ERROR', $e->getMessage(), [
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ]);
+    }
+
+    sb_disk_force_json_error(
+        'SERVER_ERROR',
+        $e->getMessage(),
+        [
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ]
+    );
 }

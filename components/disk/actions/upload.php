@@ -23,7 +23,10 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 $rootFolderId = DiskRootResolver::resolve($context, $settings);
 $permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId);
 
+DiskValidator::assertCan($permissions, 'canView');
 DiskValidator::assertCan($permissions, 'canUpload');
+
+sb_disk_release_session_lock();
 
 $currentFolderId = (int)($_POST['currentFolderId'] ?? 0);
 DiskValidator::assertFolderInsideRoot($currentFolderId, $rootFolderId, $context);

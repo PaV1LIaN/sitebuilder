@@ -38,3 +38,33 @@ if (!defined('SITEBUILDER_DISK_BOOTSTRAP')) {
     require_once __DIR__ . '/lib/DiskBitrixStorageAdapter.php';
     require_once __DIR__ . '/lib/DiskSitebuilderBridge.php';
 }
+
+if (!function_exists('sb_disk_release_session_lock')) {
+  function sb_disk_release_session_lock(): void
+  {
+      /*
+       * После проверки авторизации, sessid и прав
+       * освобождаем lock PHP/Bitrix-сессии.
+       *
+       * Иначе большой upload/распаковка держит сессию,
+       * а остальные страницы Bitrix в этом же браузере ждут 60 секунд
+       * и падают с "Unable to get session lock".
+       */
+      try {
+          if (class_exists('\Bitrix\Main\Application')) {
+              $session = \Bitrix\Main\Application::getInstance()->getSession();
+
+              if (method_exists($session, 'save')) {
+                  $session->save();
+                  return;
+              }
+          }
+      } catch (Throwable $e) {
+          // fallback ниже
+      }
+
+      if (session_status() === PHP_SESSION_ACTIVE) {
+          @session_write_close();
+      }
+  }
+}

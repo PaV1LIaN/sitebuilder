@@ -408,11 +408,28 @@ if (!function_exists('sb_public_render_page_sections')) {
             $sectionBlocks = $blocksBySection[$sectionId] ?? [];
             $columnBlocks = sb_public_group_blocks_by_column($sectionBlocks, $columns);
 
+            $gridStyle = implode('', [
+                '--sb-section-columns:' . $columns . ';',
+                '--sb-section-gap:' . $gap . 'px;',
+                'display:grid !important;',
+                'grid-template-columns:repeat(' . $columns . ',minmax(0,1fr)) !important;',
+                'gap:' . $gap . 'px !important;',
+                'width:100% !important;',
+                'min-width:0 !important;',
+                'align-items:start !important;',
+                'box-sizing:border-box !important;',
+            ]);
+
             $html .= '<section class="sb-page-section sb-page-section--columns-' . $columns . '">';
-            $html .= '<div class="sb-page-section__grid" style="display:grid;grid-template-columns:repeat(' . $columns . ',minmax(0,1fr));gap:' . $gap . 'px;width:100%;min-width:0;align-items:start;box-sizing:border-box;">';
+            $html .= '<div class="sb-page-section__grid" style="' . sb_public_h($gridStyle) . '">';
 
             for ($column = 1; $column <= $columns; $column++) {
-                $html .= '<div class="sb-page-section__column sb-page-section__column--' . $column . '" style="min-width:0;box-sizing:border-box;">';
+                $columnStyle = implode('', [
+                    'min-width:0 !important;',
+                    'box-sizing:border-box !important;',
+                ]);
+
+                $html .= '<div class="sb-page-section__column sb-page-section__column--' . $column . '" style="' . sb_public_h($columnStyle) . '">';
                 $html .= sb_public_render_blocks($columnBlocks[$column] ?? [], $context);
                 $html .= '</div>';
             }
@@ -422,6 +439,7 @@ if (!function_exists('sb_public_render_page_sections')) {
         }
 
         $html .= '</div>';
+
         return $html;
     }
 }
@@ -479,25 +497,54 @@ if (!function_exists('sb_public_menu_item_url')) {
     }
 }
 
+if (!function_exists('sb_public_component_render_file')) {
+    function sb_public_component_render_file(string $type): string
+    {
+        $type = strtolower(trim($type));
+        $type = preg_replace('/[^a-z0-9_-]/i', '', $type);
+
+        if ($type === '') {
+            $type = 'text';
+        }
+
+        $root = dirname(__DIR__);
+
+        $candidates = [
+            $root . '/components/' . $type . '/render.php',
+            $root . '/views/blocks/' . $type . '.php',
+        ];
+
+        foreach ($candidates as $file) {
+            if (is_file($file)) {
+                return $file;
+            }
+        }
+
+        $fallbacks = [
+            $root . '/components/text/render.php',
+            $root . '/views/blocks/text.php',
+        ];
+
+        foreach ($fallbacks as $file) {
+            if (is_file($file)) {
+                return $file;
+            }
+        }
+
+        throw new RuntimeException('SiteBuilder component renderer not found: ' . $type);
+    }
+}
+
 if (!function_exists('sb_public_render_block')) {
     function sb_public_render_block(array $block, array $context = []): string
     {
-        $type = (string)($block['type'] ?? 'text');
-        $template = dirname(__DIR__) . '/views/blocks/' . $type . '.php';
-
-        if (!file_exists($template)) {
-            $template = dirname(__DIR__) . '/views/blocks/text.php';
-        }
-
-        $rawContent = $block['content'] ?? [];
-        $rawProps = $block['props'] ?? [];
-
         $block = sb_normalize_block_record($block);
-        $content = sb_public_to_array($rawContent);
-        $props = sb_public_to_array($rawProps);
 
-        $block['content'] = $content;
-        $block['props'] = $props;
+        $type = (string)($block['type'] ?? 'text');
+        $template = sb_public_component_render_file($type);
+
+        $content = (array)($block['content'] ?? []);
+        $props = (array)($block['props'] ?? []);
 
         ob_start();
         include $template;

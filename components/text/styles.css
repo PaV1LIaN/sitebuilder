@@ -1,0 +1,20 @@
+.sb-text-block {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    word-break: break-word;
+}
+
+.sb-text-block p {
+    margin: 0 0 12px;
+}
+
+.sb-text-block p:last-child {
+    margin-bottom: 0;
+}
+
+.sb-text-block a {
+    color: inherit;
+    text-decoration: underline;
+}

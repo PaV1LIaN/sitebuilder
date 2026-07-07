@@ -152,25 +152,98 @@
   };
 
   DiskComponent.prototype.api = async function (action, payload, isFormData) {
+    var url = '/local/sitebuilder/components/disk/api.php?action=' + encodeURIComponent(action);
+
+    var response;
+
     if (isFormData) {
-      var responseForm = await fetch('/local/sitebuilder/components/disk/api.php?action=' + encodeURIComponent(action), {
+        response = await fetch(url, {
         method: 'POST',
         body: payload
-      });
-
-      return await responseForm.json();
+        });
+    } else {
+        response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload || {})
+        });
     }
 
-    var response = await fetch('/local/sitebuilder/components/disk/api.php?action=' + encodeURIComponent(action), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    var text = await response.text();
+    var json = null;
 
-    return await response.json();
-  };
+    try {
+        json = JSON.parse(text);
+    } catch (e) {
+        console.error('Disk API returned non JSON for action=' + action, text);
+
+        var cleanText = String(text || '')
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 500);
+
+        throw new Error(
+        'API вернул HTML вместо JSON. action=' + action + '. Ответ: ' + cleanText
+        );
+    }
+
+    return json;
+    };
+
+  DiskComponent.prototype.apiUploadWithProgress = function (action, formData, onProgress) {
+    return new Promise(function (resolve, reject) {
+        var xhr = new XMLHttpRequest();
+
+        xhr.open(
+        'POST',
+        '/local/sitebuilder/components/disk/api.php?action=' + encodeURIComponent(action),
+        true
+        );
+
+        xhr.upload.addEventListener('progress', function (event) {
+        if (!event.lengthComputable) {
+            return;
+        }
+
+        if (typeof onProgress === 'function') {
+            onProgress({
+            loaded: event.loaded,
+            total: event.total,
+            percent: event.total > 0 ? Math.round((event.loaded / event.total) * 100) : 0
+            });
+        }
+        });
+
+        xhr.addEventListener('load', function () {
+        var text = xhr.responseText || '';
+        var json = null;
+
+        try {
+            json = JSON.parse(text);
+        } catch (e) {
+            reject(new Error('UPLOAD_BAD_RESPONSE'));
+            return;
+        }
+
+        resolve(json);
+        });
+
+        xhr.addEventListener('error', function () {
+        reject(new Error('UPLOAD_NETWORK_ERROR'));
+        });
+
+        xhr.addEventListener('abort', function () {
+        reject(new Error('UPLOAD_ABORTED'));
+        });
+
+        xhr.send(formData);
+    });
+    };
 
   DiskComponent.prototype.applyInitialViewMode = function () {
     this.setViewMode(this.state.viewMode || 'table');
@@ -857,6 +930,559 @@
   };
 
   /* =========================================================
+   UPLOAD STATUS MODAL
+   ========================================================= */
+
+    DiskComponent.prototype.ensureUploadStatusModal = function () {
+    if (this.uploadStatusModal && document.body.contains(this.uploadStatusModal)) {
+        return this.uploadStatusModal;
+    }
+
+    var modal = document.createElement('div');
+
+    modal.className = 'sb-disk-upload-status-modal';
+    modal.hidden = true;
+
+    modal.innerHTML = ''
+        + '<div class="sb-disk-upload-status-modal__backdrop"></div>'
+        + '<div class="sb-disk-upload-status-modal__dialog">'
+        + '  <div class="sb-disk-upload-status-modal__head">'
+        + '    <div>'
+        + '      <div class="sb-disk-upload-status-modal__title">Загрузка файлов</div>'
+        + '      <div class="sb-disk-upload-status-modal__subtitle" data-upload-status-subtitle>Подготовка...</div>'
+        + '    </div>'
+        + '    <button type="button" class="sb-disk-upload-status-modal__close" data-upload-status-close hidden>×</button>'
+        + '  </div>'
+        + ''
+        + '  <div class="sb-disk-upload-status-modal__body">'
+        + '    <div class="sb-disk-upload-progress">'
+        + '      <div class="sb-disk-upload-progress__top">'
+        + '        <span data-upload-status-message>Подготовка файлов...</span>'
+        + '        <strong data-upload-status-percent>0%</strong>'
+        + '      </div>'
+        + '      <div class="sb-disk-upload-progress__track">'
+        + '        <div class="sb-disk-upload-progress__bar" data-upload-status-bar></div>'
+        + '      </div>'
+        + '      <div class="sb-disk-upload-progress__size" data-upload-status-size>0 Б / 0 Б</div>'
+        + '    </div>'
+        + ''
+        + '    <div class="sb-disk-upload-file-list" data-upload-status-files></div>'
+        + '  </div>'
+        + '</div>';
+
+    var closeBtn = modal.querySelector('[data-upload-status-close]');
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function () {
+        modal.hidden = true;
+        });
+    }
+
+    document.body.appendChild(modal);
+
+    this.uploadStatusModal = modal;
+
+    return modal;
+    };
+
+    DiskComponent.prototype.showUploadStatusModal = function (files) {
+    files = Array.prototype.slice.call(files || []);
+
+    var modal = this.ensureUploadStatusModal();
+    var subtitle = modal.querySelector('[data-upload-status-subtitle]');
+    var message = modal.querySelector('[data-upload-status-message]');
+    var percent = modal.querySelector('[data-upload-status-percent]');
+    var bar = modal.querySelector('[data-upload-status-bar]');
+    var size = modal.querySelector('[data-upload-status-size]');
+    var list = modal.querySelector('[data-upload-status-files]');
+    var closeBtn = modal.querySelector('[data-upload-status-close]');
+
+    var totalSize = files.reduce(function (sum, file) {
+        return sum + Number(file && file.size ? file.size : 0);
+    }, 0);
+
+    if (subtitle) {
+        subtitle.textContent = 'Файлов: ' + files.length;
+    }
+
+    if (message) {
+        message.textContent = 'Начинаю загрузку...';
+    }
+
+    if (percent) {
+        percent.textContent = '0%';
+    }
+
+    if (bar) {
+        bar.style.width = '0%';
+    }
+
+    if (size) {
+        size.textContent = '0 Б / ' + formatBytes(totalSize);
+    }
+
+    if (list) {
+        list.innerHTML = files.map(function (file) {
+        return ''
+            + '<div class="sb-disk-upload-file">'
+            + '  <div class="sb-disk-upload-file__name">' + escapeHtml(file.name || 'file') + '</div>'
+            + '  <div class="sb-disk-upload-file__size">' + escapeHtml(formatBytes(file.size || 0)) + '</div>'
+            + '</div>';
+        }).join('');
+    }
+
+    if (closeBtn) {
+        closeBtn.hidden = true;
+    }
+
+    modal.classList.remove('is-success', 'is-error');
+    modal.hidden = false;
+    };
+
+    DiskComponent.prototype.updateUploadStatusModal = function (data) {
+    data = data || {};
+
+    var modal = this.ensureUploadStatusModal();
+    var message = modal.querySelector('[data-upload-status-message]');
+    var percent = modal.querySelector('[data-upload-status-percent]');
+    var bar = modal.querySelector('[data-upload-status-bar]');
+    var size = modal.querySelector('[data-upload-status-size]');
+
+    var loaded = Number(data.loaded || 0);
+    var total = Number(data.total || 0);
+    var progress = Number(data.percent || 0);
+
+    if (progress < 0) {
+        progress = 0;
+    }
+
+    if (progress > 100) {
+        progress = 100;
+    }
+
+    if (message) {
+        message.textContent = data.message || 'Загружаю файлы...';
+    }
+
+    if (percent) {
+        percent.textContent = progress + '%';
+    }
+
+    if (bar) {
+        bar.style.width = progress + '%';
+    }
+
+    if (size) {
+        size.textContent = formatBytes(loaded) + ' / ' + formatBytes(total);
+    }
+    };
+
+    DiskComponent.prototype.finishUploadStatusModal = function (success, messageText) {
+    var modal = this.ensureUploadStatusModal();
+    var message = modal.querySelector('[data-upload-status-message]');
+    var percent = modal.querySelector('[data-upload-status-percent]');
+    var bar = modal.querySelector('[data-upload-status-bar]');
+    var closeBtn = modal.querySelector('[data-upload-status-close]');
+
+    modal.classList.toggle('is-success', !!success);
+    modal.classList.toggle('is-error', !success);
+
+    if (message) {
+        message.textContent = messageText || (success ? 'Загрузка завершена' : 'Ошибка загрузки');
+    }
+
+    if (success) {
+        if (percent) {
+        percent.textContent = '100%';
+        }
+
+        if (bar) {
+        bar.style.width = '100%';
+        }
+
+        setTimeout(function () {
+        modal.hidden = true;
+        }, 900);
+    } else if (closeBtn) {
+        closeBtn.hidden = false;
+    }
+    };
+
+    /* =========================================================
+   UNPACK STATUS MODAL
+   ========================================================= */
+
+    DiskComponent.prototype.ensureUnpackStatusModal = function () {
+    if (this.unpackStatusModal && document.body.contains(this.unpackStatusModal)) {
+        return this.unpackStatusModal;
+    }
+
+    var modal = document.createElement('div');
+
+    modal.className = 'sb-disk-upload-status-modal sb-disk-unpack-status-modal';
+    modal.hidden = true;
+
+    modal.innerHTML = ''
+        + '<div class="sb-disk-upload-status-modal__backdrop"></div>'
+        + '<div class="sb-disk-upload-status-modal__dialog">'
+        + '  <div class="sb-disk-upload-status-modal__head">'
+        + '    <div>'
+        + '      <div class="sb-disk-upload-status-modal__title">Распаковка архива</div>'
+        + '      <div class="sb-disk-upload-status-modal__subtitle" data-unpack-status-subtitle>Подготовка...</div>'
+        + '    </div>'
+        + '    <button type="button" class="sb-disk-upload-status-modal__close" data-unpack-status-close hidden>×</button>'
+        + '  </div>'
+        + ''
+        + '  <div class="sb-disk-upload-status-modal__body">'
+        + '    <div class="sb-disk-upload-progress">'
+        + '      <div class="sb-disk-upload-progress__top">'
+        + '        <span data-unpack-status-message>Подготовка архива...</span>'
+        + '        <strong data-unpack-status-percent>0%</strong>'
+        + '      </div>'
+        + '      <div class="sb-disk-upload-progress__track">'
+        + '        <div class="sb-disk-upload-progress__bar" data-unpack-status-bar></div>'
+        + '      </div>'
+        + '      <div class="sb-disk-upload-progress__size" data-unpack-status-info>Ожидание...</div>'
+        + '    </div>'
+        + ''
+        + '    <div class="sb-disk-upload-file-list">'
+        + '      <div class="sb-disk-upload-file">'
+        + '        <div class="sb-disk-upload-file__name" data-unpack-status-file>Архив</div>'
+        + '        <div class="sb-disk-upload-file__size">ZIP</div>'
+        + '      </div>'
+        + '    </div>'
+        + '  </div>'
+        + '</div>';
+
+    var closeBtn = modal.querySelector('[data-unpack-status-close]');
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function () {
+        modal.hidden = true;
+        });
+    }
+
+    document.body.appendChild(modal);
+
+    this.unpackStatusModal = modal;
+
+    return modal;
+    };
+
+    DiskComponent.prototype.showUnpackStatusModal = function (fileName) {
+    var modal = this.ensureUnpackStatusModal();
+
+    var subtitle = modal.querySelector('[data-unpack-status-subtitle]');
+    var message = modal.querySelector('[data-unpack-status-message]');
+    var percent = modal.querySelector('[data-unpack-status-percent]');
+    var bar = modal.querySelector('[data-unpack-status-bar]');
+    var info = modal.querySelector('[data-unpack-status-info]');
+    var file = modal.querySelector('[data-unpack-status-file]');
+    var closeBtn = modal.querySelector('[data-unpack-status-close]');
+
+    if (subtitle) {
+        subtitle.textContent = 'Файл: ' + (fileName || 'архив.zip');
+    }
+
+    if (message) {
+        message.textContent = 'Начинаю распаковку...';
+    }
+
+    if (percent) {
+        percent.textContent = '0%';
+    }
+
+    if (bar) {
+        bar.style.width = '0%';
+    }
+
+    if (info) {
+        info.textContent = 'Проверяю архив и подготавливаю распаковку...';
+    }
+
+    if (file) {
+        file.textContent = fileName || 'архив.zip';
+    }
+
+    if (closeBtn) {
+        closeBtn.hidden = true;
+    }
+
+    modal.classList.remove('is-success', 'is-error');
+    modal.hidden = false;
+
+    this.stopUnpackProgressTicker();
+    };
+
+    DiskComponent.prototype.updateUnpackStatusModal = function (data) {
+    data = data || {};
+
+    var modal = this.ensureUnpackStatusModal();
+    var message = modal.querySelector('[data-unpack-status-message]');
+    var percent = modal.querySelector('[data-unpack-status-percent]');
+    var bar = modal.querySelector('[data-unpack-status-bar]');
+    var info = modal.querySelector('[data-unpack-status-info]');
+
+    var progress = Number(data.percent || 0);
+
+    if (progress < 0) {
+        progress = 0;
+    }
+
+    if (progress > 100) {
+        progress = 100;
+    }
+
+    if (message) {
+        message.textContent = data.message || 'Распаковываю архив...';
+    }
+
+    if (percent) {
+        percent.textContent = progress + '%';
+    }
+
+    if (bar) {
+        bar.style.width = progress + '%';
+    }
+
+    if (info) {
+        info.textContent = data.info || 'Пожалуйста, подождите...';
+    }
+    };
+
+    DiskComponent.prototype.startUnpackProgressTicker = function () {
+    var self = this;
+
+    this.stopUnpackProgressTicker();
+
+    this.unpackProgressValue = 0;
+
+    this.unpackProgressTimer = setInterval(function () {
+        var value = Number(self.unpackProgressValue || 0);
+
+        if (value < 30) {
+        value += 7;
+        } else if (value < 60) {
+        value += 4;
+        } else if (value < 85) {
+        value += 2;
+        } else if (value < 90) {
+        value += 1;
+        } else {
+        value = 90;
+        }
+
+        self.unpackProgressValue = value;
+
+        self.updateUnpackStatusModal({
+        percent: value,
+        message: value < 40 ? 'Проверяю архив...' : 'Распаковываю файлы...',
+        info: 'Это может занять несколько секунд.'
+        });
+    }, 350);
+    };
+
+    DiskComponent.prototype.stopUnpackProgressTicker = function () {
+    if (this.unpackProgressTimer) {
+        clearInterval(this.unpackProgressTimer);
+        this.unpackProgressTimer = null;
+    }
+    };
+
+    DiskComponent.prototype.finishUnpackStatusModal = function (success, messageText, data) {
+    data = data || {};
+
+    this.stopUnpackProgressTicker();
+
+    var modal = this.ensureUnpackStatusModal();
+    var message = modal.querySelector('[data-unpack-status-message]');
+    var percent = modal.querySelector('[data-unpack-status-percent]');
+    var bar = modal.querySelector('[data-unpack-status-bar]');
+    var info = modal.querySelector('[data-unpack-status-info]');
+    var closeBtn = modal.querySelector('[data-unpack-status-close]');
+
+    modal.classList.toggle('is-success', !!success);
+    modal.classList.toggle('is-error', !success);
+
+    if (message) {
+        message.textContent = messageText || (success ? 'Распаковка завершена' : 'Ошибка распаковки');
+    }
+
+    if (success) {
+        if (percent) {
+        percent.textContent = '100%';
+        }
+
+        if (bar) {
+        bar.style.width = '100%';
+        }
+
+        if (info) {
+        var extractedFiles = Number(data.extractedFiles || 0);
+        var createdFolders = Number(data.createdFolders || 0);
+
+        info.textContent = 'Файлов: ' + extractedFiles + ' · Папок: ' + createdFolders;
+        }
+
+        setTimeout(function () {
+        modal.hidden = true;
+        }, 1200);
+    } else {
+        if (info) {
+        info.textContent = 'Проверьте архив или настройки сервера.';
+        }
+
+        if (closeBtn) {
+        closeBtn.hidden = false;
+        }
+    }
+    };
+
+    DiskComponent.prototype.sleep = function (ms) {
+        return new Promise(function (resolve) {
+            setTimeout(resolve, ms);
+        });
+        };
+
+        DiskComponent.prototype.unpackArchiveFromRow = async function (unpackRow) {
+            var fileName = unpackRow.getAttribute('data-name') || 'архив';
+
+            this.showUnpackStatusModal(fileName);
+
+            this.updateUnpackStatusModal({
+                percent: 1,
+                message: 'Создаю задачу распаковки...',
+                info: 'Проверяю архив.'
+            });
+
+            var startPayload = this.getBasePayload();
+
+            startPayload.fileId = Number(unpackRow.getAttribute('data-id') || 0);
+            startPayload.sessid = this.getSessid();
+
+            var startRes = await this.api('unpackArchiveStart', startPayload);
+
+            if (!startRes || !startRes.ok) {
+                this.finishUnpackStatusModal(
+                false,
+                (startRes && (startRes.message || startRes.error)) || 'Не удалось начать распаковку',
+                {}
+                );
+                return;
+            }
+
+            var startData = startRes.data || {};
+            var jobId = startData.jobId || '';
+
+            if (!jobId) {
+                this.finishUnpackStatusModal(false, 'UNPACK_JOB_ID_EMPTY', {});
+                return;
+            }
+
+            var totalEntries = Number(startData.totalEntries || 0);
+            var totalFiles = Number(startData.totalFiles || 0);
+            var totalFolders = Number(startData.totalFolders || 0);
+            var nextEntryName = startData.nextEntryName || '';
+
+            this.updateUnpackStatusModal({
+                percent: 1,
+                message: 'Архив проверен. Начинаю распаковку...',
+                info:
+                'Файлов: ' + totalFiles +
+                ' · Папок: ' + totalFolders +
+                ' · Всего элементов: ' + totalEntries
+            });
+
+            var done = false;
+            var lastData = null;
+
+            while (!done) {
+                if (nextEntryName) {
+                this.updateUnpackStatusModal({
+                    percent: lastData && lastData.percent ? lastData.percent : 1,
+                    message: 'Распаковываю: ' + nextEntryName,
+                    info:
+                    'Обработано: ' +
+                    (lastData && lastData.index ? lastData.index : 0) +
+                    ' из ' +
+                    totalEntries
+                });
+                }
+
+                var stepPayload = this.getBasePayload();
+
+                stepPayload.jobId = jobId;
+                stepPayload.sessid = this.getSessid();
+
+                var stepRes = await this.api('unpackArchiveStep', stepPayload);
+
+                if (!stepRes || !stepRes.ok) {
+                this.finishUnpackStatusModal(
+                    false,
+                    (stepRes && (stepRes.message || stepRes.error)) || 'Ошибка шага распаковки',
+                    {}
+                );
+                return;
+                }
+
+                var stepData = stepRes.data || {};
+
+                lastData = stepData;
+                done = !!stepData.done;
+                nextEntryName = stepData.nextEntryName || '';
+
+                var percent = Number(stepData.percent || 1);
+
+                if (percent < 1) {
+                percent = 1;
+                }
+
+                if (percent > 100) {
+                percent = 100;
+                }
+
+                this.updateUnpackStatusModal({
+                percent: percent,
+                message: done
+                    ? 'Завершаю распаковку...'
+                    : 'Распаковано: ' + (stepData.lastEntryName || 'элемент'),
+                info:
+                    'Обработано: ' +
+                    (stepData.index || 0) +
+                    ' из ' +
+                    (stepData.totalEntries || totalEntries) +
+                    ' · Файлов: ' +
+                    (stepData.extractedFiles || 0) +
+                    ' · Папок: ' +
+                    (stepData.createdFolders || 0)
+                });
+
+                if (!done) {
+                await this.sleep(120);
+                }
+            }
+
+            this.finishUnpackStatusModal(true, 'Распаковка завершена', {
+                extractedFiles: lastData && lastData.extractedFiles ? lastData.extractedFiles : 0,
+                createdFolders: lastData && lastData.createdFolders ? lastData.createdFolders : 0,
+                totalSize: lastData && lastData.totalSize ? lastData.totalSize : 0
+            });
+
+            var targetFolder = lastData && lastData.targetFolder ? lastData.targetFolder : null;
+            var self = this;
+
+            setTimeout(async function () {
+                if (targetFolder && targetFolder.id) {
+                await self.loadFolder(Number(targetFolder.id));
+                } else {
+                await self.loadFolder(self.state.currentFolderId || self.state.rootFolderId);
+                }
+            }, 700);
+            };
+
+
+
+  /* =========================================================
      EVENTS
      ========================================================= */
 
@@ -865,81 +1491,103 @@
         };
 
         DiskComponent.prototype.uploadFiles = async function (files) {
-        files = Array.prototype.slice.call(files || []);
+            files = Array.prototype.slice.call(files || []);
 
-        if (!files.length) {
-            return;
-        }
-
-        if (!this.state.permissions.canUpload) {
-            alert('У вас нет прав на загрузку файлов');
-            return;
-        }
-
-        var preparedFiles = [];
-
-        try {
-            for (var i = 0; i < files.length; i++) {
-            var file = files[i];
-
-            if (!file || !file.name) {
-                continue;
+            if (!files.length) {
+                return;
             }
 
-            var existingItem = this.findExistingFileByName(file.name);
-
-            if (!existingItem) {
-                preparedFiles.push(file);
-                continue;
+            if (!this.state.permissions.canUpload) {
+                alert('У вас нет прав на загрузку файлов');
+                return;
             }
 
-            var decision = await this.askDuplicateUploadAction(file, existingItem);
+            var preparedFiles = [];
 
-            if (!decision || decision.action === 'cancel') {
-                continue;
+            try {
+                for (var i = 0; i < files.length; i++) {
+                var file = files[i];
+
+                if (!file || !file.name) {
+                    continue;
+                }
+
+                var existingItem = this.findExistingFileByName(file.name);
+
+                if (!existingItem) {
+                    preparedFiles.push(file);
+                    continue;
+                }
+
+                var decision = await this.askDuplicateUploadAction(file, existingItem);
+
+                if (!decision || decision.action === 'cancel') {
+                    continue;
+                }
+
+                if (decision.action === 'replace') {
+                    await this.archiveExistingFileToHistory(existingItem);
+
+                    preparedFiles.push(file);
+                    continue;
+                }
+
+                if (decision.action === 'rename') {
+                    preparedFiles.push(this.makeRenamedFile(file, decision.name));
+                }
+                }
+
+                if (!preparedFiles.length) {
+                return;
+                }
+
+                this.showUploadStatusModal(preparedFiles);
+
+                var formData = new FormData();
+
+                formData.append('siteId', this.state.siteId);
+                formData.append('pageId', this.state.pageId);
+                formData.append('blockId', this.state.blockId);
+                formData.append('currentFolderId', this.state.currentFolderId);
+                formData.append('sessid', this.getSessid());
+
+                preparedFiles.forEach(function (file) {
+                formData.append('files[]', file);
+                });
+
+                var self = this;
+
+                var res = await this.apiUploadWithProgress('upload', formData, function (progress) {
+                self.updateUploadStatusModal({
+                    loaded: progress.loaded,
+                    total: progress.total,
+                    percent: progress.percent,
+                    message: 'Загружаю файлы...'
+                });
+                });
+
+                if (!res || !res.ok) {
+                this.finishUploadStatusModal(false, (res && (res.message || res.error)) || 'Ошибка загрузки');
+                return;
+                }
+
+                this.updateUploadStatusModal({
+                loaded: 1,
+                total: 1,
+                percent: 100,
+                message: 'Загрузка завершена. Обновляю список...'
+                });
+
+                await this.loadFolder(this.state.currentFolderId);
+
+                this.finishUploadStatusModal(true, 'Загрузка завершена');
+            } catch (err) {
+                console.error(err);
+
+                this.finishUploadStatusModal(false, err && err.message ? err.message : 'Ошибка загрузки');
             }
+            };
 
-            if (decision.action === 'replace') {
-                await this.archiveExistingFileToHistory(existingItem);
-
-                preparedFiles.push(file);
-                continue;
-            }
-
-            if (decision.action === 'rename') {
-                preparedFiles.push(this.makeRenamedFile(file, decision.name));
-            }
-            }
-
-            if (!preparedFiles.length) {
-            return;
-            }
-
-            var formData = new FormData();
-
-            formData.append('siteId', this.state.siteId);
-            formData.append('pageId', this.state.pageId);
-            formData.append('blockId', this.state.blockId);
-            formData.append('currentFolderId', this.state.currentFolderId);
-            formData.append('sessid', this.getSessid());
-
-            preparedFiles.forEach(function (file) {
-            formData.append('files[]', file);
-            });
-
-            var res = await this.api('upload', formData, true);
-
-            if (!res || !res.ok) {
-            window.alert((res && (res.message || res.error)) || 'Ошибка загрузки');
-            return;
-            }
-
-            await this.loadFolder(this.state.currentFolderId);
-        } catch (err) {
-            console.error(err);
-            window.alert(err && err.message ? err.message : 'Ошибка загрузки');
-        }
-        };
 
   DiskComponent.prototype.bindStaticEvents = function () {
     var self = this;
@@ -1301,6 +1949,45 @@
         return;
       }
 
+      var unpackBtn = e.target.closest('[data-row-action="unpack"]');
+
+        if (unpackBtn) {
+        var unpackRow = e.target.closest('[data-id][data-entity-type="file"]');
+
+        if (!unpackRow) {
+            return;
+        }
+
+        var fileName = unpackRow.getAttribute('data-name') || 'архив';
+
+        var confirmUnpack = window.confirm(
+            'Распаковать архив "' + fileName + '"?\n\n' +
+            'Файлы будут распакованы в текущую папку.'
+        );
+
+        if (!confirmUnpack) {
+            return;
+        }
+
+        try {
+            self.setLoading(true);
+
+            await self.unpackArchiveFromRow(unpackRow);
+        } catch (err) {
+            console.error(err);
+
+            self.finishUnpackStatusModal(
+            false,
+            err && err.message ? err.message : 'Ошибка распаковки',
+            {}
+            );
+        } finally {
+            self.setLoading(false);
+        }
+
+        return;
+        }
+
       var renameBtn = e.target.closest('[data-row-action="rename"]');
       if (renameBtn) {
         var renameRow = e.target.closest('[data-id][data-entity-type]');
@@ -1649,113 +2336,120 @@
   DiskComponent.prototype.renderItemsTable = function () {
     var tbody = this.root.querySelector('[data-role="items-table"]');
     if (!tbody) {
-      return;
+        return;
     }
 
     var self = this;
 
     tbody.innerHTML = this.getDisplayItems().map(function (item) {
-      var typeText = getItemTypeText(item);
-      var addedByText = getItemAddedByText(item);
-      var sizeText = item.entityType === 'folder' ? '—' : (item.size ? formatBytes(item.size) : '—');
-      var iconHtml = renderItemIcon(item);
-      var openControl = renderOpenControl(item);
-      var historyControl = self.renderHistoryControl(item);
+        var typeText = getItemTypeText(item);
+        var addedByText = getItemAddedByText(item);
+        var sizeText = item.entityType === 'folder' ? '—' : (item.size ? formatBytes(item.size) : '—');
+        var iconHtml = renderItemIcon(item);
+        var openControl = renderOpenControl(item);
+        var historyControl = self.renderHistoryControl(item);
 
-      return '' +
+        return '' +
         '<tr class="sb-disk__row ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
-          'data-id="' + escapeHtml(item.id) + '" ' +
-          'data-entity-type="' + escapeHtml(item.entityType) + '" ' +
-          'data-name="' + escapeHtml(item.name) + '" ' +
-          'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" ' +
-          'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" ' +
-          'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">' +
+            'data-id="' + escapeHtml(item.id) + '" ' +
+            'data-entity-type="' + escapeHtml(item.entityType) + '" ' +
+            'data-name="' + escapeHtml(item.name) + '" ' +
+            'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" ' +
+            'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" ' +
+            'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">' +
             '<td class="sb-disk__check-cell">' +
-              '<input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">' +
+                '<input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">' +
             '</td>' +
             '<td class="sb-disk__name-cell">' +
-              '<div class="sb-disk__modern-name">' +
+                '<div class="sb-disk__modern-name">' +
                 iconHtml +
                 '<div class="sb-disk__modern-name-main">' +
-                  '<div class="sb-disk__modern-name-title">' + escapeHtml(item.name) + '</div>' +
-                  '<div class="sb-disk__modern-name-sub">' + escapeHtml(typeText) + '</div>' +
+                    '<div class="sb-disk__modern-name-title">' + escapeHtml(item.name) + '</div>' +
+                    '<div class="sb-disk__modern-name-sub">' + escapeHtml(typeText) + '</div>' +
                 '</div>' +
-              '</div>' +
+                '</div>' +
             '</td>' +
             '<td><span class="sb-disk__added-by">' + escapeHtml(addedByText) + '</span></td>' +
             '<td>' + escapeHtml(sizeText) + '</td>' +
             '<td>' + escapeHtml(item.updatedAt || '—') + '</td>' +
             '<td>' +
-              '<div class="sb-disk__actions">' +
+                '<div class="sb-disk__actions">' +
                 openControl +
-                (item.entityType === 'file'
-                  ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
-                  : '') +
                 historyControl +
+                (item.entityType === 'file'
+                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
+                    : '') +
+                (isArchiveItem(item)
+                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="unpack">Распаковать</button>'
+                    : '') +
                 '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' +
                 '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' +
-              '</div>' +
+                '</div>' +
             '</td>' +
         '</tr>';
     }).join('');
-  };
+    };
 
-  DiskComponent.prototype.renderItemsGrid = function () {
-    var container = this.root.querySelector('[data-view-container="grid"]');
-    if (!container) {
-      return;
-    }
+    DiskComponent.prototype.renderItemsGrid = function () {
+        var container = this.root.querySelector('[data-view-container="grid"]');
+        if (!container) {
+            return;
+        }
 
-    container.classList.add('sb-disk__grid');
+        container.classList.add('sb-disk__grid');
 
-    var self = this;
+        var self = this;
 
-    container.innerHTML = this.getDisplayItems().map(function (item) {
-        var typeText = getItemTypeText(item);
-        var addedByText = getItemAddedByText(item);
-        var sizeText = item.entityType === 'folder' ? 'Папка' : (item.size ? formatBytes(item.size) : '—');
-        var openControl = renderOpenControl(item);
-        var historyControl = self.renderHistoryControl(item);
+        container.innerHTML = this.getDisplayItems().map(function (item) {
+            var typeText = getItemTypeText(item);
+            var addedByText = getItemAddedByText(item);
+            var sizeText = item.entityType === 'folder' ? 'Папка' : (item.size ? formatBytes(item.size) : '—');
+            var openControl = renderOpenControl(item);
+            var historyControl = self.renderHistoryControl(item);
 
-      return '' +
-        '<div class="sb-disk__card ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
-             'data-id="' + escapeHtml(item.id) + '" ' +
-             'data-entity-type="' + escapeHtml(item.entityType) + '" ' +
-             'data-name="' + escapeHtml(item.name) + '" ' +
-             'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" ' +
-             'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" ' +
-             'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">' +
-            '<div class="sb-disk__card-top">' +
-              '<label class="sb-disk__card-check">' +
-                '<input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">' +
-              '</label>' +
-              '<span class="sb-disk__type-pill">' + escapeHtml(typeText) + '</span>' +
-            '</div>' +
-            '<div class="sb-disk__card-preview">' +
-              renderItemIcon(item) +
-            '</div>' +
-            '<div class="sb-disk__card-name">' + escapeHtml(item.name) + '</div>' +
-            '<div class="sb-disk__card-meta">' +
-              '<span class="sb-disk__card-sub">' + escapeHtml(sizeText) + '</span>' +
-            '</div>' +
-            '<div class="sb-disk__card-meta">' +
-              '<span class="sb-disk__card-sub">Добавил: ' + escapeHtml(addedByText) + '</span>' +
-            '</div>' +
-            '<div class="sb-disk__card-meta">' +
-              '<span class="sb-disk__card-sub">' + escapeHtml(item.updatedAt || '') + '</span>' +
-            '</div>' +
-            '<div class="sb-disk__card-actions">' +
-              openControl +
-              (item.entityType === 'file'
-                ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
-                : '') +
-              historyControl +
-              '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' +
-              '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' +
-            '</div>' +
-        '</div>';
-    }).join('');
-  };
+            return '' +
+            '<div class="sb-disk__card ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
+                'data-id="' + escapeHtml(item.id) + '" ' +
+                'data-entity-type="' + escapeHtml(item.entityType) + '" ' +
+                'data-name="' + escapeHtml(item.name) + '" ' +
+                'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" ' +
+                'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" ' +
+                'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">' +
+                '<div class="sb-disk__card-top">' +
+                    '<label class="sb-disk__card-check">' +
+                    '<input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">' +
+                    '</label>' +
+                    '<span class="sb-disk__type-pill">' + escapeHtml(typeText) + '</span>' +
+                '</div>' +
+                '<div class="sb-disk__card-preview">' +
+                    renderItemIcon(item) +
+                '</div>' +
+                '<div class="sb-disk__card-name">' + escapeHtml(item.name) + '</div>' +
+                '<div class="sb-disk__card-meta">' +
+                    '<span class="sb-disk__card-sub">' + escapeHtml(sizeText) + '</span>' +
+                '</div>' +
+                '<div class="sb-disk__card-meta">' +
+                    '<span class="sb-disk__card-sub">Добавил: ' + escapeHtml(addedByText) + '</span>' +
+                '</div>' +
+                '<div class="sb-disk__card-meta">' +
+                    '<span class="sb-disk__card-sub">' + escapeHtml(item.updatedAt || '') + '</span>' +
+                '</div>' +
+                '<div class="sb-disk__card-actions">' +
+                    openControl +
+                    historyControl +
+                    (item.entityType === 'file'
+                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
+                    : '') +
+                    (isArchiveItem(item)
+                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="unpack">Распаковать</button>'
+                    : '') +
+                    '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' +
+                    '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+        };
+
 
   DiskComponent.prototype.setLoading = function (loading) {
     this.state.loading = !!loading;
@@ -2219,6 +2913,17 @@
     return '';
   }
 
+  function isArchiveItem(item) {
+    if (!item || item.entityType !== 'file') {
+        return false;
+    }
+
+    var extension = String(item.extension || '').toLowerCase();
+    var name = String(item.name || '').toLowerCase();
+
+    return extension === 'zip' || name.slice(-4) === '.zip';
+    }
+
   function formatBytes(bytes) {
     bytes = Number(bytes || 0);
     if (bytes <= 0) {
@@ -2298,4 +3003,6 @@
   } else {
     initDisks();
   }
+
+
 })();

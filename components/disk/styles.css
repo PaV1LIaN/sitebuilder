@@ -1585,3 +1585,183 @@
         flex-wrap: wrap;
     }
 }
+
+/* =========================================================
+   Disk upload status modal
+   ========================================================= */
+
+.sb-disk-upload-status-modal[hidden] {
+    display: none !important;
+}
+
+.sb-disk-upload-status-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.sb-disk-upload-status-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, .55);
+    backdrop-filter: blur(4px);
+}
+
+.sb-disk-upload-status-modal__dialog {
+    position: relative;
+    width: min(520px, 100%);
+    max-height: min(680px, calc(100vh - 48px));
+    overflow: auto;
+    background: #fff;
+    border-radius: 22px;
+    border: 1px solid rgba(226, 232, 240, .9);
+    box-shadow: 0 24px 80px rgba(15, 23, 42, .28);
+}
+
+.sb-disk-upload-status-modal__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 22px 14px;
+    border-bottom: 1px solid rgba(226, 232, 240, .9);
+}
+
+.sb-disk-upload-status-modal__title {
+    color: #0f172a;
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1.2;
+}
+
+.sb-disk-upload-status-modal__subtitle {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.sb-disk-upload-status-modal__close {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 12px;
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.sb-disk-upload-status-modal__body {
+    padding: 18px 22px 22px;
+}
+
+.sb-disk-upload-progress {
+    padding: 14px;
+    border-radius: 16px;
+    background: #f8fafc;
+    border: 1px solid rgba(226, 232, 240, .95);
+}
+
+.sb-disk-upload-progress__top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.sb-disk-upload-progress__top strong {
+    color: #1d4ed8;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.sb-disk-upload-progress__track {
+    height: 10px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e2e8f0;
+}
+
+.sb-disk-upload-progress__bar {
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #2563eb, #38bdf8);
+    transition: width .18s ease;
+}
+
+.sb-disk-upload-progress__size {
+    margin-top: 8px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.sb-disk-upload-file-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.sb-disk-upload-file {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid rgba(226, 232, 240, .95);
+}
+
+.sb-disk-upload-file__name {
+    min-width: 0;
+    overflow: hidden;
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sb-disk-upload-file__size {
+    flex: 0 0 auto;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.sb-disk-upload-status-modal.is-success .sb-disk-upload-progress__bar {
+    background: linear-gradient(90deg, #16a34a, #22c55e);
+}
+
+.sb-disk-upload-status-modal.is-error .sb-disk-upload-progress__bar {
+    background: linear-gradient(90deg, #dc2626, #fb7185);
+}
+
+.sb-disk-upload-status-modal.is-error .sb-disk-upload-progress__top strong {
+    color: #dc2626;
+}
+
+/* =========================================================
+   Disk unpack status modal
+   ========================================================= */
+
+.sb-disk-unpack-status-modal .sb-disk-upload-progress__bar {
+    background: linear-gradient(90deg, #7c3aed, #38bdf8);
+}
+
+.sb-disk-unpack-status-modal.is-success .sb-disk-upload-progress__bar {
+    background: linear-gradient(90deg, #16a34a, #22c55e);
+}
+
+.sb-disk-unpack-status-modal.is-error .sb-disk-upload-progress__bar {
+    background: linear-gradient(90deg, #dc2626, #fb7185);
+}
