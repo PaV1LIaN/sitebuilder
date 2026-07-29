@@ -20,7 +20,7 @@ if (!$vm) {
         <title>SiteBuilder / Public</title>
     </head>
     <body style="font-family:Arial,sans-serif;padding:24px;">
-        <h1>Сайт не найден</h1>
+        <h1>Сайт или страница не найдены</h1>
         <p><a href="<?= sb_public_h($basePath) ?>/index.php">К списку сайтов</a></p>
     </body>
     </html>

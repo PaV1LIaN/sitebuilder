@@ -45,6 +45,15 @@ if (
 }
 
 if (
+    $action === 'pageAccess.list' ||
+    $action === 'pageAccess.save' ||
+    $action === 'pageAccess.delete'
+) {
+    require __DIR__ . '/handlers/page_access.php';
+    exit;
+}
+
+if (
     $action === 'menu.list' ||
     $action === 'menu.create' ||
     $action === 'menu.update' ||

@@ -92,6 +92,7 @@ if (!function_exists('sb_public_appearance_get')) {
         $backgroundFileId = (int)($settings['backgroundFileId'] ?? 0);
 
         $headerLogoMode = (string)($settings['headerLogoMode'] ?? 'image');
+
         if (!in_array($headerLogoMode, ['image', 'text', 'both'], true)) {
             $headerLogoMode = 'image';
         }
@@ -248,15 +249,27 @@ if (!function_exists('sb_public_auto_menu_has_active_child')) {
 }
 
 if (!function_exists('sb_public_render_auto_menu_level')) {
-    function sb_public_render_auto_menu_level(array $pages, int $parentId, string $basePath, int $siteId, int $currentPageId, int $level = 0): string
-    {
-        $children = sb_public_auto_menu_children($pages, $parentId, $currentPageId);
+    function sb_public_render_auto_menu_level(
+        array $pages,
+        int $parentId,
+        string $basePath,
+        int $siteId,
+        int $currentPageId,
+        int $level = 0
+    ): string {
+        $children = sb_public_auto_menu_children(
+            $pages,
+            $parentId,
+            $currentPageId
+        );
 
         if (empty($children)) {
             return '';
         }
 
-        $class = $level === 0 ? 'sb-public-menu' : 'sb-public-menu__dropdown';
+        $class = $level === 0
+            ? 'sb-public-menu'
+            : 'sb-public-menu__dropdown';
 
         $html = '<nav class="' . $class . '">';
 
@@ -268,10 +281,23 @@ if (!function_exists('sb_public_render_auto_menu_level')) {
             $childHtml = '';
             $hasChildren = false;
 
-            $isActive = $pageId === $currentPageId || sb_public_auto_menu_has_active_child($pages, $pageId, $currentPageId);
+            $isActive =
+                $pageId === $currentPageId
+                || sb_public_auto_menu_has_active_child(
+                    $pages,
+                    $pageId,
+                    $currentPageId
+                );
 
-            $html .= '<div class="sb-public-menu__item' . ($hasChildren ? ' has-children' : '') . ($isActive ? ' is-active' : '') . '">';
-            $html .= '<a class="sb-public-menu__link" href="' . sb_public_h($url) . '">';
+            $html .= '<div class="sb-public-menu__item'
+                . ($hasChildren ? ' has-children' : '')
+                . ($isActive ? ' is-active' : '')
+                . '">';
+
+            $html .= '<a class="sb-public-menu__link" href="'
+                . sb_public_h($url)
+                . '">';
+
             $html .= sb_public_h($title);
 
             if ($hasChildren) {
@@ -294,9 +320,20 @@ if (!function_exists('sb_public_render_auto_menu_level')) {
 }
 
 if (!function_exists('sb_public_render_auto_pages_menu')) {
-    function sb_public_render_auto_pages_menu(array $pages, string $basePath, int $siteId, int $currentPageId = 0): string
-    {
-        return sb_public_render_auto_menu_level($pages, 0, $basePath, $siteId, $currentPageId, 0);
+    function sb_public_render_auto_pages_menu(
+        array $pages,
+        string $basePath,
+        int $siteId,
+        int $currentPageId = 0
+    ): string {
+        return sb_public_render_auto_menu_level(
+            $pages,
+            0,
+            $basePath,
+            $siteId,
+            $currentPageId,
+            0
+        );
     }
 }
 
@@ -312,16 +349,28 @@ $headerHtml = sb_public_render_blocks($headerBlocks, $vm);
 $footerHtml = sb_public_render_blocks($footerBlocks, $vm);
 $leftHtml = sb_public_render_blocks($leftBlocks, $vm);
 $rightHtml = sb_public_render_blocks($rightBlocks, $vm);
-$pageSections = is_array($vm['pageSections'] ?? null) ? $vm['pageSections'] : [];
+
+$pageSections = is_array($vm['pageSections'] ?? null)
+    ? $vm['pageSections']
+    : [];
 
 if (empty($pageSections) && function_exists('sb_public_page_sections')) {
-    $pageSections = sb_public_page_sections($siteId, (int)($currentPage['id'] ?? 0));
+    $pageSections = sb_public_page_sections(
+        $siteId,
+        (int)($currentPage['id'] ?? 0)
+    );
 }
 
 $pageHtml = function_exists('sb_public_render_page_sections')
     ? sb_public_render_page_sections($pageSections, $pageBlocks, $vm)
     : sb_public_render_blocks($pageBlocks, $vm);
-$menuHtml = sb_public_render_auto_pages_menu($pages, $basePath, $siteId, (int)($currentPage['id'] ?? 0));
+
+$menuHtml = sb_public_render_auto_pages_menu(
+    $pages,
+    $basePath,
+    $siteId,
+    (int)($currentPage['id'] ?? 0)
+);
 
 $pageHasDiskBlock = false;
 
@@ -368,7 +417,9 @@ if (!$pageHasDiskBlock) {
     }
 }
 
-$leftContentHtml = $vm['leftMode'] === 'menu' && $menuHtml !== '' ? $menuHtml : $leftHtml;
+$leftContentHtml = $vm['leftMode'] === 'menu' && $menuHtml !== ''
+    ? $menuHtml
+    : $leftHtml;
 
 if ($vm['leftMode'] === 'menu' && $vm['sectionNavHtml'] !== '') {
     $leftContentHtml = $vm['sectionNavHtml'];
@@ -441,13 +492,13 @@ if ($pageHasDiskBlock) {
 
     <main class="sb-public-main">
         <div class="sb-container">
-            
-
             <div class="sb-layout <?= $vm['showLeft'] ? 'sb-layout--left' : '' ?> <?= $vm['showRight'] ? 'sb-layout--right' : '' ?>">
                 <?php if ($vm['showLeft'] && trim($leftContentHtml) !== ''): ?>
                     <aside class="sb-sidebar sb-sidebar--left">
                         <div class="sb-box">
-                            <?= $leftContentHtml !== '' ? $leftContentHtml : '<div class="sb-empty">Левая зона пуста</div>' ?>
+                            <?= $leftContentHtml !== ''
+                                ? $leftContentHtml
+                                : '<div class="sb-empty">Левая зона пуста</div>' ?>
                         </div>
                     </aside>
                 <?php endif; ?>
@@ -463,7 +514,9 @@ if ($pageHasDiskBlock) {
                                 <?= $vm['childPagesHtml'] ?>
                             <?php endif; ?>
 
-                            <?= $pageHtml !== '' ? $pageHtml : '<div class="sb-empty">На странице пока нет блоков</div>' ?>
+                            <?= $pageHtml !== ''
+                                ? $pageHtml
+                                : '<div class="sb-empty">На странице пока нет блоков</div>' ?>
                         <?php else: ?>
                             <div class="sb-empty">У сайта пока нет страниц</div>
                         <?php endif; ?>
@@ -473,7 +526,9 @@ if ($pageHasDiskBlock) {
                 <?php if ($vm['showRight']): ?>
                     <aside class="sb-sidebar sb-sidebar--right">
                         <div class="sb-box">
-                            <?= $rightHtml !== '' ? $rightHtml : '<div class="sb-empty">Правая зона пуста</div>' ?>
+                            <?= $rightHtml !== ''
+                                ? $rightHtml
+                                : '<div class="sb-empty">Правая зона пуста</div>' ?>
                         </div>
                     </aside>
                 <?php endif; ?>
@@ -493,18 +548,24 @@ if ($pageHasDiskBlock) {
 <script>
 document.addEventListener('click', function (e) {
     var toggle = e.target.closest('[data-role="toggle"]');
+
     if (!toggle) {
         return;
     }
 
     var node = toggle.closest('.sb-tree-node');
+
     if (!node) {
         return;
     }
 
     var isOpen = node.classList.contains('is-open');
+
     node.classList.toggle('is-open', !isOpen);
-    toggle.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
+    toggle.setAttribute(
+        'aria-expanded',
+        !isOpen ? 'true' : 'false'
+    );
 });
 </script>
 
@@ -535,7 +596,6 @@ $isPublicEditMode = (
     </script>
 
     <script src="<?= sb_public_h($basePath) ?>/components/table/edit.js"></script>
-	
 <?php endif; ?>
 
 </body>

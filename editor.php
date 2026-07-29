@@ -22,6 +22,8 @@ $libFiles = [
     __DIR__ . '/lib/response.php',
     __DIR__ . '/lib/helpers.php',
     __DIR__ . '/lib/access.php',
+    __DIR__ . '/lib/PageAccessRepository.php',
+    __DIR__ . '/lib/PageAccessService.php',
 ];
 
 foreach ($libFiles as $libFile) {
@@ -56,8 +58,107 @@ if ($siteId <= 0) {
     exit;
 }
 
-if (!$USER->IsAdmin()) {
-    sb_require_content_manager($siteId);
+$currentUserId = (int)$USER->GetID();
+
+$canOpenEditor = false;
+
+if ($USER->IsAdmin()) {
+    $canOpenEditor = true;
+}
+
+/*
+ * Глобальные роли:
+ * EDITOR, ADMIN и OWNER.
+ *
+ * Используем access.php, потому что он также учитывает
+ * резервные роли группы Битрикс24.
+ */
+if (!$canOpenEditor) {
+    $globalRole = sb_get_role($siteId);
+    $globalRoleRank = sb_role_rank($globalRole);
+
+    if ($globalRoleRank >= 2) {
+        $canOpenEditor = true;
+    }
+}
+
+/*
+ * Пользователь без глобальной роли может открыть редактор,
+ * если у него есть canEdit хотя бы на одну страницу.
+ */
+if (!$canOpenEditor && $currentUserId > 0) {
+    $accessCode = PageAccessRepository::userAccessCode(
+        $currentUserId
+    );
+
+    $pageIds = PageAccessRepository::getPageIdsWithAccess(
+        $siteId,
+        $accessCode
+    );
+
+    foreach ($pageIds as $availablePageId) {
+        if (
+            PageAccessService::canEditPage(
+                $siteId,
+                (int)$availablePageId,
+                $currentUserId
+            )
+        ) {
+            $canOpenEditor = true;
+            break;
+        }
+    }
+}
+
+if (!$canOpenEditor) {
+    http_response_code(403);
+
+    ?>
+    <!doctype html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <title>Доступ запрещён</title>
+        <?php $APPLICATION->ShowHead(); ?>
+
+        <link
+            rel="stylesheet"
+            href="<?= htmlspecialchars(
+                $basePath,
+                ENT_QUOTES | ENT_SUBSTITUTE,
+                'UTF-8'
+            ) ?>/assets/admin/admin.css"
+        >
+    </head>
+
+    <body class="sb-admin-body">
+    <div class="sb-page">
+        <h1 class="sb-title">Доступ к редактору запрещён</h1>
+
+        <p class="sb-subtitle">
+            Для открытия редактора требуется глобальная роль
+            EDITOR, ADMIN или OWNER либо право редактирования
+            хотя бы одной страницы.
+        </p>
+
+        <p>
+            <a
+                class="sb-back-link"
+                href="<?= htmlspecialchars(
+                    $basePath,
+                    ENT_QUOTES | ENT_SUBSTITUTE,
+                    'UTF-8'
+                ) ?>/index.php"
+            >
+                Вернуться к списку сайтов
+            </a>
+        </p>
+    </div>
+    </body>
+    </html>
+    <?php
+
+    exit;
 }
 ?>
 <!doctype html>
@@ -583,7 +684,7 @@ if (!$USER->IsAdmin()) {
 <script>
 window.SB_EDITOR_CONFIG = {
     basePath: '<?= CUtil::JSEscape($basePath) ?>',
-    apiUrl: '<?= CUtil::JSEscape($basePath) ?>/api.php',
+    apiUrl: '<?= CUtil::JSEscape($basePath) ?>/api/index.php',
     siteId: <?= (int)$siteId ?>,
     isBitrixAdmin: <?= $USER->IsAdmin() ? 'true' : 'false' ?>,
     sessid: '<?= CUtil::JSEscape(bitrix_sessid()) ?>'

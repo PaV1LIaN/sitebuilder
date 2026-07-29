@@ -58,36 +58,116 @@ if (!function_exists('sb_public_find_site')) {
     }
 }
 
+if (!function_exists('sb_public_page_is_visible')) {
+    function sb_public_page_is_visible(array $page, array $pageMap): bool
+    {
+        $status = strtolower(trim((string)($page['status'] ?? 'draft')));
+
+        if ($status !== 'published') {
+            return false;
+        }
+
+        $currentPage = $page;
+        $visited = [];
+
+        while (true) {
+            $currentId = (int)($currentPage['id'] ?? 0);
+
+            if ($currentId <= 0 || isset($visited[$currentId])) {
+                return false;
+            }
+
+            $visited[$currentId] = true;
+
+            $parentId = (int)($currentPage['parentId'] ?? 0);
+
+            if ($parentId <= 0) {
+                return true;
+            }
+
+            if (!isset($pageMap[$parentId])) {
+                return false;
+            }
+
+            $parentPage = $pageMap[$parentId];
+            $parentStatus = strtolower(
+                trim((string)($parentPage['status'] ?? 'draft'))
+            );
+
+            if ($parentStatus !== 'published') {
+                return false;
+            }
+
+            $currentPage = $parentPage;
+        }
+    }
+}
+
 if (!function_exists('sb_public_pages_for_site')) {
     function sb_public_pages_for_site(int $siteId): array
     {
-        $pages = array_values(array_filter(sb_read_pages(), static function ($p) use ($siteId) {
-            return (int)($p['siteId'] ?? 0) === $siteId;
-        }));
+        $pages = [];
 
-        usort($pages, static function ($a, $b) {
-            $sortCmp = (int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500);
+        foreach (sb_read_pages() as $page) {
+            if (!is_array($page)) {
+                continue;
+            }
+
+            if ((int)($page['siteId'] ?? 0) !== $siteId) {
+                continue;
+            }
+
+            $page = sb_normalize_page_record($page);
+            $pageId = (int)($page['id'] ?? 0);
+
+            if ($pageId <= 0) {
+                continue;
+            }
+
+            $pages[$pageId] = $page;
+        }
+
+        $visiblePages = [];
+
+        foreach ($pages as $page) {
+            if (sb_public_page_is_visible($page, $pages)) {
+                $visiblePages[] = $page;
+            }
+        }
+
+        usort($visiblePages, static function ($a, $b) {
+            $sortCmp =
+                (int)($a['sort'] ?? 500)
+                <=>
+                (int)($b['sort'] ?? 500);
+
             if ($sortCmp !== 0) {
                 return $sortCmp;
             }
-            return (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);
+
+            return
+                (int)($a['id'] ?? 0)
+                <=>
+                (int)($b['id'] ?? 0);
         });
 
-        return array_map('sb_normalize_page_record', $pages);
+        return $visiblePages;
     }
 }
 
 if (!function_exists('sb_public_find_page_for_site')) {
     function sb_public_find_page_for_site(int $siteId, int $pageId): ?array
     {
-        foreach (sb_read_pages() as $page) {
-            if (
-                (int)($page['siteId'] ?? 0) === $siteId &&
-                (int)($page['id'] ?? 0) === $pageId
-            ) {
-                return sb_normalize_page_record($page);
+        if ($siteId <= 0 || $pageId <= 0) {
+            return null;
+        }
+
+        foreach (sb_public_pages_for_site($siteId) as $page) {
+            if ((int)($page['id'] ?? 0) === $pageId) {
+                return $page;
             }
         }
+
         return null;
     }
 }
@@ -472,6 +552,50 @@ if (!function_exists('sb_public_menu_for_site')) {
         }
 
         return null;
+    }
+}
+
+if (!function_exists('sb_public_filter_menu_pages')) {
+    function sb_public_filter_menu_pages(?array $menu, array $pages): ?array
+    {
+        if (!$menu) {
+            return null;
+        }
+
+        $allowedPageIds = [];
+
+        foreach ($pages as $page) {
+            $pageId = (int)($page['id'] ?? 0);
+
+            if ($pageId > 0) {
+                $allowedPageIds[$pageId] = true;
+            }
+        }
+
+        $items = isset($menu['items']) && is_array($menu['items'])
+            ? $menu['items']
+            : [];
+
+        $menu['items'] = array_values(array_filter(
+            $items,
+            static function ($item) use ($allowedPageIds) {
+                if (!is_array($item)) {
+                    return false;
+                }
+
+                $type = (string)($item['type'] ?? 'page');
+
+                if ($type !== 'page') {
+                    return true;
+                }
+
+                $pageId = (int)($item['pageId'] ?? 0);
+
+                return $pageId > 0 && isset($allowedPageIds[$pageId]);
+            }
+        ));
+
+        return $menu;
     }
 }
 
@@ -880,24 +1004,40 @@ if (!function_exists('sb_public_build_view_model')) {
 
         $pages = sb_public_pages_for_site($siteId);
         $currentPage = null;
-
-        if ($requestedPageId && $requestedPageId > 0) {
-            $currentPage = sb_public_find_page_for_site($siteId, $requestedPageId);
-        }
-
-        if (!$currentPage) {
-            $homePageId = (int)($site['homePageId'] ?? 0);
-            if ($homePageId > 0) {
-                $currentPage = sb_public_find_page_for_site($siteId, $homePageId);
+        
+        $hasRequestedPage = $requestedPageId !== null && $requestedPageId > 0;
+        
+        if ($hasRequestedPage) {
+            $currentPage = sb_public_find_page_for_site(
+                $siteId,
+                (int)$requestedPageId
+            );
+        
+            if (!$currentPage) {
+                return null;
             }
         }
-
-        if (!$currentPage && !empty($pages)) {
-            $currentPage = $pages[0];
+        
+        if (!$hasRequestedPage) {
+            $homePageId = (int)($site['homePageId'] ?? 0);
+        
+            if ($homePageId > 0) {
+                $currentPage = sb_public_find_page_for_site(
+                    $siteId,
+                    $homePageId
+                );
+            }
+        
+            if (!$currentPage && !empty($pages)) {
+                $currentPage = $pages[0];
+            }
         }
-
         $layout = sb_public_layout_for_site($siteId);
-        $menu = sb_public_menu_for_site($site);
+
+        $menu = sb_public_filter_menu_pages(
+            sb_public_menu_for_site($site),
+            $pages
+        );
         $pageBlocks = $currentPage ? sb_public_page_blocks((int)$currentPage['id']) : [];
         $pageSections = $currentPage ? sb_public_page_sections($siteId, (int)$currentPage['id']) : [];
 

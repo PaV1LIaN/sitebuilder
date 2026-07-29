@@ -6,6 +6,8 @@ define('DisableEventsCheck', true);
 
 require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/db.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessRepository.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessService.php';
 
 use Bitrix\Main\Loader;
 use Bitrix\Disk\Storage;

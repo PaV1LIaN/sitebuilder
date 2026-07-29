@@ -1,6 +1,8 @@
 <?php
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteAppearanceService.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessRepository.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessService.php';
 
 global $USER;
 
@@ -50,6 +52,73 @@ if (!function_exists('sb_site_handler_require_viewer')) {
     function sb_site_handler_require_viewer(int $siteId): void
     {
         sb_site_handler_require_role($siteId, 1);
+    }
+}
+
+if (!function_exists('sb_site_handler_get_access_context')) {
+    function sb_site_handler_get_access_context(int $siteId): array
+    {
+        global $USER;
+
+        if (
+            $siteId <= 0
+            || !is_object($USER)
+            || !$USER->IsAuthorized()
+        ) {
+            return [
+                'allowed' => false,
+                'userId' => 0,
+                'role' => '',
+                'roleRank' => 0,
+                'hasGlobalView' => false,
+                'hasGlobalEdit' => false,
+                'hasPageAccess' => false,
+            ];
+        }
+
+        $userId = (int)$USER->GetID();
+
+        if ($USER->IsAdmin()) {
+            return [
+                'allowed' => true,
+                'userId' => $userId,
+                'role' => 'OWNER',
+                'roleRank' => 4,
+                'hasGlobalView' => true,
+                'hasGlobalEdit' => true,
+                'hasPageAccess' => true,
+            ];
+        }
+
+        $accessCode = PageAccessRepository::userAccessCode(
+            $userId
+        );
+
+        /*
+         * sb_get_role() учитывает как sitebuilder.access,
+         * так и резервную роль группы Битрикс24.
+         */
+        $role = (string)sb_get_role(
+            $siteId,
+            $accessCode
+        );
+
+        $roleRank = sb_role_rank($role);
+
+        $hasPageAccess = PageAccessService::hasAnyPageAccess(
+            $siteId,
+            $userId
+        );
+
+        return [
+            'allowed' => $roleRank >= 1 || $hasPageAccess,
+            'userId' => $userId,
+            'role' => $role,
+            'roleRank' => $roleRank,
+            'hasGlobalView' => $roleRank >= 1,
+            'hasGlobalEdit' => $roleRank >= 2,
+            'hasPageAccess' => $hasPageAccess,
+        ];
     }
 }
 
@@ -289,33 +358,57 @@ if (!function_exists('sb_site_handler_sync_access_fallback')) {
 
 if ($action === 'site.list') {
     $sites = sb_read_sites();
-    $myCode = sb_user_access_code();
     $allowedSites = [];
 
     foreach ($sites as $site) {
-        $siteId = (int)($site['id'] ?? 0);
+        $currentSiteId = (int)($site['id'] ?? 0);
 
-        if ($siteId <= 0) {
+        if ($currentSiteId <= 0) {
             continue;
         }
 
-        if ($USER->IsAdmin()) {
-            $role = 'OWNER';
-        } else {
-            $role = sb_get_role($siteId, $myCode);
-        }
+        $accessContext =
+            sb_site_handler_get_access_context(
+                $currentSiteId
+            );
 
-        if (sb_role_rank($role) < 1) {
+        /*
+         * Сайт показывается, если пользователь:
+         *
+         * 1. Имеет глобальную роль VIEWER или выше.
+         * 2. Либо имеет хотя бы одно точечное право страницы.
+         */
+        if (!$accessContext['allowed']) {
             continue;
         }
 
-        $site['currentUserRole'] = $role;
+        $site['currentUserRole'] =
+            $accessContext['role'];
+
+        $site['currentUserRoleRank'] =
+            $accessContext['roleRank'];
+
+        $site['currentUserHasGlobalView'] =
+            $accessContext['hasGlobalView'];
+
+        $site['currentUserHasGlobalEdit'] =
+            $accessContext['hasGlobalEdit'];
+
+        $site['currentUserHasPageAccess'] =
+            $accessContext['hasPageAccess'];
+
         $allowedSites[] = $site;
     }
 
-    usort($allowedSites, static function ($a, $b) {
-        return (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);
-    });
+    usort(
+        $allowedSites,
+        static function ($a, $b) {
+            return
+                (int)($a['id'] ?? 0)
+                <=>
+                (int)($b['id'] ?? 0);
+        }
+    );
 
     sb_json_ok([
         'sites' => $allowedSites,
@@ -326,19 +419,65 @@ if ($action === 'site.list') {
 
 if ($action === 'site.get') {
     $siteId = (int)($_POST['siteId'] ?? 0);
+
     if ($siteId <= 0) {
         sb_json_error('SITE_ID_REQUIRED', 422);
     }
 
-    sb_site_handler_require_viewer($siteId);
-
+    /*
+     * Сначала проверяем существование сайта,
+     * затем его права.
+     */
     $site = sb_find_site($siteId);
+
     if (!$site) {
         sb_json_error('SITE_NOT_FOUND', 404);
     }
 
+    $accessContext =
+        sb_site_handler_get_access_context($siteId);
+
+    if (!$accessContext['allowed']) {
+        sb_json_error(
+            'SITE_OR_PAGE_ACCESS_DENIED',
+            403,
+            [
+                'siteId' => $siteId,
+            ]
+        );
+    }
+
+    /*
+     * Эти поля нужны клиентской части для понимания
+     * уровня текущего пользователя.
+     */
+    $site['currentUserRole'] =
+        $accessContext['role'];
+
+    $site['currentUserRoleRank'] =
+        $accessContext['roleRank'];
+
+    $site['currentUserHasGlobalView'] =
+        $accessContext['hasGlobalView'];
+
+    $site['currentUserHasGlobalEdit'] =
+        $accessContext['hasGlobalEdit'];
+
+    $site['currentUserHasPageAccess'] =
+        $accessContext['hasPageAccess'];
+
     sb_json_ok([
         'site' => $site,
+        'access' => [
+            'role' => $accessContext['role'],
+            'roleRank' => $accessContext['roleRank'],
+            'globalView' =>
+                $accessContext['hasGlobalView'],
+            'globalEdit' =>
+                $accessContext['hasGlobalEdit'],
+            'hasPageAccess' =>
+                $accessContext['hasPageAccess'],
+        ],
         'handler' => 'site',
         'file' => __FILE__,
     ]);
@@ -454,6 +593,16 @@ if ($action === 'site.create') {
         'updatedBy' => $currentUserId,
     ];
     sb_write_access($access);
+
+    /*
+    * Удаляем точечные права страниц удалённого сайта.
+    */
+    sb_db_execute("
+    DELETE FROM sitebuilder.page_access
+    WHERE site_id = :site_id
+    ", [
+    ':site_id' => $id,
+    ]);
 
     sb_json_ok([
         'site' => $site,
