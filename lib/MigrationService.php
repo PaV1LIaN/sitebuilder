@@ -807,10 +807,24 @@ final class MigrationService
 
     private static function json(array $value): string
     {
-        $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        /*
+         * Поля metadata_json и details_json имеют CHECK:
+         * jsonb_typeof(...) = 'object'.
+         *
+         * В PHP пустой массив кодируется как [], то есть JSON-массив,
+         * поэтому для пустого значения принудительно записываем {}.
+         */
+        $payload = $value === [] ? new stdClass() : $value;
+
+        $json = json_encode(
+            $payload,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+
         if (!is_string($json)) {
             throw new RuntimeException('JSON_ENCODE_FAILED');
         }
+
         return $json;
     }
 }
