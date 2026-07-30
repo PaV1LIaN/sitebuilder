@@ -261,13 +261,18 @@ if (!function_exists('sb_default_block_content')) {
     {
         switch ($type) {
             case 'text':
-                return ['html' => '<p>Новый текст</p>'];
+                return [
+                    'text' => 'Новый текстовый блок',
+                ];
 
             case 'heading':
                 return [
                     'text' => 'Новый заголовок',
                     'level' => 'h2',
                     'align' => 'left',
+                    'color' => '',
+                    'size' => 0,
+                    'maxWidth' => '',
                 ];
 
             case 'image':
@@ -275,24 +280,87 @@ if (!function_exists('sb_default_block_content')) {
                     'fileId' => 0,
                     'src' => '',
                     'alt' => '',
+                    'caption' => '',
                     'title' => '',
-                    'width' => '',
-                    'height' => '',
-                    'link' => '',
+                    'href' => '',
                 ];
 
             case 'button':
                 return [
                     'text' => 'Кнопка',
+                    'label' => 'Кнопка',
                     'href' => '#',
                     'target' => '_self',
-                    'style' => 'primary',
-                    'align' => 'left',
+                ];
+
+            case 'hero':
+                return [
+                    'eyebrow' => 'Новый раздел',
+                    'title' => 'Сильный заголовок для первого экрана',
+                    'text' => 'Коротко объясните ценность страницы и подскажите посетителю следующий шаг.',
+                    'primaryLabel' => 'Подробнее',
+                    'primaryHref' => '#',
+                    'secondaryLabel' => '',
+                    'secondaryHref' => '',
+                    'imageSrc' => '',
+                    'imageAlt' => '',
+                ];
+
+            case 'cards':
+                return [
+                    'title' => 'Преимущества',
+                    'items' => [
+                        [
+                            'title' => 'Карточка 1',
+                            'text' => 'Краткое описание преимущества или услуги.',
+                            'imageSrc' => '',
+                            'href' => '',
+                            'buttonText' => '',
+                        ],
+                        [
+                            'title' => 'Карточка 2',
+                            'text' => 'Краткое описание преимущества или услуги.',
+                            'imageSrc' => '',
+                            'href' => '',
+                            'buttonText' => '',
+                        ],
+                        [
+                            'title' => 'Карточка 3',
+                            'text' => 'Краткое описание преимущества или услуги.',
+                            'imageSrc' => '',
+                            'href' => '',
+                            'buttonText' => '',
+                        ],
+                    ],
+                ];
+
+            case 'quote':
+                return [
+                    'text' => 'Здесь можно разместить важную цитату, отзыв или ключевую мысль.',
+                    'author' => 'Имя автора',
+                    'role' => 'Должность или подразделение',
+                ];
+
+            case 'stats':
+                return [
+                    'title' => 'Ключевые показатели',
+                    'items' => [
+                        ['value' => '24/7', 'label' => 'Доступность сервиса'],
+                        ['value' => '99%', 'label' => 'Точность данных'],
+                        ['value' => '10+', 'label' => 'Готовых сценариев'],
+                    ],
+                ];
+
+            case 'divider':
+                return [
+                    'label' => '',
                 ];
 
             case 'spacer':
                 return [
-                    'height' => 30,
+                    'height' => 40,
+                    'tabletHeight' => 32,
+                    'mobileHeight' => 24,
                 ];
 
             case 'columns2':
@@ -318,13 +386,6 @@ if (!function_exists('sb_default_block_content')) {
                     'imageSrc' => '',
                     'buttonText' => '',
                     'buttonHref' => '',
-                ];
-
-            case 'cards':
-                return [
-                    'items' => [],
-                    'columns' => 3,
-                    'gap' => 24,
                 ];
 
             case 'html':

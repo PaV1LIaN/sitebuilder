@@ -22,7 +22,10 @@ var state = {
     historyItems: [],
     historyUsers: {},
     historyEntityType: '',
-    historyEntityId: 0
+    historyEntityId: 0,
+    inspectorTab: 'page',
+    previewDevice: 'desktop',
+    pageSearch: ''
 };
 
 var output = document.getElementById('output') || document.getElementById('outputFallback');
@@ -114,6 +117,15 @@ function getSessid() {
 }
 
 function api(action, data) {
+    var actionName = String(action || '');
+    var isReadOnly = /\.(list|get|search|status|health|check)$/i.test(actionName)
+        || actionName === 'common.site'
+        || actionName === 'common.bootstrap';
+
+    if (typeof setEditorStatus === 'function') {
+        setEditorStatus('working', isReadOnly ? 'Загрузка…' : 'Сохранение…');
+    }
+
     return new Promise(function (resolve, reject) {
         BX.ajax({
             url: API_URL,
@@ -128,8 +140,14 @@ function api(action, data) {
                 print(res);
 
                 if (res && res.ok) {
+                    if (typeof setEditorStatus === 'function') {
+                        setEditorStatus('ready', isReadOnly ? 'Готово' : 'Сохранено');
+                    }
                     resolve(res);
                 } else {
+                    if (typeof setEditorStatus === 'function') {
+                        setEditorStatus('error', 'Не сохранено');
+                    }
                     if (res && res.error === 'VERSION_CONFLICT') {
                         handleVersionConflict(res);
                     }
@@ -138,6 +156,9 @@ function api(action, data) {
                 }
             },
             onfailure: function (err) {
+                if (typeof setEditorStatus === 'function') {
+                    setEditorStatus('error', 'Ошибка соединения');
+                }
                 print({
                     ok: false,
                     error: 'AJAX_ERROR',
