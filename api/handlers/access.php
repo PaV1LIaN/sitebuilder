@@ -24,7 +24,6 @@ if ($action === 'access.list') {
     sb_json_ok([
         'access' => $rows,
         'handler' => 'access',
-        'file' => __FILE__,
     ]);
 }
 
@@ -49,55 +48,39 @@ if ($action === 'access.set') {
         sb_json_error('SITE_NOT_FOUND', 404);
     }
 
-    $current = sb_find_access_row($siteId, $accessCode);
+    try {
+        $saveResult = sb_set_access_role(
+            $siteId,
+            $accessCode,
+            $role,
+            (int)$USER->GetID(),
+            [
+                'allowOwnerAssignment' => false,
+                'allowOwnerDowngrade' => false,
+                'protectLastOwner' => true,
+            ]
+        );
 
-    if ($current && (string)($current['role'] ?? '') === 'OWNER' && $role !== 'OWNER') {
-        sb_json_error('CANNOT_DOWNGRADE_OWNER', 422);
-    }
-
-    if ($role === 'OWNER') {
-        sb_json_error('OWNER_ASSIGNMENT_FORBIDDEN', 422);
-    }
-
-    $rows = sb_read_access();
-    $updated = null;
-    $found = false;
-
-    foreach ($rows as &$row) {
-        if (
-            (int)($row['siteId'] ?? 0) === $siteId
-            && (string)($row['accessCode'] ?? '') === $accessCode
-        ) {
-            $row['role'] = $role;
-            $row['updatedAt'] = date('c');
-            $row['updatedBy'] = (int)$USER->GetID();
-            $updated = $row;
-            $found = true;
-            break;
-        }
-    }
-    unset($row);
-
-    if (!$found) {
-        $updated = [
-            'siteId' => $siteId,
-            'accessCode' => $accessCode,
-            'role' => $role,
-            'createdBy' => (int)$USER->GetID(),
-            'createdAt' => date('c'),
-            'updatedAt' => date('c'),
-            'updatedBy' => (int)$USER->GetID(),
+        $updated = $saveResult['row'];
+    } catch (RuntimeException $e) {
+        $knownErrors = [
+            'INVALID_ACCESS_CODE',
+            'INVALID_ROLE',
+            'INVALID_SITE_ID',
+            'OWNER_ASSIGNMENT_FORBIDDEN',
+            'CANNOT_DOWNGRADE_OWNER',
+            'LAST_OWNER_CANNOT_BE_DOWNGRADED',
         ];
-
-        $rows[] = $updated;
+        if (in_array($e->getMessage(), $knownErrors, true)) {
+            sb_json_error($e->getMessage(), 422);
+        }
+        error_log('SiteBuilder legacy access.set failed: ' . $e->getMessage());
+        sb_json_error('ACCESS_OPERATION_FAILED', 500);
     }
-
-    sb_write_access($rows);
 
     sb_json_ok([
         'accessRow' => $updated,
         'handler' => 'access',
-        'file' => __FILE__,
     ]);
 }
 
@@ -114,43 +97,39 @@ if ($action === 'access.delete') {
 
     sb_require_admin($siteId);
 
-    $row = sb_find_access_row($siteId, $accessCode);
-    if (!$row) {
-        sb_json_error('ACCESS_NOT_FOUND', 404);
-    }
-
-    $role = (string)($row['role'] ?? '');
-    if ($role === 'OWNER') {
-        if (sb_count_site_owners($siteId) <= 1) {
-            sb_json_error('CANNOT_DELETE_LAST_OWNER', 422);
-        }
-        sb_json_error('OWNER_DELETE_FORBIDDEN', 422);
-    }
-
-    $rows = sb_read_access();
-    $before = count($rows);
-
-    $rows = array_values(array_filter($rows, static function ($r) use ($siteId, $accessCode) {
-        return !(
-            (int)($r['siteId'] ?? 0) === $siteId
-            && (string)($r['accessCode'] ?? '') === $accessCode
+    try {
+        $deleted = sb_delete_access_row(
+            $siteId,
+            $accessCode,
+            [
+                'allowOwnerRemoval' => false,
+                'protectLastOwner' => true,
+            ]
         );
-    }));
-
-    if (count($rows) === $before) {
-        sb_json_error('ACCESS_NOT_FOUND', 404);
+    } catch (RuntimeException $e) {
+        $knownErrors = [
+            'INVALID_ACCESS_CODE',
+            'INVALID_SITE_ID',
+            'OWNER_DELETE_FORBIDDEN',
+            'LAST_OWNER_CANNOT_BE_REMOVED',
+        ];
+        if (in_array($e->getMessage(), $knownErrors, true)) {
+            sb_json_error($e->getMessage(), 422);
+        }
+        error_log('SiteBuilder legacy access.delete failed: ' . $e->getMessage());
+        sb_json_error('ACCESS_OPERATION_FAILED', 500);
     }
 
-    sb_write_access($rows);
+    if ($deleted === null) {
+        sb_json_error('ACCESS_NOT_FOUND', 404);
+    }
 
     sb_json_ok([
         'handler' => 'access',
-        'file' => __FILE__,
     ]);
 }
 
 sb_json_error('NOT_MOVED_YET', 501, [
     'handler' => 'access',
     'action' => $action,
-    'file' => __FILE__,
 ]);

@@ -16,8 +16,11 @@ if (!function_exists('sb_normalize_page_record')) {
                 ? (string)$page['status']
                 : 'draft',
             'publishedAt' => !empty($page['publishedAt']) ? (string)$page['publishedAt'] : null,
+            'createdBy' => isset($page['createdBy']) ? (int)$page['createdBy'] : 0,
             'createdAt' => !empty($page['createdAt']) ? (string)$page['createdAt'] : date('c'),
+            'updatedBy' => isset($page['updatedBy']) ? (int)$page['updatedBy'] : 0,
             'updatedAt' => !empty($page['updatedAt']) ? (string)$page['updatedAt'] : date('c'),
+            'version' => max(1, (int)($page['version'] ?? 1)),
         ];
     }
 }
@@ -32,8 +35,11 @@ if (!function_exists('sb_normalize_block_record')) {
             'sort' => (int)($block['sort'] ?? 500),
             'content' => is_array($block['content'] ?? null) ? $block['content'] : [],
             'props' => is_array($block['props'] ?? null) ? $block['props'] : [],
+            'createdBy' => isset($block['createdBy']) ? (int)$block['createdBy'] : 0,
             'createdAt' => !empty($block['createdAt']) ? (string)$block['createdAt'] : date('c'),
+            'updatedBy' => isset($block['updatedBy']) ? (int)$block['updatedBy'] : 0,
             'updatedAt' => !empty($block['updatedAt']) ? (string)$block['updatedAt'] : date('c'),
+            'version' => max(1, (int)($block['version'] ?? 1)),
         ];
     }
 }
@@ -41,32 +47,32 @@ if (!function_exists('sb_normalize_block_record')) {
 if (!function_exists('sb_normalize_menu_record')) {
     function sb_normalize_menu_record(array $menu): array
     {
+        $items = is_array($menu['items'] ?? null)
+            ? array_values(array_filter($menu['items'], 'is_array'))
+            : [];
+
+        $items = array_map('sb_normalize_menu_item', $items);
+        usort($items, static function (array $a, array $b): int {
+            $sortCompare = (int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500);
+            return $sortCompare !== 0
+                ? $sortCompare
+                : (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);
+        });
+
         return [
             'id' => (int)($menu['id'] ?? 0),
             'siteId' => (int)($menu['siteId'] ?? 0),
             'name' => trim((string)($menu['name'] ?? '')),
-            'items' => is_array($menu['items'] ?? null) ? array_values($menu['items']) : [],
+            'items' => $items,
+            'createdBy' => isset($menu['createdBy']) ? (int)$menu['createdBy'] : 0,
             'createdAt' => !empty($menu['createdAt']) ? (string)$menu['createdAt'] : date('c'),
+            'updatedBy' => isset($menu['updatedBy']) ? (int)$menu['updatedBy'] : 0,
             'updatedAt' => !empty($menu['updatedAt']) ? (string)$menu['updatedAt'] : date('c'),
+            'version' => max(1, (int)($menu['version'] ?? 1)),
         ];
     }
 }
 
-if (!function_exists('sb_next_id')) {
-    function sb_next_id(array $rows, string $key = 'id'): int
-    {
-        $max = 0;
-
-        foreach ($rows as $row) {
-            $value = (int)($row[$key] ?? 0);
-            if ($value > $max) {
-                $max = $value;
-            }
-        }
-
-        return $max + 1;
-    }
-}
 
 if (!function_exists('sb_slugify')) {
     function sb_slugify(string $name): string
@@ -224,16 +230,11 @@ if (!function_exists('sb_blocks_for_page')) {
 if (!function_exists('sb_next_block_id')) {
     function sb_next_block_id(array $blocks = null): int
     {
-        if ($blocks === null) {
-            $blocks = sb_read_blocks();
+        if (!class_exists('IdSequenceService')) {
+            require_once __DIR__ . '/IdSequenceService.php';
         }
 
-        $maxId = 0;
-        foreach ($blocks as $b) {
-            $maxId = max($maxId, (int)($b['id'] ?? 0));
-        }
-
-        return $maxId + 1;
+        return IdSequenceService::next(IdSequenceService::ENTITY_BLOCK);
     }
 }
 
@@ -375,16 +376,11 @@ if (!function_exists('sb_find_menu')) {
 if (!function_exists('sb_next_menu_id')) {
     function sb_next_menu_id(array $menus = null): int
     {
-        if ($menus === null) {
-            $menus = sb_read_menus();
+        if (!class_exists('IdSequenceService')) {
+            require_once __DIR__ . '/IdSequenceService.php';
         }
 
-        $maxId = 0;
-        foreach ($menus as $m) {
-            $maxId = max($maxId, (int)($m['id'] ?? 0));
-        }
-
-        return $maxId + 1;
+        return IdSequenceService::next(IdSequenceService::ENTITY_MENU);
     }
 }
 
@@ -668,10 +664,8 @@ if (!function_exists('sb_layout_ensure_record')) {
             return sb_normalize_layout_record($layout);
         }
 
-        $layouts = sb_read_layouts();
         $layout = sb_layout_default_record($siteId);
-        $layouts[] = $layout;
-        sb_write_layouts($layouts);
+        sb_write_layouts([$layout]);
 
         return sb_normalize_layout_record($layout);
     }

@@ -394,11 +394,13 @@ if (movePageDownBtn) {
 var publishPageBtn = document.getElementById('publishPageBtn');
 if (publishPageBtn) {
     publishPageBtn.addEventListener('click', async function () {
-        if (!state.currentPageId) return;
+        var page = getCurrentPage();
+        if (!page) return;
 
         await api('page.setStatus', {
-            id: state.currentPageId,
-            status: 'published'
+            id: Number(page.id || 0),
+            status: 'published',
+            expectedVersion: entityVersion(page)
         });
 
         await loadPages();

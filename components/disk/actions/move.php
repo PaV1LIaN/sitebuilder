@@ -34,6 +34,7 @@ if (!is_array($items) || empty($items)) {
 }
 
 DiskValidator::assertFolderInsideRoot($targetFolderId, $rootFolderId, $context);
+DiskValidator::assertItemsInsideRoot($items, $rootFolderId, $context);
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 $result = $adapter->move($context, $items, $targetFolderId);

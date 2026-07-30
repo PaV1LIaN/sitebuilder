@@ -307,6 +307,104 @@ class PageAccessRepository
         return self::mapRow($row);
     }
 
+    /**
+     * Возвращает запись прав из снимка только если более новая запись
+     * для той же страницы и access_code ещё не существует.
+     *
+     * Метод предназначен для корзины: ручные изменения, сделанные после
+     * удаления страницы, не должны быть перезаписаны старым снимком.
+     */
+    public static function restoreIfMissing(
+        int $siteId,
+        int $pageId,
+        string $accessCode,
+        bool $canView,
+        bool $canEdit,
+        bool $includeChildren,
+        int $createdBy = 0,
+        bool $canDiskView = false,
+        bool $canDiskEdit = false
+    ): ?array {
+        if ($siteId <= 0) {
+            throw new RuntimeException('INVALID_SITE_ID');
+        }
+
+        if ($pageId <= 0) {
+            throw new RuntimeException('INVALID_PAGE_ID');
+        }
+
+        self::requirePageInSite($siteId, $pageId);
+        $accessCode = self::normalizeAccessCode($accessCode);
+
+        if ($canEdit) {
+            $canView = true;
+        }
+        if ($canDiskEdit) {
+            $canDiskView = true;
+        }
+
+        if (!$canView && !$canEdit && !$canDiskView && !$canDiskEdit) {
+            return null;
+        }
+
+        $stmt = sb_db()->prepare("
+            INSERT INTO sitebuilder.page_access (
+                site_id,
+                page_id,
+                access_code,
+                can_view,
+                can_edit,
+                can_disk_view,
+                can_disk_edit,
+                include_children,
+                created_by,
+                created_at,
+                updated_at
+            ) VALUES (
+                :site_id,
+                :page_id,
+                :access_code,
+                :can_view,
+                :can_edit,
+                :can_disk_view,
+                :can_disk_edit,
+                :include_children,
+                :created_by,
+                NOW(),
+                NOW()
+            )
+            ON CONFLICT (site_id, page_id, access_code) DO NOTHING
+            RETURNING
+                id,
+                site_id,
+                page_id,
+                access_code,
+                can_view,
+                can_edit,
+                can_disk_view,
+                can_disk_edit,
+                include_children,
+                created_by,
+                created_at,
+                updated_at
+        ");
+        $stmt->execute([
+            ':site_id' => $siteId,
+            ':page_id' => $pageId,
+            ':access_code' => $accessCode,
+            ':can_view' => $canView,
+            ':can_edit' => $canEdit,
+            ':can_disk_view' => $canDiskView,
+            ':can_disk_edit' => $canDiskEdit,
+            ':include_children' => $includeChildren,
+            ':created_by' => $createdBy > 0 ? $createdBy : null,
+        ]);
+
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ? self::mapRow($row) : null;
+    }
+
     public static function delete(
         int $id,
         int $siteId = 0,

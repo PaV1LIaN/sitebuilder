@@ -71,6 +71,77 @@ class DiskValidator
         }
     }
 
+    public static function assertFileInsideRoot(
+        int $fileId,
+        ?int $rootFolderId,
+        ?DiskContext $context = null
+    ): void {
+        if ($fileId <= 0) {
+            throw new RuntimeException('INVALID_FILE_ID');
+        }
+
+        $file = \Bitrix\Disk\File::loadById($fileId);
+
+        if (!$file instanceof \Bitrix\Disk\File) {
+            throw new RuntimeException('DISK_FILE_NOT_FOUND');
+        }
+
+        self::assertFolderInsideRoot(
+            (int)$file->getParentId(),
+            $rootFolderId,
+            $context
+        );
+    }
+
+    public static function assertItemInsideRoot(
+        string $entityType,
+        int $entityId,
+        ?int $rootFolderId,
+        ?DiskContext $context = null,
+        bool $allowRootFolder = false
+    ): void {
+        if ($entityId <= 0) {
+            throw new RuntimeException('INVALID_ENTITY_ID');
+        }
+
+        if ($entityType === 'file') {
+            self::assertFileInsideRoot($entityId, $rootFolderId, $context);
+            return;
+        }
+
+        if ($entityType === 'folder') {
+            if (!$allowRootFolder && $entityId === (int)$rootFolderId) {
+                throw new RuntimeException('ROOT_FOLDER_OPERATION_FORBIDDEN');
+            }
+
+            self::assertFolderInsideRoot($entityId, $rootFolderId, $context);
+            return;
+        }
+
+        throw new RuntimeException('INVALID_ENTITY_TYPE');
+    }
+
+    public static function assertItemsInsideRoot(
+        array $items,
+        ?int $rootFolderId,
+        ?DiskContext $context = null,
+        bool $allowRootFolder = false
+    ): void {
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException('INVALID_ITEM');
+            }
+
+            self::assertItemInsideRoot(
+                trim((string)($item['entityType'] ?? '')),
+                (int)($item['id'] ?? 0),
+                $rootFolderId,
+                $context,
+                $allowRootFolder
+            );
+        }
+    }
+
     public static function assertCan(array $permissions, string $permissionKey): void
     {
         if (empty($permissions[$permissionKey])) {

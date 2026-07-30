@@ -41,7 +41,6 @@ if ($action === 'section.list') {
     sb_json_ok([
         'sections' => array_map('sb_section_normalize_row', $rows),
         'handler' => 'section',
-        'file' => __FILE__,
     ]);
 }
 
@@ -97,7 +96,6 @@ if ($action === 'section.create') {
     sb_json_ok([
         'section' => sb_section_normalize_row($row ?: []),
         'handler' => 'section',
-        'file' => __FILE__,
     ]);
 }
 
@@ -154,7 +152,6 @@ if ($action === 'section.update') {
     sb_json_ok([
         'section' => sb_section_normalize_row($row),
         'handler' => 'section',
-        'file' => __FILE__,
     ]);
 }
 
@@ -168,15 +165,39 @@ if ($action === 'section.delete') {
     }
 
     $pdo = sb_db();
-    $pdo->beginTransaction();
+    $startedHere = sb_db_transaction_scope_begin();
 
     try {
-        $st = $pdo->prepare("
-            UPDATE sitebuilder.site
-            SET section_id = NULL
+        $versionMap = RevisionService::decodeVersionMap(
+            $_POST['expectedVersions'] ?? null
+        );
+
+        $affectedRows = sb_db_fetch_all("
+            SELECT id
+            FROM sitebuilder.site
             WHERE section_id = :id
-        ");
-        $st->execute([':id' => $id]);
+            ORDER BY id ASC
+            FOR UPDATE
+        ", [':id' => $id]);
+
+        foreach ($affectedRows as $affectedRow) {
+            $affectedSiteId = (int)$affectedRow['id'];
+            $site = RevisionService::getSite($affectedSiteId, false);
+            if (!$site) {
+                throw new RuntimeException('SITE_NOT_FOUND');
+            }
+
+            $site['sectionId'] = 0;
+            RevisionService::saveSite(
+                $site,
+                RevisionService::requireVersionFromMap(
+                    $versionMap,
+                    $affectedSiteId
+                ),
+                (int)$USER->GetID(),
+                'section_deleted'
+            );
+        }
 
         $st = $pdo->prepare("
             DELETE FROM sitebuilder.site_section
@@ -184,20 +205,33 @@ if ($action === 'section.delete') {
         ");
         $st->execute([':id' => $id]);
 
-        $pdo->commit();
+        sb_db_transaction_scope_commit($startedHere);
 
         sb_json_ok([
             'deleted' => true,
             'id' => $id,
             'handler' => 'section',
-            'file' => __FILE__,
         ]);
+    } catch (SiteBuilderVersionConflictException|InvalidArgumentException $e) {
+        sb_db_transaction_scope_rollback($startedHere);
+        throw $e;
+    } catch (PDOException $e) {
+        sb_db_transaction_scope_rollback($startedHere);
+        $sqlState = sb_db_exception_sqlstate($e);
+        if ($sqlState === '55P03') {
+            sb_json_error('RESOURCE_BUSY', 423);
+        }
+        if ($sqlState === '40P01' || $sqlState === '40001') {
+            sb_json_error('RETRY_TRANSACTION', 409);
+        }
+        error_log('SiteBuilder section.delete database error [' . $sqlState . ']: ' . $e->getMessage());
+        sb_json_error('SECTION_DELETE_FAILED', 500);
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        sb_db_transaction_scope_rollback($startedHere);
+        error_log('SiteBuilder section.delete failed: ' . $e->getMessage());
 
-        sb_json_error($e->getMessage(), 500, [
+        sb_json_error('SECTION_DELETE_FAILED', 500, [
             'handler' => 'section',
-            'file' => __FILE__,
         ]);
     }
 }
@@ -227,31 +261,26 @@ if ($action === 'site.setSection') {
         }
     }
 
-    sb_db_execute("
-        UPDATE sitebuilder.site
-        SET
-            section_id = :section_id,
-            updated_by = :updated_by,
-            updated_at = now()
-        WHERE id = :site_id
-    ", [
-        ':site_id' => $siteId,
-        ':section_id' => $sectionId > 0 ? $sectionId : null,
-        ':updated_by' => (int)$USER->GetID(),
-    ]);
-
-    $site = sb_find_site($siteId);
+    $site = RevisionService::getSite($siteId, false);
+    if (!$site) {
+        sb_json_error('SITE_NOT_FOUND', 404);
+    }
+    $site['sectionId'] = $sectionId;
+    $site = RevisionService::saveSite(
+        $site,
+        RevisionService::requireExpectedVersion($_POST['expectedVersion'] ?? null),
+        (int)$USER->GetID(),
+        'section_change'
+    );
 
     sb_json_ok([
         'site' => $site,
         'handler' => 'section',
         'action' => 'site.setSection',
-        'file' => __FILE__,
     ]);
 }
 
 sb_json_error('NOT_MOVED_YET', 501, [
     'handler' => 'section',
     'action' => $action,
-    'file' => __FILE__,
 ]);

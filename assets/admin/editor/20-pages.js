@@ -244,21 +244,21 @@ async function createPage() {
 }
 
 async function savePage() {
-    if (!state.currentPageId) return;
+    var page = getCurrentPage();
+    if (!page) return;
 
-    var parentId = Number(getInputValue('pageParentInput') || 0);
-
-    await api('page.updateMeta', {
-        id: state.currentPageId,
+    var res = await api('page.save', {
+        id: Number(page.id || 0),
         title: getInputValue('pageTitleInput').trim(),
         slug: getInputValue('pageSlugInput').trim(),
-        parentId: parentId
+        parentId: Number(getInputValue('pageParentInput') || 0),
+        status: getInputValue('pageStatusInput'),
+        expectedVersion: entityVersion(page)
     });
 
-    await api('page.setStatus', {
-        id: state.currentPageId,
-        status: getInputValue('pageStatusInput')
-    });
+    if (res.page) {
+        replaceStatePage(res.page);
+    }
 
     await loadPages();
     await loadBlocks();
@@ -269,9 +269,30 @@ async function deletePage() {
     if (!confirm('Удалить страницу? Дочерние страницы и блоки этой страницы тоже будут удалены.')) return;
 
     var idToDelete = state.currentPageId;
+    var idsToDelete = {};
+    idsToDelete[idToDelete] = true;
+    var changed = true;
+
+    while (changed) {
+        changed = false;
+        state.pages.forEach(function (page) {
+            var pageId = Number(page.id || 0);
+            var parentId = Number(page.parentId || 0);
+
+            if (!idsToDelete[pageId] && idsToDelete[parentId]) {
+                idsToDelete[pageId] = true;
+                changed = true;
+            }
+        });
+    }
+
+    var deletingPages = state.pages.filter(function (page) {
+        return !!idsToDelete[Number(page.id || 0)];
+    });
 
     await api('page.delete', {
-        id: idToDelete
+        id: idToDelete,
+        expectedVersions: JSON.stringify(buildVersionMap(deletingPages))
     });
 
     if (state.currentPageId === idToDelete) {
@@ -285,11 +306,31 @@ async function deletePage() {
 }
 
 async function movePage(dir) {
-    if (!state.currentPageId) return;
+    var page = getCurrentPage();
+    if (!page) return;
+
+    var siblings = state.pages.filter(function (item) {
+        return Number(item.siteId || 0) === Number(page.siteId || 0)
+            && Number(item.parentId || 0) === Number(page.parentId || 0);
+    }).sort(function (a, b) {
+        var sortCmp = Number(a.sort || 0) - Number(b.sort || 0);
+        return sortCmp !== 0 ? sortCmp : Number(a.id || 0) - Number(b.id || 0);
+    });
+
+    var position = siblings.findIndex(function (item) {
+        return Number(item.id || 0) === Number(page.id || 0);
+    });
+    var targetPosition = dir === 'up' ? position - 1 : position + 1;
+    var involved = [page];
+
+    if (siblings[targetPosition]) {
+        involved.push(siblings[targetPosition]);
+    }
 
     await api('page.move', {
-        id: state.currentPageId,
-        dir: dir
+        id: Number(page.id || 0),
+        dir: dir,
+        expectedVersions: JSON.stringify(buildVersionMap(involved))
     });
 
     await loadPages();

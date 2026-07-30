@@ -16,20 +16,10 @@ if (!function_exists('sb_page_access_json_success')) {
     function sb_page_access_json_success(
         array $data = []
     ): void {
-        header(
-            'Content-Type: application/json; charset=UTF-8'
-        );
-
-        echo json_encode(
-            [
-                'ok' => true,
-                'data' => $data,
-            ],
-            JSON_UNESCAPED_UNICODE
-            | JSON_UNESCAPED_SLASHES
-        );
-
-        exit;
+        sb_json_response([
+            'ok' => true,
+            'data' => $data,
+        ]);
     }
 }
 
@@ -104,6 +94,27 @@ if (!function_exists('sb_page_access_error_status')) {
     }
 }
 
+if (!function_exists('sb_page_access_is_known_error')) {
+    function sb_page_access_is_known_error(string $error): bool
+    {
+        return in_array($error, [
+            'AUTH_REQUIRED',
+            'BAD_SESSID',
+            'PAGE_ACCESS_DENIED',
+            'PAGE_NOT_IN_SITE',
+            'PAGE_ACCESS_NOT_FOUND',
+            'INVALID_SITE_ID',
+            'INVALID_PAGE_ID',
+            'INVALID_PAGE_ACCESS_ID',
+            'INVALID_USER_ID',
+            'EMPTY_ACCESS_CODE',
+            'INVALID_ACCESS_CODE',
+            'EMPTY_PAGE_PERMISSION',
+            'UNKNOWN_PAGE_ACCESS_ACTION',
+        ], true);
+    }
+}
+
 if (!function_exists('sb_page_access_bool')) {
     function sb_page_access_bool($value): bool
     {
@@ -150,16 +161,6 @@ if (!function_exists(
     }
 }
 
-/**
- * Управлять правами конкретной страницы могут:
- *
- * 1. Администратор Битрикс24.
- * 2. Глобальный ADMIN или OWNER сайта.
- * 3. Пользователь с правом редактирования страницы.
- *
- * Наличие только can_disk_edit не позволяет
- * самостоятельно выдавать права другим пользователям.
- */
 /**
  * Управлять правами конкретной страницы могут:
  *
@@ -501,24 +502,34 @@ try {
     throw new RuntimeException(
         'UNKNOWN_PAGE_ACCESS_ACTION'
     );
-} catch (Throwable $e) {
-    $error = trim($e->getMessage());
+} catch (PDOException $e) {
+    $sqlState = sb_db_exception_sqlstate($e);
+    error_log('SiteBuilder page access database error [' . $sqlState . ']: ' . $e->getMessage());
 
-    if ($error === '') {
-        $error = 'PAGE_ACCESS_ERROR';
+    if ($sqlState === '55P03') {
+        sb_page_access_json_error('RESOURCE_BUSY', 423);
+    }
+    if ($sqlState === '40P01' || $sqlState === '40001') {
+        sb_page_access_json_error('RETRY_TRANSACTION', 409);
     }
 
-    /*
-     * Не возвращаем пользователю путь к PHP-файлу
-     * и номер строки.
-     */
+    sb_page_access_json_error('INTERNAL_ERROR', 500);
+} catch (RuntimeException $e) {
+    $error = trim($e->getMessage());
+
+    if (!sb_page_access_is_known_error($error)) {
+        error_log('SiteBuilder page access runtime error: ' . $error);
+        sb_page_access_json_error('INTERNAL_ERROR', 500);
+    }
+
     sb_page_access_json_error(
         $error,
         sb_page_access_error_status($error),
         [
-            'action' => (string)(
-                $_POST['action'] ?? ''
-            ),
+            'action' => (string)($_POST['action'] ?? ''),
         ]
     );
+} catch (Throwable $e) {
+    error_log('SiteBuilder page access unhandled error: ' . $e->getMessage());
+    sb_page_access_json_error('INTERNAL_ERROR', 500);
 }

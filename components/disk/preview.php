@@ -1,5 +1,9 @@
 <?php
-require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/auth.php';
+
+sitebuilder_require_auth();
+
 require_once __DIR__ . '/bootstrap.php';
 
 use Bitrix\Disk\File;
@@ -70,6 +74,12 @@ try {
     if ($fileId <= 0) {
         throw new RuntimeException('INVALID_FILE_ID');
     }
+
+    DiskValidator::assertFileInsideRoot(
+        $fileId,
+        $rootInfo['rootFolderId'],
+        $context
+    );
 
     $file = File::loadById($fileId);
     if (!$file instanceof File) {

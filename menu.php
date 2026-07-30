@@ -1,12 +1,10 @@
 <?php
-require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/auth.php';
 
 global $APPLICATION, $USER;
 
-if (!$USER->IsAuthorized()) {
-    require $_SERVER['DOCUMENT_ROOT'] . '/auth.php';
-    exit;
-}
+sitebuilder_require_auth();
 
 CJSCore::Init(['ajax']);
 
@@ -14,6 +12,17 @@ header('Content-Type: text/html; charset=UTF-8');
 
 $basePath = rtrim(str_replace($_SERVER['DOCUMENT_ROOT'], '', __DIR__), '/');
 $siteId = (int)($_GET['siteId'] ?? 0);
+
+
+foreach ([
+    __DIR__ . '/lib/db.php',
+    __DIR__ . '/lib/json.php',
+    __DIR__ . '/lib/response.php',
+    __DIR__ . '/lib/helpers.php',
+    __DIR__ . '/lib/access.php',
+] as $libFile) {
+    require_once $libFile;
+}
 
 if ($siteId <= 0) {
     ?>
@@ -34,6 +43,10 @@ if ($siteId <= 0) {
     </html>
     <?php
     exit;
+}
+
+if (!$USER->IsAdmin()) {
+    sb_require_content_manager($siteId);
 }
 ?>
 <!doctype html>
@@ -180,6 +193,10 @@ if ($siteId <= 0) {
             <h1 class="sb-title">Меню сайта</h1>
             <p class="sb-subtitle">siteId = <?= (int)$siteId ?></p>
         </div>
+        <div class="sb-actions">
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/trash.php?siteId=<?= (int)$siteId ?>">Корзина</a>
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/audit.php?siteId=<?= (int)$siteId ?>">Журнал</a>
+        </div>
     </div>
 
     <div class="sb-panel">
@@ -262,6 +279,7 @@ if ($siteId <= 0) {
         menus: [],
         pages: [],
         topMenuId: 0,
+        siteVersion: 1,
         itemDialog: {
             open: false,
             mode: 'create',
@@ -356,6 +374,7 @@ if ($siteId <= 0) {
 
             state.menus = Array.isArray(res.menus) ? res.menus : [];
             state.topMenuId = Number(res.topMenuId || 0);
+            state.siteVersion = Number(res.siteVersion || 1);
             renderMenus();
         });
     }
@@ -379,6 +398,7 @@ if ($siteId <= 0) {
         var id = Number(menu.id || 0);
         var isTop = id === Number(state.topMenuId || 0);
         var items = Array.isArray(menu.items) ? menu.items : [];
+        var version = Number(menu.version || 1);
 
         var html = ''
             + '<div class="sb-menu-card">'
@@ -388,6 +408,7 @@ if ($siteId <= 0) {
             + '      <div class="sb-meta">'
             + '        <div><strong>ID:</strong> ' + id + '</div>'
             + '        <div><strong>Пунктов:</strong> ' + items.length + '</div>'
+            + '        <div><strong>Версия:</strong> ' + version + '</div>'
             + '      </div>'
             + '    </div>'
             + '    <div>'
@@ -400,6 +421,7 @@ if ($siteId <= 0) {
             + '  <button type="button" class="sb-btn sb-btn-light sb-btn-small js-rename-menu" data-id="' + id + '">Переименовать</button>'
             + '  <button type="button" class="sb-btn sb-btn-light sb-btn-small js-set-top-menu" data-id="' + id + '">Сделать верхним</button>'
             + '  <button type="button" class="sb-btn sb-btn-light sb-btn-small js-add-item" data-id="' + id + '">Добавить пункт</button>'
+            + '  <a class="sb-btn sb-btn-light sb-btn-small" href="' + BASE_PATH + '/versions.php?siteId=' + SITE_ID + '&entityType=menu&entityId=' + id + '">История</a>'
             + '  <button type="button" class="sb-btn sb-btn-danger sb-btn-small js-delete-menu" data-id="' + id + '">Удалить</button>'
             + '</div>';
 
@@ -502,7 +524,8 @@ if ($siteId <= 0) {
 
         api('menu.update', {
             id: menuId,
-            name: name
+            name: name,
+            expectedVersion: Number(menu.version || 1)
         }, function (res) {
             if (!res || res.ok !== true) {
                 alert('Не удалось переименовать меню');
@@ -514,12 +537,16 @@ if ($siteId <= 0) {
     }
 
     function deleteMenu(menuId) {
+        var menu = findMenu(menuId);
+        if (!menu) { alert('Меню не найдено'); return; }
         if (!confirm('Удалить меню #' + menuId + '?')) {
             return;
         }
 
         api('menu.delete', {
-            id: menuId
+            id: menuId,
+            expectedVersion: Number(menu.version || 1),
+            expectedSiteVersion: Number(state.siteVersion || 1)
         }, function (res) {
             if (!res || res.ok !== true) {
                 alert('Не удалось удалить меню');
@@ -533,7 +560,8 @@ if ($siteId <= 0) {
     function setTopMenu(menuId) {
         api('menu.setTop', {
             siteId: SITE_ID,
-            menuId: menuId
+            menuId: menuId,
+            expectedSiteVersion: Number(state.siteVersion || 1)
         }, function (res) {
             if (!res || res.ok !== true) {
                 alert('Не удалось назначить верхнее меню');
@@ -661,8 +689,12 @@ if ($siteId <= 0) {
             return;
         }
 
+        var menu = findMenu(menuId);
+        if (!menu) { alert('Меню не найдено'); return; }
+
         var data = {
             menuId: menuId,
+            expectedVersion: Number(menu.version || 1),
             title: title,
             type: type,
             pageId: pageId,
@@ -688,13 +720,16 @@ if ($siteId <= 0) {
     }
 
     function deleteItem(menuId, itemId) {
+        var menu = findMenu(menuId);
+        if (!menu) { alert('Меню не найдено'); return; }
         if (!confirm('Удалить пункт меню #' + itemId + '?')) {
             return;
         }
 
         api('menu.item.delete', {
             menuId: menuId,
-            itemId: itemId
+            itemId: itemId,
+            expectedVersion: Number(menu.version || 1)
         }, function (res) {
             if (!res || res.ok !== true) {
                 alert('Не удалось удалить пункт');
@@ -706,10 +741,13 @@ if ($siteId <= 0) {
     }
 
     function moveItem(menuId, itemId, dir) {
+        var menu = findMenu(menuId);
+        if (!menu) { alert('Меню не найдено'); return; }
         api('menu.item.move', {
             menuId: menuId,
             itemId: itemId,
-            dir: dir
+            dir: dir,
+            expectedVersion: Number(menu.version || 1)
         }, function (res) {
             if (!res || res.ok !== true) {
                 alert('Не удалось переместить пункт');

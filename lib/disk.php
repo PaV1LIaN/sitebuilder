@@ -20,12 +20,18 @@ if (!function_exists('sb_disk_require_module')) {
 }
 
 if (!function_exists('sb_disk_security_context')) {
-    function sb_disk_security_context()
+    function sb_disk_security_context(?int $userId = null)
     {
         global $USER;
 
+        if ($userId === null) {
+            $userId = is_object($USER) && method_exists($USER, 'GetID')
+                ? (int)$USER->GetID()
+                : 0;
+        }
+
         if (class_exists(FakeSecurityContext::class)) {
-            return new FakeSecurityContext((int)$USER->GetID());
+            return new FakeSecurityContext(max(0, $userId));
         }
 
         return null;
@@ -109,10 +115,16 @@ if (!function_exists('sb_disk_find_child_folder_by_name')) {
 }
 
 if (!function_exists('sb_disk_add_subfolder')) {
-    function sb_disk_add_subfolder(Folder $parent, string $name): Folder
-    {
+    function sb_disk_add_subfolder(
+        Folder $parent,
+        string $name,
+        ?int $creatorUserId = null
+    ): Folder {
         $fields = ['NAME' => $name];
-        $securityContext = sb_disk_security_context();
+        if ($creatorUserId !== null && $creatorUserId > 0) {
+            $fields['CREATED_BY'] = $creatorUserId;
+        }
+        $securityContext = sb_disk_security_context($creatorUserId);
 
         try {
             $created = $parent->addSubFolder($fields, []);
@@ -142,17 +154,23 @@ if (!function_exists('sb_disk_add_subfolder')) {
     }
 }
 
-if (!function_exists('sb_disk_get_or_create_sitebuilder_root')) {
-    function sb_disk_get_or_create_sitebuilder_root(): Folder
+if (!function_exists('sb_disk_get_sitebuilder_root')) {
+    /** Возвращает служебную папку без её создания. */
+    function sb_disk_get_sitebuilder_root(): ?Folder
     {
-        $root = sb_disk_root_folder();
+        return sb_disk_find_child_folder_by_name(sb_disk_root_folder(), 'SiteBuilder');
+    }
+}
 
-        $folder = sb_disk_find_child_folder_by_name($root, 'SiteBuilder');
+if (!function_exists('sb_disk_get_or_create_sitebuilder_root')) {
+    function sb_disk_get_or_create_sitebuilder_root(?int $creatorUserId = null): Folder
+    {
+        $folder = sb_disk_get_sitebuilder_root();
         if ($folder) {
             return $folder;
         }
 
-        return sb_disk_add_subfolder($root, 'SiteBuilder');
+        return sb_disk_add_subfolder(sb_disk_root_folder(), 'SiteBuilder', $creatorUserId);
     }
 }
 
@@ -197,8 +215,33 @@ if (!function_exists('sb_disk_site_folder_name')) {
     }
 }
 
+if (!function_exists('sb_disk_get_site_folder')) {
+    /**
+     * Возвращает уже привязанную папку сайта без создания объектов
+     * в Битрикс.Диске и без изменения строки сайта.
+     */
+    function sb_disk_get_site_folder(int $siteId): ?Folder
+    {
+        if ($siteId <= 0) {
+            return null;
+        }
+
+        $site = sb_find_site($siteId);
+        if (!$site) {
+            throw new RuntimeException('SITE_NOT_FOUND');
+        }
+
+        $folderId = (int)($site['diskFolderId'] ?? 0);
+        if ($folderId <= 0) {
+            return null;
+        }
+
+        return sb_disk_load_folder_by_id($folderId);
+    }
+}
+
 if (!function_exists('sb_disk_ensure_site_folder')) {
-    function sb_disk_ensure_site_folder(int $siteId): Folder
+    function sb_disk_ensure_site_folder(int $siteId, ?int $actorUserId = null): Folder
     {
         $site = sb_find_site($siteId);
         if (!$site) {
@@ -213,24 +256,37 @@ if (!function_exists('sb_disk_ensure_site_folder')) {
             }
         }
 
-        $sitebuilderRoot = sb_disk_get_or_create_sitebuilder_root();
+        global $USER;
+        $userId = $actorUserId !== null
+            ? max(0, $actorUserId)
+            : (is_object($USER) && $USER->IsAuthorized() ? (int)$USER->GetID() : 0);
+
+        $sitebuilderRoot = sb_disk_get_or_create_sitebuilder_root($userId);
         $folderName = sb_disk_site_folder_name($site);
 
         $folder = sb_disk_find_child_folder_by_name($sitebuilderRoot, $folderName);
         if (!$folder) {
-            $folder = sb_disk_add_subfolder($sitebuilderRoot, $folderName);
+            $folder = sb_disk_add_subfolder($sitebuilderRoot, $folderName, $userId);
         }
 
-        $sites = sb_read_sites();
-        foreach ($sites as &$s) {
-            if ((int)($s['id'] ?? 0) === $siteId) {
-                $s['diskFolderId'] = (int)$folder->getId();
-                $s['updatedAt'] = date('c');
-                break;
-            }
+        $site['diskFolderId'] = (int)$folder->getId();
+
+        /*
+         * Это автоматическая системная модификация. Берём актуальную строку
+         * и меняем только diskFolderId, поэтому пользовательские настройки
+         * не перезаписываются устаревшим снимком.
+         */
+        $currentSite = RevisionService::getSite($siteId, false);
+        if (!$currentSite) {
+            throw new RuntimeException('SITE_NOT_FOUND');
         }
-        unset($s);
-        sb_write_sites($sites);
+        $currentSite['diskFolderId'] = (int)$folder->getId();
+        RevisionService::saveSite(
+            $currentSite,
+            (int)$currentSite['version'],
+            $userId,
+            'disk_folder_attach'
+        );
 
         return $folder;
     }
@@ -374,6 +430,125 @@ if (!function_exists('sb_disk_delete_file')) {
         } catch (Throwable $e) {
             return false;
         }
+    }
+}
+
+if (!function_exists('sb_disk_delete_managed_site_folder')) {
+    /**
+     * Идемпотентно удаляет точную папку по сохранённому ID.
+     * Разрешено удалять только прямого потомка служебной папки SiteBuilder.
+     */
+    function sb_disk_delete_managed_site_folder(
+        int $folderId,
+        ?int $actorUserId = null
+    ): array {
+        if ($folderId <= 0) {
+            throw new InvalidArgumentException('INVALID_DISK_FOLDER_ID');
+        }
+
+        $folder = sb_disk_load_folder_by_id($folderId);
+        if (!$folder) {
+            return ['deleted' => false, 'alreadyMissing' => true, 'folderId' => $folderId];
+        }
+
+        $rootId = (int)$folder->getParentId();
+        $sitebuilderRoot = sb_disk_load_folder_by_id($rootId);
+        $commonRoot = sb_disk_root_folder();
+        if (
+            !$sitebuilderRoot
+            || $folderId === $rootId
+            || (string)$sitebuilderRoot->getName() !== 'SiteBuilder'
+            || (int)$sitebuilderRoot->getParentId() !== (int)$commonRoot->getId()
+        ) {
+            throw new RuntimeException('DISK_FOLDER_NOT_MANAGED');
+        }
+
+        $name = (string)$folder->getName();
+        $securityContext = sb_disk_security_context($actorUserId);
+        $errors = [];
+
+        if ($securityContext) {
+            try {
+                $result = $folder->delete($securityContext);
+                if ($result !== false) {
+                    return ['deleted' => true, 'alreadyMissing' => false, 'folderId' => $folderId, 'name' => $name];
+                }
+            } catch (Throwable $e) {
+                $errors[] = $e->getMessage();
+            }
+        }
+
+        if ($actorUserId !== null && $actorUserId > 0) {
+            try {
+                $result = $folder->delete($actorUserId);
+                if ($result !== false) {
+                    return ['deleted' => true, 'alreadyMissing' => false, 'folderId' => $folderId, 'name' => $name];
+                }
+            } catch (Throwable $e) {
+                $errors[] = $e->getMessage();
+            }
+        }
+
+        try {
+            $result = $folder->delete();
+            if ($result !== false) {
+                return ['deleted' => true, 'alreadyMissing' => false, 'folderId' => $folderId, 'name' => $name];
+            }
+        } catch (Throwable $e) {
+            $errors[] = $e->getMessage();
+        }
+
+        error_log('SiteBuilder Disk folder delete failed #' . $folderId . ': ' . implode(' | ', $errors));
+        throw new RuntimeException('DISK_FOLDER_DELETE_FAILED');
+    }
+}
+
+
+if (!function_exists('sb_disk_inspect_managed_site_folder')) {
+    /** Проверяет существование и принадлежность папки служебному корню SiteBuilder. */
+    function sb_disk_inspect_managed_site_folder(int $folderId): ?array
+    {
+        if ($folderId <= 0) {
+            return null;
+        }
+        $folder = sb_disk_load_folder_by_id($folderId);
+        if (!$folder) {
+            return null;
+        }
+        $parentId = (int)$folder->getParentId();
+        $sitebuilderRoot = sb_disk_get_sitebuilder_root();
+        $managed = $sitebuilderRoot && $parentId === (int)$sitebuilderRoot->getId();
+        return [
+            'id' => (int)$folder->getId(),
+            'name' => (string)$folder->getName(),
+            'parentId' => $parentId,
+            'managed' => (bool)$managed,
+        ];
+    }
+}
+
+if (!function_exists('sb_disk_list_managed_site_folders')) {
+    /** Перечисляет прямые дочерние папки служебного корня SiteBuilder. */
+    function sb_disk_list_managed_site_folders(): array
+    {
+        $root = sb_disk_get_sitebuilder_root();
+        if (!$root) {
+            return [];
+        }
+        $rows = [];
+        foreach (sb_disk_get_children($root) as $child) {
+            if (!$child instanceof Folder) {
+                continue;
+            }
+            $rows[] = [
+                'id' => (int)$child->getId(),
+                'name' => (string)$child->getName(),
+                'parentId' => (int)$child->getParentId(),
+                'managed' => true,
+            ];
+        }
+        usort($rows, static fn(array $a, array $b): int => $a['id'] <=> $b['id']);
+        return $rows;
     }
 }
 

@@ -17,7 +17,8 @@ class DiskSitebuilderBridge
                 created_by,
                 created_at,
                 updated_by,
-                updated_at
+                updated_at,
+                version
             FROM sitebuilder.site
             WHERE id = :id
             LIMIT 1
@@ -42,6 +43,7 @@ class DiskSitebuilderBridge
             'createdAt' => (string)($row['created_at'] ?? ''),
             'updatedBy' => isset($row['updated_by']) ? (int)$row['updated_by'] : 0,
             'updatedAt' => (string)($row['updated_at'] ?? ''),
+            'version' => max(1, (int)($row['version'] ?? 1)),
         ];
     }
 
@@ -60,7 +62,8 @@ class DiskSitebuilderBridge
                 created_by,
                 created_at,
                 updated_by,
-                updated_at
+                updated_at,
+                version
             FROM sitebuilder.page
             WHERE id = :id
             LIMIT 1
@@ -85,6 +88,7 @@ class DiskSitebuilderBridge
             'createdAt' => (string)($row['created_at'] ?? ''),
             'updatedBy' => isset($row['updated_by']) ? (int)$row['updated_by'] : 0,
             'updatedAt' => (string)($row['updated_at'] ?? ''),
+            'version' => max(1, (int)($row['version'] ?? 1)),
         ];
     }
 
@@ -101,7 +105,8 @@ class DiskSitebuilderBridge
                 created_by,
                 created_at,
                 updated_by,
-                updated_at
+                updated_at,
+                version
             FROM sitebuilder.block
             WHERE id = :id
             LIMIT 1
@@ -124,35 +129,74 @@ class DiskSitebuilderBridge
             'createdAt' => (string)($row['created_at'] ?? ''),
             'updatedBy' => isset($row['updated_by']) ? (int)$row['updated_by'] : 0,
             'updatedAt' => (string)($row['updated_at'] ?? ''),
+            'version' => max(1, (int)($row['version'] ?? 1)),
         ];
     }
 
-    public static function saveBlockProps(int $blockId, array $props): bool
-    {
-        return DiskDb::execute("
-            UPDATE sitebuilder.block
-            SET
-                props_json = :props_json::jsonb,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = :id
-        ", [
-            ':id' => $blockId,
-            ':props_json' => json_encode($props, JSON_UNESCAPED_UNICODE),
-        ]);
+    public static function saveBlockProps(
+        int $blockId,
+        array $props,
+        ?int $expectedVersion = null,
+        int $userId = 0
+    ): bool {
+        $startedHere = sb_db_transaction_scope_begin();
+
+        try {
+            $block = RevisionService::getBlock($blockId, false);
+            if (!$block) {
+                throw new RuntimeException('BLOCK_NOT_FOUND');
+            }
+
+            $block['props'] = $props;
+            RevisionService::saveBlock(
+                $block,
+                $expectedVersion !== null
+                    ? RevisionService::requireExpectedVersion($expectedVersion)
+                    : (int)$block['version'],
+                $userId,
+                'disk_settings_update'
+            );
+
+            sb_db_transaction_scope_commit($startedHere);
+            return true;
+        } catch (Throwable $e) {
+            sb_db_transaction_scope_rollback($startedHere);
+            throw $e;
+        }
     }
 
-    public static function updateSiteDiskFolderId(int $siteId, int $folderId): bool
-    {
-        return DiskDb::execute("
-            UPDATE sitebuilder.site
-            SET
-                disk_folder_id = :disk_folder_id,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = :id
-        ", [
-            ':id' => $siteId,
-            ':disk_folder_id' => $folderId,
-        ]);
+    public static function updateSiteDiskFolderId(
+        int $siteId,
+        int $folderId,
+        int $userId = 0
+    ): bool {
+        $startedHere = sb_db_transaction_scope_begin();
+
+        try {
+            $site = RevisionService::getSite($siteId, false);
+            if (!$site) {
+                throw new RuntimeException('SITE_NOT_FOUND');
+            }
+
+            if ((int)($site['diskFolderId'] ?? 0) === $folderId) {
+                sb_db_transaction_scope_commit($startedHere);
+                return true;
+            }
+
+            $site['diskFolderId'] = $folderId;
+            RevisionService::saveSite(
+                $site,
+                (int)$site['version'],
+                $userId,
+                'disk_root_initialized'
+            );
+
+            sb_db_transaction_scope_commit($startedHere);
+            return true;
+        } catch (Throwable $e) {
+            sb_db_transaction_scope_rollback($startedHere);
+            throw $e;
+        }
     }
 
     public static function normalizeDiskProps(array $props): array

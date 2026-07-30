@@ -1,5 +1,8 @@
 <?php
 
+require_once __DIR__ . '/OutboxService.php';
+require_once __DIR__ . '/RevisionService.php';
+
 class SiteTemplateService
 {
     public static function listSiteTemplates(): array
@@ -45,6 +48,54 @@ class SiteTemplateService
             throw new RuntimeException('NAME_REQUIRED');
         }
 
+        $payloadSnapshot = self::buildSitePayload($siteId);
+        $now = date('c');
+
+        $template = sb_mutate_json_file(
+            'templates.json',
+            static function (array &$templates) use (
+                $name,
+                $description,
+                $siteId,
+                $site,
+                $payloadSnapshot,
+                $userId,
+                $now
+            ): array {
+                $template = [
+                    'id' => sb_next_template_id($templates),
+                    'kind' => 'site',
+                    'name' => $name,
+                    'description' => trim($description),
+                    'sourceSiteId' => $siteId,
+                    'sourceSiteName' => (string)($site['name'] ?? ''),
+                    'payload' => $payloadSnapshot,
+                    'createdBy' => $userId,
+                    'createdAt' => $now,
+                    'updatedBy' => $userId,
+                    'updatedAt' => $now,
+                ];
+
+                $templates[] = $template;
+                return $template;
+            },
+            'Cannot save templates.json'
+        );
+
+        return self::publicTemplateRecord($template);
+    }
+
+    /**
+     * Формирует переносимый снимок содержимого сайта без идентификаторов
+     * внешней группы и папки Битрикс.Диска.
+     */
+    public static function buildSitePayload(int $siteId): array
+    {
+        $site = sb_find_site($siteId);
+        if (!$site) {
+            throw new RuntimeException('SITE_NOT_FOUND');
+        }
+
         $pages = self::pagesForSite($siteId);
         $pageIds = array_fill_keys(array_map(static function ($page) {
             return (int)($page['id'] ?? 0);
@@ -56,63 +107,48 @@ class SiteTemplateService
             if (!isset($pageIds[$pageId])) {
                 continue;
             }
-
             $blocks[] = self::prepareBlockForSnapshot($block);
         }
 
         $sections = self::sectionsForSite($siteId, $pages);
         $menus = self::menusForSite($siteId);
+        /* Снимок не должен скрыто создавать layout в исходном сайте. */
+        $layout = function_exists('sb_find_layout') ? sb_find_layout($siteId) : null;
+        if (!is_array($layout)) {
+            $layout = function_exists('sb_layout_default_record')
+                ? sb_layout_default_record($siteId)
+                : ['siteId' => $siteId, 'settings' => [], 'zones' => []];
+        }
 
-        $layout = function_exists('sb_layout_ensure_record')
-            ? sb_layout_ensure_record($siteId)
-            : ['siteId' => $siteId, 'settings' => [], 'zones' => []];
-
-        $layout = self::prepareLayoutForSnapshot($layout);
-
-        $now = date('c');
-        $templates = sb_read_templates();
-
-        $template = [
-            'id' => sb_next_template_id($templates),
-            'kind' => 'site',
-            'name' => $name,
-            'description' => trim($description),
-            'sourceSiteId' => $siteId,
-            'sourceSiteName' => (string)($site['name'] ?? ''),
-            'payload' => [
-                'site' => self::prepareSiteForSnapshot($site),
-                'pages' => array_map([self::class, 'preparePageForSnapshot'], $pages),
-                'sections' => array_map([self::class, 'prepareSectionForSnapshot'], $sections),
-                'blocks' => $blocks,
-                'layout' => $layout,
-                'menus' => array_map([self::class, 'prepareMenuForSnapshot'], $menus),
-            ],
-            'createdBy' => $userId,
-            'createdAt' => $now,
-            'updatedBy' => $userId,
-            'updatedAt' => $now,
+        return [
+            'site' => self::prepareSiteForSnapshot($site),
+            'pages' => array_map([self::class, 'preparePageForSnapshot'], $pages),
+            'sections' => array_map([self::class, 'prepareSectionForSnapshot'], $sections),
+            'blocks' => $blocks,
+            'layout' => self::prepareLayoutForSnapshot($layout),
+            'menus' => array_map([self::class, 'prepareMenuForSnapshot'], $menus),
         ];
-
-        $templates[] = $template;
-        sb_write_templates($templates);
-
-        return self::publicTemplateRecord($template);
     }
 
     public static function delete(int $templateId): void
     {
-        $templates = sb_read_templates();
-        $before = count($templates);
+        sb_mutate_json_file(
+            'templates.json',
+            static function (array &$templates) use ($templateId): void {
+                $before = count($templates);
+                $templates = array_values(array_filter(
+                    $templates,
+                    static function ($template) use ($templateId): bool {
+                        return (int)($template['id'] ?? 0) !== $templateId;
+                    }
+                ));
 
-        $templates = array_values(array_filter($templates, static function ($template) use ($templateId) {
-            return (int)($template['id'] ?? 0) !== $templateId;
-        }));
-
-        if (count($templates) === $before) {
-            throw new RuntimeException('TEMPLATE_NOT_FOUND');
-        }
-
-        sb_write_templates($templates);
+                if (count($templates) === $before) {
+                    throw new RuntimeException('TEMPLATE_NOT_FOUND');
+                }
+            },
+            'Cannot update templates.json'
+        );
     }
 
     public static function rename(int $templateId, string $name, string $description, int $userId): array
@@ -122,28 +158,34 @@ class SiteTemplateService
             throw new RuntimeException('NAME_REQUIRED');
         }
 
-        $templates = sb_read_templates();
-        $updated = null;
+        $updated = sb_mutate_json_file(
+            'templates.json',
+            static function (array &$templates) use (
+                $templateId,
+                $name,
+                $description,
+                $userId
+            ): array {
+                foreach ($templates as &$template) {
+                    if ((int)($template['id'] ?? 0) !== $templateId) {
+                        continue;
+                    }
 
-        foreach ($templates as &$template) {
-            if ((int)($template['id'] ?? 0) !== $templateId) {
-                continue;
-            }
+                    $template['name'] = $name;
+                    $template['description'] = trim($description);
+                    $template['updatedBy'] = $userId;
+                    $template['updatedAt'] = date('c');
+                    $updated = $template;
+                    unset($template);
 
-            $template['name'] = $name;
-            $template['description'] = trim($description);
-            $template['updatedBy'] = $userId;
-            $template['updatedAt'] = date('c');
-            $updated = $template;
-            break;
-        }
-        unset($template);
+                    return $updated;
+                }
+                unset($template);
 
-        if (!$updated) {
-            throw new RuntimeException('TEMPLATE_NOT_FOUND');
-        }
-
-        sb_write_templates($templates);
+                throw new RuntimeException('TEMPLATE_NOT_FOUND');
+            },
+            'Cannot update templates.json'
+        );
 
         return self::publicTemplateRecord($updated);
     }
@@ -156,13 +198,38 @@ class SiteTemplateService
         }
 
         $payload = is_array($template['payload'] ?? null) ? $template['payload'] : [];
+        if (trim($siteName) === '' && trim((string)($payload['site']['name'] ?? '')) === '') {
+            $siteName = (string)($template['name'] ?? '');
+        }
+        $result = self::createSiteFromPayload(
+            $payload,
+            $siteName,
+            $slug,
+            $sectionId,
+            $userId
+        );
+        $result['template'] = self::publicTemplateRecord($template);
+        return $result;
+    }
+
+    /**
+     * Создаёт новый сайт из переносимого снимка. Метод используется как
+     * шаблонами, так и резервным восстановлением. Существующий сайт никогда
+     * не перезаписывается.
+     */
+    public static function createSiteFromPayload(
+        array $payload,
+        string $siteName,
+        string $slug,
+        int $sectionId,
+        int $userId
+    ): array {
         $snapshotSite = is_array($payload['site'] ?? null) ? $payload['site'] : [];
 
         $siteName = trim($siteName);
         if ($siteName === '') {
-            $siteName = (string)($snapshotSite['name'] ?? $template['name'] ?? 'Новый сайт');
+            $siteName = (string)($snapshotSite['name'] ?? 'Новый сайт');
         }
-
         if ($siteName === '') {
             throw new RuntimeException('NAME_REQUIRED');
         }
@@ -174,9 +241,8 @@ class SiteTemplateService
         }
 
         $sites = sb_read_sites();
-        $siteId = sb_next_id($sites, 'id');
+        $siteId = RevisionService::nextEntityId(RevisionService::ENTITY_SITE);
         $now = date('c');
-
         $slug = trim($slug);
         $slug = $slug === '' ? sb_slugify($siteName) : sb_slugify($slug);
         $slug = self::uniqueSiteSlug($slug, $sites);
@@ -196,35 +262,13 @@ class SiteTemplateService
             'bitrixGroupId' => 0,
             'bitrixGroupCreatedBy' => 0,
             'bitrixGroupCreatedAt' => '',
-            'settings' => is_array($snapshotSite['settings'] ?? null) ? $snapshotSite['settings'] : [],
+            'settings' => self::sanitizePortableSettings(
+                is_array($snapshotSite['settings'] ?? null) ? $snapshotSite['settings'] : []
+            ),
             'layout' => is_array($snapshotSite['layout'] ?? null) ? $snapshotSite['layout'] : [],
         ];
 
-        $bitrixGroupId = 0;
-        $bitrixGroupError = '';
-
-        $groupServicePath = $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteBitrixGroupService.php';
-        if (file_exists($groupServicePath)) {
-            require_once $groupServicePath;
-        }
-
-        if (class_exists('SiteBitrixGroupService')) {
-            try {
-                $bitrixGroupId = (int)SiteBitrixGroupService::createForSite($site, $userId);
-
-                if ($bitrixGroupId > 0) {
-                    $site['bitrixGroupId'] = $bitrixGroupId;
-                    $site['bitrixGroupCreatedBy'] = $userId;
-                    $site['bitrixGroupCreatedAt'] = $now;
-                }
-            } catch (Throwable $e) {
-                $bitrixGroupError = $e->getMessage();
-            }
-        }
-
-        $sites[] = $site;
-        sb_write_sites($sites);
-
+        sb_write_sites([$site]);
         $pageIdMap = self::copyPages($siteId, $payload, $userId);
         $sectionIdMap = self::copySections($siteId, $pageIdMap, $payload, $userId);
         self::copyBlocks($pageIdMap, $payload, $userId, $sectionIdMap);
@@ -240,14 +284,17 @@ class SiteTemplateService
         }
 
         self::copyLayout($siteId, $payload, $userId);
-        self::copyMenus($siteId, $pageIdMap, $payload, $userId, $snapshotSite);
+        $menuIdMap = self::copyMenus($siteId, $pageIdMap, $payload, $userId, $snapshotSite);
         self::grantOwnerAccess($siteId, $userId, $now);
+        $provisioningJobs = OutboxService::enqueueSiteProvisioning($siteId, $userId);
 
         return [
             'site' => sb_find_site($siteId) ?: $site,
-            'template' => self::publicTemplateRecord($template),
-            'bitrixGroupId' => $bitrixGroupId,
-            'bitrixGroupError' => $bitrixGroupError,
+            'pageIdMap' => $pageIdMap,
+            'sectionIdMap' => $sectionIdMap,
+            'menuIdMap' => $menuIdMap,
+            'provisioningQueued' => true,
+            'provisioningJobs' => $provisioningJobs,
         ];
     }
 
@@ -280,7 +327,9 @@ class SiteTemplateService
             'slug' => (string)($site['slug'] ?? ''),
             'homePageId' => (int)($site['homePageId'] ?? 0),
             'topMenuId' => (int)($site['topMenuId'] ?? 0),
-            'settings' => is_array($site['settings'] ?? null) ? $site['settings'] : [],
+            'settings' => self::sanitizePortableSettings(
+                is_array($site['settings'] ?? null) ? $site['settings'] : []
+            ),
             'layout' => is_array($site['layout'] ?? null) ? $site['layout'] : [],
         ];
     }
@@ -380,6 +429,21 @@ class SiteTemplateService
         return $menu;
     }
 
+    protected static function sanitizePortableSettings(array $settings): array
+    {
+        $settings = self::sanitizeDiskData($settings);
+        if (!is_array($settings)) {
+            $settings = [];
+        }
+
+        /* Брендинговые CFile ID относятся к исходному порталу и не переносимы. */
+        $settings['logoFileId'] = 0;
+        $settings['backgroundFileId'] = 0;
+        unset($settings['logoUrl'], $settings['backgroundUrl']);
+
+        return $settings;
+    }
+
     protected static function sanitizeDiskData($value)
     {
         if (!is_array($value)) {
@@ -393,6 +457,8 @@ class SiteTemplateService
             'blockRootFolderId' => true,
             'diskFolderId' => true,
             'folderId' => true,
+            /* CFile/Bitrix.Disk object IDs не переносим между сайтами. */
+            'fileId' => true,
         ];
 
         $result = [];
@@ -453,12 +519,10 @@ class SiteTemplateService
             return [];
         }
 
-        $sections = array_values(array_filter(PageSectionRepository::readAll(), static function ($section) use ($siteId, $pageIds) {
-            $sectionSiteId = (int)($section['siteId'] ?? 0);
-            $sectionPageId = (int)($section['pageId'] ?? 0);
-
-            return $sectionSiteId === $siteId && isset($pageIds[$sectionPageId]);
-        }));
+        $sections = array_values(array_filter(
+            PageSectionRepository::listForSite($siteId),
+            static fn(array $section): bool => isset($pageIds[(int)($section['pageId'] ?? 0)])
+        ));
 
         usort($sections, static function ($a, $b) {
             $pageCmp = (int)($a['pageId'] ?? 0) <=> (int)($b['pageId'] ?? 0);
@@ -509,59 +573,12 @@ class SiteTemplateService
             return [];
         }
 
-        $items = PageSectionRepository::readAll();
-        $nextSectionId = self::nextSectionId($items);
-        $now = date('c');
-
-        $sectionIdMap = [];
-        $newSections = [];
-
-        foreach ($templateSections as $section) {
-            $oldPageId = (int)($section['oldPageId'] ?? 0);
-
-            if ($oldPageId <= 0 || !isset($pageIdMap[$oldPageId])) {
-                continue;
-            }
-
-            $oldSectionId = (int)($section['oldId'] ?? 0);
-            $newSectionId = $nextSectionId++;
-
-            if ($oldSectionId > 0) {
-                $sectionIdMap[$oldSectionId] = $newSectionId;
-            }
-
-            $newSections[] = [
-                'id' => $newSectionId,
-                'siteId' => $siteId,
-                'pageId' => (int)$pageIdMap[$oldPageId],
-                'type' => 'section',
-                'title' => (string)($section['title'] ?? 'Секция'),
-                'sort' => (int)($section['sort'] ?? 500),
-                'layout' => is_array($section['layout'] ?? null) ? $section['layout'] : [],
-                'props' => is_array($section['props'] ?? null) ? $section['props'] : [],
-                'createdBy' => $userId,
-                'createdAt' => $now,
-                'updatedBy' => $userId,
-                'updatedAt' => $now,
-            ];
-        }
-
-        if (!empty($newSections)) {
-            PageSectionRepository::writeAll(array_merge($items, $newSections));
-        }
-
-        return $sectionIdMap;
-    }
-
-    protected static function nextSectionId(array $sections): int
-    {
-        $maxId = 0;
-
-        foreach ($sections as $section) {
-            $maxId = max($maxId, (int)($section['id'] ?? 0));
-        }
-
-        return $maxId + 1;
+        return PageSectionRepository::appendTemplateSections(
+            $siteId,
+            $pageIdMap,
+            $templateSections,
+            $userId
+        );
     }
 
     protected static function menusForSite(int $siteId): array
@@ -591,16 +608,19 @@ class SiteTemplateService
 
     protected static function copyPages(int $siteId, array $payload, int $userId): array
     {
-        $pages = sb_read_pages();
-        $templatePages = is_array($payload['pages'] ?? null) ? $payload['pages'] : [];
-        $nextPageId = sb_next_id($pages, 'id');
+        $templatePages = is_array($payload['pages'] ?? null)
+            ? array_values(array_filter($payload['pages'], 'is_array'))
+            : [];
+        $reservedPageIds = !empty($templatePages)
+            ? RevisionService::reserveEntityIds(RevisionService::ENTITY_PAGE, count($templatePages))
+            : [];
         $now = date('c');
         $map = [];
         $newPages = [];
 
-        foreach ($templatePages as $page) {
+        foreach ($templatePages as $pageIndex => $page) {
             $oldId = (int)($page['oldId'] ?? 0);
-            $newId = $nextPageId++;
+            $newId = (int)$reservedPageIds[$pageIndex];
             $map[$oldId] = $newId;
 
             $newPages[] = [
@@ -634,25 +654,29 @@ class SiteTemplateService
         }
         unset($page);
 
-        $pages = array_merge($pages, $newPages);
-        sb_write_pages($pages);
+        if (!empty($newPages)) {
+            sb_write_pages($newPages);
+        }
 
         return $map;
     }
 
     protected static function copyBlocks(array $pageIdMap, array $payload, int $userId, array $sectionIdMap = []): void
     {
-        $blocks = sb_read_blocks();
-        $templateBlocks = is_array($payload['blocks'] ?? null) ? $payload['blocks'] : [];
-        $nextBlockId = sb_next_block_id($blocks);
+        $templateBlocks = is_array($payload['blocks'] ?? null)
+            ? array_values(array_filter($payload['blocks'], 'is_array'))
+            : [];
+        $templateBlocks = array_values(array_filter($templateBlocks, static function (array $block) use ($pageIdMap): bool {
+            return isset($pageIdMap[(int)($block['oldPageId'] ?? 0)]);
+        }));
+        $reservedBlockIds = !empty($templateBlocks)
+            ? RevisionService::reserveEntityIds(RevisionService::ENTITY_BLOCK, count($templateBlocks))
+            : [];
         $now = date('c');
+        $newBlocks = [];
     
-        foreach ($templateBlocks as $block) {
+        foreach ($templateBlocks as $blockIndex => $block) {
             $oldPageId = (int)($block['oldPageId'] ?? 0);
-    
-            if (!isset($pageIdMap[$oldPageId])) {
-                continue;
-            }
     
             $props = self::sanitizeDiskData($block['props'] ?? []);
     
@@ -706,7 +730,7 @@ class SiteTemplateService
             }
     
             $newBlock = [
-                'id' => $nextBlockId++,
+                'id' => (int)$reservedBlockIds[$blockIndex],
                 'pageId' => (int)$pageIdMap[$oldPageId],
                 'type' => (string)($block['type'] ?? 'text'),
                 'sort' => (int)($block['sort'] ?? 500),
@@ -723,10 +747,12 @@ class SiteTemplateService
                 $newBlock['column'] = $column;
             }
     
-            $blocks[] = sb_normalize_block_record($newBlock);
+            $newBlocks[] = sb_normalize_block_record($newBlock);
         }
     
-        sb_write_blocks($blocks);
+        if (!empty($newBlocks)) {
+            sb_write_blocks($newBlocks);
+        }
     }
 
     protected static function copyLayout(int $siteId, array $payload, int $userId): void
@@ -744,7 +770,10 @@ class SiteTemplateService
         $layout['updatedAt'] = date('c');
 
         foreach (['header', 'footer', 'left', 'right'] as $zone) {
-            foreach (($layout['zones'][$zone] ?? []) as &$block) {
+            $zoneBlocks = is_array($layout['zones'][$zone] ?? null)
+                ? array_values(array_filter($layout['zones'][$zone], 'is_array'))
+                : [];
+            foreach ($zoneBlocks as &$block) {
                 $block['content'] = self::sanitizeDiskData($block['content'] ?? []);
                 $block['props'] = self::sanitizeDiskData($block['props'] ?? []);
                 $block['createdBy'] = $userId;
@@ -753,34 +782,33 @@ class SiteTemplateService
                 $block['updatedAt'] = date('c');
             }
             unset($block);
+            $layout['zones'][$zone] = $zoneBlocks;
         }
 
-        $layouts = sb_read_layouts();
-
-        $layouts = array_values(array_filter($layouts, static function ($item) use ($siteId) {
-            return (int)($item['siteId'] ?? 0) !== $siteId;
-        }));
-
-        $layouts[] = $layout;
-
-        sb_write_layouts($layouts);
+        sb_write_layouts([$layout]);
     }
 
-    protected static function copyMenus(int $siteId, array $pageIdMap, array $payload, int $userId, array $snapshotSite): void
+    protected static function copyMenus(int $siteId, array $pageIdMap, array $payload, int $userId, array $snapshotSite): array
     {
         if (!function_exists('sb_read_menus') || !function_exists('sb_write_menus')) {
-            return;
+            return [];
         }
 
-        $snapshotMenus = is_array($payload['menus'] ?? null) ? $payload['menus'] : [];
+        $snapshotMenus = is_array($payload['menus'] ?? null)
+            ? array_values(array_filter($payload['menus'], 'is_array'))
+            : [];
 
         if (empty($snapshotMenus)) {
-            return;
+            return [];
         }
 
         $now = date('c');
-        $menus = sb_read_menus();
-        $nextMenuId = function_exists('sb_next_menu_id') ? sb_next_menu_id($menus) : (count($menus) + 1);
+        $reservedMenuIds = RevisionService::reserveEntityIds(
+            RevisionService::ENTITY_MENU,
+            count($snapshotMenus)
+        );
+        $newMenus = [];
+        $menuIdMap = [];
         $oldTopMenuId = (int)($snapshotSite['topMenuId'] ?? 0);
         $newTopMenuId = 0;
         $topMenuIndex = null;
@@ -793,11 +821,18 @@ class SiteTemplateService
         }
 
         foreach ($snapshotMenus as $menuIndex => $menu) {
-            $newMenuId = $nextMenuId++;
+            $newMenuId = (int)$reservedMenuIds[$menuIndex];
+            $oldMenuId = (int)($menu['oldId'] ?? 0);
+            if ($oldMenuId > 0) {
+                $menuIdMap[$oldMenuId] = $newMenuId;
+            }
 
             $items = [];
 
             foreach ((array)($menu['items'] ?? []) as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
                 $type = (string)($item['type'] ?? 'page');
                 $oldPageId = (int)($item['pageId'] ?? 0);
 
@@ -813,7 +848,7 @@ class SiteTemplateService
                 $newTopMenuId = $newMenuId;
             }
 
-            $menus[] = [
+            $newMenus[] = [
                 'id' => $newMenuId,
                 'siteId' => $siteId,
                 'name' => (string)($menu['name'] ?? 'Меню'),
@@ -825,52 +860,48 @@ class SiteTemplateService
             ];
         }
 
-        sb_write_menus($menus);
+        if (!empty($newMenus)) {
+            sb_write_menus($newMenus);
+        }
 
         if ($newTopMenuId > 0) {
             self::updateSiteField($siteId, 'topMenuId', $newTopMenuId, $userId);
         }
+
+        return $menuIdMap;
     }
 
     protected static function updateSiteField(int $siteId, string $field, $value, int $userId): void
     {
-        $allowed = ['homePageId', 'topMenuId'];
-
-        if (!in_array($field, $allowed, true)) {
-            return;
+        if (!in_array($field, ['homePageId', 'topMenuId'], true)) {
+            throw new InvalidArgumentException('SITE_FIELD_NOT_ALLOWED');
         }
 
-        $sites = sb_read_sites();
-
-        foreach ($sites as &$site) {
-            if ((int)($site['id'] ?? 0) !== $siteId) {
-                continue;
-            }
-
-            $site[$field] = $value;
-            $site['updatedBy'] = $userId;
-            $site['updatedAt'] = date('c');
-            break;
+        $site = RevisionService::getSite($siteId, false);
+        if (!$site) {
+            throw new RuntimeException('SITE_NOT_FOUND');
         }
-        unset($site);
 
-        sb_write_sites($sites);
+        $site[$field] = (int)$value;
+        RevisionService::saveSite(
+            $site,
+            (int)$site['version'],
+            $userId,
+            'template_' . $field . '_set'
+        );
     }
 
     protected static function grantOwnerAccess(int $siteId, int $userId, string $now): void
     {
-        $access = sb_read_access();
-
-        $access[] = [
-            'siteId' => $siteId,
-            'accessCode' => 'U' . $userId,
-            'role' => 'OWNER',
-            'createdBy' => $userId,
-            'createdAt' => $now,
-            'updatedBy' => $userId,
-            'updatedAt' => $now,
-        ];
-
-        sb_write_access($access);
+        sb_set_access_role(
+            $siteId,
+            'U' . $userId,
+            'OWNER',
+            $userId,
+            [
+                'allowOwnerAssignment' => true,
+                'allowOwnerDowngrade' => true,
+            ]
+        );
     }
 }

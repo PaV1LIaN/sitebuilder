@@ -3,6 +3,7 @@
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteAppearanceService.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessRepository.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessService.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteDeletionService.php';
 
 global $USER;
 
@@ -44,7 +45,11 @@ if (!function_exists('sb_site_handler_require_owner')) {
 if (!function_exists('sb_site_handler_require_editor')) {
     function sb_site_handler_require_editor(int $siteId): void
     {
-        sb_site_handler_require_role($siteId, 2);
+        /*
+         * Историческое имя функции оставлено для совместимости.
+         * Изменение настроек и структуры сайта требует ADMIN/OWNER.
+         */
+        sb_site_handler_require_role($siteId, 3);
     }
 }
 
@@ -52,6 +57,72 @@ if (!function_exists('sb_site_handler_require_viewer')) {
     function sb_site_handler_require_viewer(int $siteId): void
     {
         sb_site_handler_require_role($siteId, 1);
+    }
+}
+
+if (!function_exists('sb_site_handler_handle_exception')) {
+    function sb_site_handler_handle_exception(Throwable $e, string $action): void
+    {
+        if ($e instanceof SiteBuilderVersionConflictException) {
+            throw $e;
+        }
+
+        if (class_exists('SiteBuilderResourceBusyException') && $e instanceof SiteBuilderResourceBusyException) {
+            throw $e;
+        }
+
+        if ($e instanceof PDOException) {
+            throw $e;
+        }
+
+        $message = trim($e->getMessage());
+        $context = [
+            'handler' => 'site',
+            'action' => $action,
+        ];
+
+        $statusByError = [
+            'SITE_NOT_FOUND' => 404,
+            'EMPTY_SITE_ID' => 422,
+            'EMPTY_TARGET_USER_ID' => 422,
+            'EMPTY_CURRENT_USER_ID' => 422,
+            'EMPTY_OWNER_USER_ID' => 422,
+            'EMPTY_BITRIX_GROUP_ID' => 422,
+            'BITRIX_GROUP_MEMBERS_EMPTY' => 422,
+            'SITE_GROUP_REQUIRED' => 422,
+            'INVALID_ROLE' => 422,
+            'OWNER_ASSIGNMENT_FORBIDDEN' => 409,
+            'CANNOT_DOWNGRADE_OWNER' => 409,
+            'LAST_OWNER_CANNOT_BE_DOWNGRADED' => 409,
+            'LAST_OWNER_CANNOT_BE_REMOVED' => 409,
+            'OWNER_DELETE_FORBIDDEN' => 409,
+            'EMPTY_FILE' => 422,
+            'FILE_TOO_LARGE' => 413,
+            'BAD_FILE_EXTENSION' => 422,
+            'BAD_FILE_MIME_TYPE' => 422,
+            'BAD_ASSET_TYPE' => 422,
+            'SOCIALNETWORK_MODULE_NOT_INSTALLED' => 503,
+            'CSocNetUserToGroup_NOT_FOUND' => 503,
+            'CSocNetGroup_NOT_FOUND' => 503,
+        ];
+
+        if (isset($statusByError[$message])) {
+            sb_json_error($message, $statusByError[$message], $context);
+        }
+
+        if (preg_match('/^UPLOAD_ERROR_\d+$/', $message)) {
+            sb_json_error($message, 422, $context);
+        }
+
+        error_log(sprintf(
+            'SiteBuilder %s failed: %s in %s:%d',
+            $action,
+            $message,
+            $e->getFile(),
+            $e->getLine()
+        ));
+
+        sb_json_error('SITE_OPERATION_FAILED', 500, $context);
     }
 }
 
@@ -72,6 +143,7 @@ if (!function_exists('sb_site_handler_get_access_context')) {
                 'roleRank' => 0,
                 'hasGlobalView' => false,
                 'hasGlobalEdit' => false,
+                'hasGlobalDiskEdit' => false,
                 'hasPageAccess' => false,
             ];
         }
@@ -86,6 +158,7 @@ if (!function_exists('sb_site_handler_get_access_context')) {
                 'roleRank' => 4,
                 'hasGlobalView' => true,
                 'hasGlobalEdit' => true,
+                'hasGlobalDiskEdit' => true,
                 'hasPageAccess' => true,
             ];
         }
@@ -116,7 +189,8 @@ if (!function_exists('sb_site_handler_get_access_context')) {
             'role' => $role,
             'roleRank' => $roleRank,
             'hasGlobalView' => $roleRank >= 1,
-            'hasGlobalEdit' => $roleRank >= 2,
+            'hasGlobalEdit' => $roleRank >= 3,
+            'hasGlobalDiskEdit' => $roleRank >= 2,
             'hasPageAccess' => $hasPageAccess,
         ];
     }
@@ -135,24 +209,31 @@ if (!function_exists('sb_site_handler_get_bitrix_group_id')) {
 }
 
 if (!function_exists('sb_site_handler_update_bitrix_group_fields')) {
-    function sb_site_handler_update_bitrix_group_fields(int $siteId, int $groupId, int $currentUserId): void
-    {
+    function sb_site_handler_update_bitrix_group_fields(
+        int $siteId,
+        int $groupId,
+        int $currentUserId,
+        int $expectedVersion
+    ): array {
         if ($siteId <= 0 || $groupId <= 0) {
-            return;
+            throw new InvalidArgumentException('SITE_GROUP_REQUIRED');
         }
 
-        sb_db_execute("
-            UPDATE sitebuilder.site
-            SET
-                bitrix_group_id = :bitrix_group_id,
-                bitrix_group_created_by = :created_by,
-                bitrix_group_created_at = now()
-            WHERE id = :site_id
-        ", [
-            ':bitrix_group_id' => $groupId,
-            ':created_by' => $currentUserId,
-            ':site_id' => $siteId,
-        ]);
+        $site = RevisionService::getSite($siteId, false);
+        if (!$site) {
+            throw new RuntimeException('SITE_NOT_FOUND');
+        }
+
+        $site['bitrixGroupId'] = $groupId;
+        $site['bitrixGroupCreatedBy'] = $currentUserId;
+        $site['bitrixGroupCreatedAt'] = date('c');
+
+        return RevisionService::saveSite(
+            $site,
+            RevisionService::requireExpectedVersion($expectedVersion),
+            $currentUserId,
+            'bitrix_group_attach'
+        );
     }
 }
 
@@ -270,6 +351,14 @@ if (!function_exists('sb_site_handler_sync_access_fallback')) {
             }
         }
 
+        if ($currentUserId > 0) {
+            $currentUserCode = 'U' . $currentUserId;
+
+            if (!isset($targetAccess[$currentUserCode])) {
+                $targetAccess[$currentUserCode] = 'OWNER';
+            }
+        }
+
         foreach ($targetAccess as $accessCode => $role) {
             $members[] = [
                 'userId' => (int)preg_replace('/\D+/', '', $accessCode),
@@ -279,73 +368,35 @@ if (!function_exists('sb_site_handler_sync_access_fallback')) {
             ];
         }
 
-        $access = sb_read_access();
-        $next = [];
-        $existingByCode = [];
-
-        foreach ($access as $row) {
-            if ((int)($row['siteId'] ?? 0) === $siteId) {
-                $existingByCode[(string)($row['accessCode'] ?? '')] = $row;
-                continue;
-            }
-
-            $next[] = $row;
-        }
-
         $created = 0;
         $updated = 0;
         $removed = 0;
         $kept = 0;
 
-        $now = date('c');
-
         foreach ($targetAccess as $accessCode => $role) {
-            if (isset($existingByCode[$accessCode])) {
-                $row = $existingByCode[$accessCode];
-                $oldRole = (string)($row['role'] ?? '');
+            $saveResult = sb_add_access_role_if_missing(
+                $siteId,
+                $accessCode,
+                $role,
+                $currentUserId
+            );
 
-                if ($oldRole !== $role) {
-                    $row['role'] = $role;
-                    $row['updatedAt'] = $now;
-                    $row['updatedBy'] = $currentUserId;
-                    $updated++;
-                } else {
-                    $kept++;
-                }
-
-                $next[] = $row;
-                unset($existingByCode[$accessCode]);
-                continue;
-            }
-
-            $next[] = [
-                'siteId' => $siteId,
-                'accessCode' => $accessCode,
-                'role' => $role,
-                'createdBy' => $currentUserId,
-                'createdAt' => $now,
-                'updatedAt' => $now,
-                'updatedBy' => $currentUserId,
-            ];
-
-            $created++;
-        }
-
-        if (!$strict) {
-            foreach ($existingByCode as $row) {
-                $next[] = $row;
+            if (!empty($saveResult['created'])) {
+                $created++;
+            } else {
+                /*
+                 * Существующее прямое назначение SiteBuilder
+                 * является авторитетным и не перезаписывается.
+                 */
                 $kept++;
             }
-        } else {
-            $removed = count($existingByCode);
         }
-
-        sb_write_access($next);
 
         return [
             'siteId' => $siteId,
             'bitrixGroupId' => $bitrixGroupId,
-            'strict' => $strict,
+            'strictRequested' => $strict,
+            'strictApplied' => false,
             'created' => $created,
             'updated' => $updated,
             'removed' => $removed,
@@ -394,6 +445,9 @@ if ($action === 'site.list') {
         $site['currentUserHasGlobalEdit'] =
             $accessContext['hasGlobalEdit'];
 
+        $site['currentUserHasGlobalDiskEdit'] =
+            $accessContext['hasGlobalDiskEdit'];
+
         $site['currentUserHasPageAccess'] =
             $accessContext['hasPageAccess'];
 
@@ -413,7 +467,6 @@ if ($action === 'site.list') {
     sb_json_ok([
         'sites' => $allowedSites,
         'handler' => 'site',
-        'file' => __FILE__,
     ]);
 }
 
@@ -463,6 +516,9 @@ if ($action === 'site.get') {
     $site['currentUserHasGlobalEdit'] =
         $accessContext['hasGlobalEdit'];
 
+    $site['currentUserHasGlobalDiskEdit'] =
+        $accessContext['hasGlobalDiskEdit'];
+
     $site['currentUserHasPageAccess'] =
         $accessContext['hasPageAccess'];
 
@@ -479,7 +535,6 @@ if ($action === 'site.get') {
                 $accessContext['hasPageAccess'],
         ],
         'handler' => 'site',
-        'file' => __FILE__,
     ]);
 }
 
@@ -497,13 +552,7 @@ if ($action === 'site.create') {
     sb_site_handler_validate_section($sectionId);
 
     $sites = sb_read_sites();
-
-    $maxId = 0;
-    foreach ($sites as $s) {
-        $maxId = max($maxId, (int)($s['id'] ?? 0));
-    }
-
-    $id = $maxId + 1;
+    $id = RevisionService::nextEntityId(RevisionService::ENTITY_SITE);
 
     $slug = trim((string)($_POST['slug'] ?? ''));
     $slug = $slug === '' ? sb_slugify($name) : sb_slugify($slug);
@@ -533,6 +582,7 @@ if ($action === 'site.create') {
         'createdAt' => $now,
         'updatedAt' => $now,
         'updatedBy' => $currentUserId,
+        'version' => 1,
         'homePageId' => 0,
         'diskFolderId' => 0,
         'topMenuId' => 0,
@@ -555,61 +605,39 @@ if ($action === 'site.create') {
         ],
     ];
 
-    $bitrixGroupId = 0;
-    $bitrixGroupError = '';
-
-    if (class_exists('SiteBitrixGroupService')) {
-        try {
-            $bitrixGroupId = (int)SiteBitrixGroupService::createForSite($site, $currentUserId);
-
-            if ($bitrixGroupId > 0) {
-                $site['bitrixGroupId'] = $bitrixGroupId;
-                $site['bitrixGroupCreatedBy'] = $currentUserId;
-                $site['bitrixGroupCreatedAt'] = $now;
-            }
-        } catch (Throwable $e) {
-            $bitrixGroupError = $e->getMessage();
-        }
-    } else {
-        $bitrixGroupError = 'SiteBitrixGroupService.php не подключен';
-    }
-
-    $sites[] = $site;
-    sb_write_sites($sites);
-
-    if ($bitrixGroupId > 0) {
-        sb_site_handler_update_bitrix_group_fields($id, $bitrixGroupId, $currentUserId);
-        $site = sb_find_site($id) ?: $site;
-    }
-
-    $access = sb_read_access();
-    $access[] = [
-        'siteId' => $id,
-        'accessCode' => 'U' . $currentUserId,
-        'role' => 'OWNER',
-        'createdBy' => $currentUserId,
-        'createdAt' => $now,
-        'updatedAt' => $now,
-        'updatedBy' => $currentUserId,
-    ];
-    sb_write_access($access);
-
     /*
-    * Удаляем точечные права страниц удалённого сайта.
-    */
-    sb_db_execute("
-    DELETE FROM sitebuilder.page_access
-    WHERE site_id = :site_id
-    ", [
-    ':site_id' => $id,
-    ]);
+     * PostgreSQL-сущности сохраняются независимо от доступности внешних
+     * сервисов. Создание группы и папки Диска выполняет transactional outbox.
+     */
+    sb_write_sites([$site]);
+    $site = RevisionService::getSite($id, false) ?? $site;
+
+    $defaultLayout = sb_layout_default_record($id);
+    $defaultLayout['createdBy'] = $currentUserId;
+    $defaultLayout['createdAt'] = $now;
+    $defaultLayout['updatedBy'] = $currentUserId;
+    $defaultLayout['updatedAt'] = $now;
+    $defaultLayout['version'] = 1;
+    sb_write_layouts([$defaultLayout]);
+
+    sb_set_access_role(
+        $id,
+        'U' . $currentUserId,
+        'OWNER',
+        $currentUserId,
+        [
+            'allowOwnerAssignment' => true,
+            'allowOwnerDowngrade' => true,
+        ]
+    );
+
+    $provisioningJobs = OutboxService::enqueueSiteProvisioning($id, $currentUserId);
 
     sb_json_ok([
         'site' => $site,
-        'bitrixGroupId' => $bitrixGroupId,
-        'bitrixGroupError' => $bitrixGroupError,
+        'provisioningQueued' => true,
+        'provisioningJobs' => $provisioningJobs,
         'handler' => 'site',
-        'file' => __FILE__,
     ]);
 }
 
@@ -620,8 +648,9 @@ if ($action === 'site.update') {
     }
 
     sb_site_handler_require_editor($siteId);
+    $expectedVersion = RevisionService::requireExpectedVersion($_POST['expectedVersion'] ?? null);
 
-    $site = sb_find_site($siteId);
+    $site = RevisionService::getSite($siteId, false);
     if (!$site) {
         sb_json_error('SITE_NOT_FOUND', 404);
     }
@@ -678,39 +707,25 @@ if ($action === 'site.update') {
         $accent = '#2563eb';
     }
 
-    $updated = null;
+    $settings = isset($site['settings']) && is_array($site['settings']) ? $site['settings'] : [];
+    $settings['containerWidth'] = $containerWidth;
+    $settings['accent'] = $accent;
+    $settings['logoFileId'] = $logoFileId;
 
-    foreach ($sites as &$s) {
-        if ((int)($s['id'] ?? 0) !== $siteId) {
-            continue;
-        }
+    $site['name'] = $name;
+    $site['slug'] = $slug;
+    $site['settings'] = $settings;
 
-        $settings = isset($s['settings']) && is_array($s['settings']) ? $s['settings'] : [];
-        $settings['containerWidth'] = $containerWidth;
-        $settings['accent'] = $accent;
-        $settings['logoFileId'] = $logoFileId;
-
-        $s['name'] = $name;
-        $s['slug'] = $slug;
-        $s['settings'] = $settings;
-        $s['updatedAt'] = date('c');
-        $s['updatedBy'] = (int)$USER->GetID();
-
-        $updated = $s;
-        break;
-    }
-    unset($s);
-
-    if (!$updated) {
-        sb_json_error('SITE_NOT_FOUND', 404);
-    }
-
-    sb_write_sites($sites);
+    $updated = RevisionService::saveSite(
+        $site,
+        $expectedVersion,
+        (int)$USER->GetID(),
+        'settings_update'
+    );
 
     sb_json_ok([
         'site' => $updated,
         'handler' => 'site',
-        'file' => __FILE__,
     ]);
 }
 
@@ -723,70 +738,44 @@ if ($action === 'site.delete') {
 
     sb_site_handler_require_owner($id);
 
-    $sites = sb_read_sites();
-    $before = count($sites);
-
-    $sites = array_values(array_filter($sites, static function ($s) use ($id) {
-        return (int)($s['id'] ?? 0) !== $id;
-    }));
-
-    if (count($sites) === $before) {
-        sb_json_error('NOT_FOUND', 404);
-    }
-
-    sb_write_sites($sites);
-
-    $pages = sb_read_pages();
-    $deletedPageIds = [];
-
-    foreach ($pages as $p) {
-        if ((int)($p['siteId'] ?? 0) === $id) {
-            $deletedPageIds[(int)($p['id'] ?? 0)] = true;
+    try {
+        $result = SiteDeletionService::delete($id, (int)$USER->GetID());
+    } catch (SiteBuilderResourceBusyException $e) {
+        sb_json_error('RESOURCE_BUSY', 423, $e->context());
+    } catch (PDOException $e) {
+        $sqlState = sb_db_exception_sqlstate($e);
+        if ($sqlState === '55P03') {
+            sb_json_error('RESOURCE_BUSY', 423);
         }
-    }
+        if ($sqlState === '40P01' || $sqlState === '40001') {
+            sb_json_error('RETRY_TRANSACTION', 409);
+        }
+        throw $e;
+    } catch (RuntimeException $e) {
+        if ($e->getMessage() === 'SITE_NOT_FOUND') {
+            sb_json_error('NOT_FOUND', 404);
+        }
 
-    $pages = array_values(array_filter($pages, static function ($p) use ($id) {
-        return (int)($p['siteId'] ?? 0) !== $id;
-    }));
-    sb_write_pages($pages);
+        error_log('SiteBuilder site.delete failed: ' . $e->getMessage());
 
-    $blocks = sb_read_blocks();
-    $blocks = array_values(array_filter($blocks, static function ($b) use ($deletedPageIds) {
-        return !isset($deletedPageIds[(int)($b['pageId'] ?? 0)]);
-    }));
-    sb_write_blocks($blocks);
+        sb_json_error('SITE_DELETE_FAILED', 500, [
+            'handler' => 'site',
+        ]);
+    } catch (Throwable $e) {
+        error_log('SiteBuilder site.delete failed: ' . $e->getMessage());
 
-    $access = sb_read_access();
-    $access = array_values(array_filter($access, static function ($r) use ($id) {
-        return (int)($r['siteId'] ?? 0) !== $id;
-    }));
-    sb_write_access($access);
-
-    $menus = sb_read_menus();
-    $menus = array_values(array_filter($menus, static function ($m) use ($id) {
-        return (int)($m['siteId'] ?? 0) !== $id;
-    }));
-    sb_write_menus($menus);
-
-    if (function_exists('sb_read_templates') && function_exists('sb_write_templates')) {
-        $templates = sb_read_templates();
-        $templates = array_values(array_filter($templates, static function ($tpl) use ($id) {
-            return (int)($tpl['siteId'] ?? 0) !== $id;
-        }));
-        sb_write_templates($templates);
-    }
-
-    if (function_exists('sb_read_layouts') && function_exists('sb_write_layouts')) {
-        $layouts = sb_read_layouts();
-        $layouts = array_values(array_filter($layouts, static function ($layout) use ($id) {
-            return (int)($layout['siteId'] ?? 0) !== $id;
-        }));
-        sb_write_layouts($layouts);
+        sb_json_error('SITE_DELETE_FAILED', 500, [
+            'handler' => 'site',
+        ]);
     }
 
     sb_json_ok([
+        'deleted' => true,
+        'siteId' => $id,
+        'counts' => $result['counts'] ?? [],
+        'cleanupJobs' => $result['cleanupJobs'] ?? [],
+        'warnings' => $result['warnings'] ?? [],
         'handler' => 'site',
-        'file' => __FILE__,
     ]);
 }
 
@@ -799,145 +788,96 @@ if ($action === 'site.setHome') {
     }
 
     sb_site_handler_require_editor($siteId);
+    $expectedVersion = RevisionService::requireExpectedVersion($_POST['expectedVersion'] ?? null);
 
     $page = sb_find_page($pageId);
     if (!$page || (int)($page['siteId'] ?? 0) !== $siteId) {
         sb_json_error('PAGE_NOT_IN_SITE', 422);
     }
 
-    $sites = sb_read_sites();
-    $found = false;
-
-    foreach ($sites as $i => $s) {
-        if ((int)($s['id'] ?? 0) === $siteId) {
-            $sites[$i]['homePageId'] = $pageId;
-            $sites[$i]['updatedAt'] = date('c');
-            $sites[$i]['updatedBy'] = (int)$USER->GetID();
-            $found = true;
-            break;
-        }
-    }
-
-    if (!$found) {
+    $site = RevisionService::getSite($siteId, false);
+    if (!$site) {
         sb_json_error('SITE_NOT_FOUND', 404);
     }
-
-    sb_write_sites($sites);
+    $site['homePageId'] = $pageId;
+    $savedSite = RevisionService::saveSite(
+        $site,
+        $expectedVersion,
+        (int)$USER->GetID(),
+        'home_page_change'
+    );
 
     sb_json_ok([
+        'site' => $savedSite,
         'handler' => 'site',
-        'file' => __FILE__,
     ]);
 }
 
 if ($action === 'site.syncAccess') {
     $siteId = (int)($_POST['siteId'] ?? 0);
-
     if ($siteId <= 0) {
         sb_json_error('SITE_ID_REQUIRED', 422);
     }
-
     sb_site_handler_require_owner($siteId);
 
-    try {
-        $result = null;
-
-        if (class_exists('SiteAccessSyncService')) {
-            if (method_exists('SiteAccessSyncService', 'sync')) {
-                $result = SiteAccessSyncService::sync($siteId, (int)$USER->GetID(), true);
-            } elseif (method_exists('SiteAccessSyncService', 'syncSiteAccess')) {
-                $result = SiteAccessSyncService::syncSiteAccess($siteId, (int)$USER->GetID(), true);
-            } elseif (method_exists('SiteAccessSyncService', 'syncSite')) {
-                $result = SiteAccessSyncService::syncSite($siteId, (int)$USER->GetID(), true);
-            }
-        }
-
-        if (!is_array($result)) {
-            $result = sb_site_handler_sync_access_fallback($siteId, (int)$USER->GetID(), true);
-        }
-
-        sb_json_ok([
-            'result' => $result,
-            'handler' => 'site',
-            'action' => 'site.syncAccess',
-            'file' => __FILE__,
-        ]);
-    } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
-            'handler' => 'site',
-            'action' => 'site.syncAccess',
-            'file' => __FILE__,
-        ]);
-    }
-}
-
-if ($action === 'site.ensureGroup') {
-    $siteId = (int)($_POST['siteId'] ?? 0);
-
-    if ($siteId <= 0) {
-        sb_json_error('SITE_ID_REQUIRED', 422);
-    }
-
-    sb_site_handler_require_owner($siteId);
-
-    $site = sb_find_site($siteId);
-
+    $site = RevisionService::getSite($siteId, false);
     if (!$site) {
         sb_json_error('SITE_NOT_FOUND', 404);
     }
 
     $currentUserId = (int)$USER->GetID();
+    $jobs = [];
+    if ((int)($site['bitrixGroupId'] ?? 0) <= 0) {
+        $jobs['group'] = OutboxService::enqueueGroupEnsure($siteId, $currentUserId);
+        $jobs['sync'] = OutboxService::enqueueAccessSync($siteId, $currentUserId, 5);
+    } else {
+        $jobs['sync'] = OutboxService::enqueueAccessSync($siteId, $currentUserId);
+    }
 
-    $bitrixGroupId = sb_site_handler_get_bitrix_group_id($site);
+    sb_json_ok([
+        'queued' => true,
+        'jobs' => $jobs,
+        'handler' => 'site',
+        'action' => 'site.syncAccess',
+    ]);
+}
 
+if ($action === 'site.ensureGroup') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    if ($siteId <= 0) {
+        sb_json_error('SITE_ID_REQUIRED', 422);
+    }
+    sb_site_handler_require_owner($siteId);
+
+    $expectedVersion = RevisionService::requireExpectedVersion($_POST['expectedVersion'] ?? null);
+    $site = RevisionService::getSite($siteId, false);
+    if (!$site) {
+        sb_json_error('SITE_NOT_FOUND', 404);
+    }
+    RevisionService::assertExpected($site, $expectedVersion, RevisionService::ENTITY_SITE);
+
+    $bitrixGroupId = (int)($site['bitrixGroupId'] ?? 0);
     if ($bitrixGroupId > 0) {
         sb_json_ok([
             'site' => $site,
             'bitrixGroupId' => $bitrixGroupId,
             'created' => false,
+            'queued' => false,
             'handler' => 'site',
             'action' => 'site.ensureGroup',
-            'file' => __FILE__,
         ]);
     }
 
-    if (!class_exists('SiteBitrixGroupService')) {
-        sb_json_error('SiteBitrixGroupService.php не подключен', 500, [
-            'handler' => 'site',
-            'action' => 'site.ensureGroup',
-            'file' => __FILE__,
-        ]);
-    }
-
-    try {
-        $bitrixGroupId = (int)SiteBitrixGroupService::createForSite([
-            'id' => $siteId,
-            'name' => (string)($site['name'] ?? ('Сайт #' . $siteId)),
-        ], $currentUserId);
-
-        if ($bitrixGroupId <= 0) {
-            throw new RuntimeException('BITRIX_GROUP_CREATE_EMPTY_ID');
-        }
-
-        sb_site_handler_update_bitrix_group_fields($siteId, $bitrixGroupId, $currentUserId);
-
-        $site = sb_find_site($siteId);
-
-        sb_json_ok([
-            'site' => $site,
-            'bitrixGroupId' => $bitrixGroupId,
-            'created' => true,
-            'handler' => 'site',
-            'action' => 'site.ensureGroup',
-            'file' => __FILE__,
-        ]);
-    } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
-            'handler' => 'site',
-            'action' => 'site.ensureGroup',
-            'file' => __FILE__,
-        ]);
-    }
+    $job = OutboxService::enqueueGroupEnsure($siteId, (int)$USER->GetID());
+    sb_json_ok([
+        'site' => $site,
+        'bitrixGroupId' => 0,
+        'created' => false,
+        'queued' => true,
+        'job' => $job,
+        'handler' => 'site',
+        'action' => 'site.ensureGroup',
+    ]);
 }
 
 if ($action === 'site.accessList') {
@@ -958,14 +898,9 @@ if ($action === 'site.accessList') {
             'items' => SiteAccessManagementService::list($siteId),
             'handler' => 'site',
             'action' => 'site.accessList',
-            'file' => __FILE__,
         ]);
     } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
-            'handler' => 'site',
-            'action' => 'site.accessList',
-            'file' => __FILE__,
-        ]);
+        sb_site_handler_handle_exception($e, 'site.accessList');
     }
 }
 
@@ -1005,14 +940,9 @@ if ($action === 'site.accessSet') {
             'items' => $result['items'] ?? [],
             'handler' => 'site',
             'action' => 'site.accessSet',
-            'file' => __FILE__,
         ]);
     } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
-            'handler' => 'site',
-            'action' => 'site.accessSet',
-            'file' => __FILE__,
-        ]);
+        sb_site_handler_handle_exception($e, 'site.accessSet');
     }
 }
 
@@ -1046,14 +976,9 @@ if ($action === 'site.accessRemove') {
             'items' => $result['items'] ?? [],
             'handler' => 'site',
             'action' => 'site.accessRemove',
-            'file' => __FILE__,
         ]);
     } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
-            'handler' => 'site',
-            'action' => 'site.accessRemove',
-            'file' => __FILE__,
-        ]);
+        sb_site_handler_handle_exception($e, 'site.accessRemove');
     }
 }
 
@@ -1073,14 +998,9 @@ if ($action === 'site.appearanceGet') {
             'appearance' => $appearance,
             'handler' => 'site',
             'action' => $action,
-            'file' => __FILE__,
         ]);
     } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
-            'handler' => 'site',
-            'action' => $action,
-            'file' => __FILE__,
-        ]);
+        sb_site_handler_handle_exception($e, $action);
     }
 }
 
@@ -1098,25 +1018,29 @@ if ($action === 'site.appearanceUpdate') {
     try {
         $data = $_POST;
 
-        unset($data['action'], $data['sessid'], $data['siteId']);
+        unset($data['action'], $data['sessid'], $data['siteId'], $data['expectedVersion']);
 
         $appearance = SiteAppearanceService::update(
             $siteId,
             $data,
-            (int)$USER->GetID()
+            (int)$USER->GetID(),
+            RevisionService::requireExpectedVersion($_POST['expectedVersion'] ?? null)
         );
 
         sb_json_ok([
             'appearance' => $appearance,
             'handler' => 'site',
             'action' => $action,
-            'file' => __FILE__,
         ]);
+    } catch (SiteBuilderVersionConflictException $e) {
+        throw $e;
+    } catch (InvalidArgumentException $e) {
+        throw $e;
     } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
+        error_log('SiteBuilder site.appearanceUpdate failed: ' . $e->getMessage());
+        sb_json_error('SITE_APPEARANCEUPDATE_FAILED', 500, [
             'handler' => 'site',
             'action' => $action,
-            'file' => __FILE__,
         ]);
     }
 }
@@ -1148,20 +1072,24 @@ if ($action === 'site.appearanceUpload') {
             $siteId,
             $type,
             $file,
-            (int)$USER->GetID()
+            (int)$USER->GetID(),
+            RevisionService::requireExpectedVersion($_POST['expectedVersion'] ?? null)
         );
 
         sb_json_ok([
             'appearance' => $appearance,
             'handler' => 'site',
             'action' => $action,
-            'file' => __FILE__,
         ]);
+    } catch (SiteBuilderVersionConflictException $e) {
+        throw $e;
+    } catch (InvalidArgumentException $e) {
+        throw $e;
     } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
+        error_log('SiteBuilder site.appearanceUpload failed: ' . $e->getMessage());
+        sb_json_error('SITE_APPEARANCEUPLOAD_FAILED', 500, [
             'handler' => 'site',
             'action' => $action,
-            'file' => __FILE__,
         ]);
     }
 }
@@ -1186,20 +1114,24 @@ if ($action === 'site.appearanceRemove') {
         $appearance = SiteAppearanceService::remove(
             $siteId,
             $type,
-            (int)$USER->GetID()
+            (int)$USER->GetID(),
+            RevisionService::requireExpectedVersion($_POST['expectedVersion'] ?? null)
         );
 
         sb_json_ok([
             'appearance' => $appearance,
             'handler' => 'site',
             'action' => $action,
-            'file' => __FILE__,
         ]);
+    } catch (SiteBuilderVersionConflictException $e) {
+        throw $e;
+    } catch (InvalidArgumentException $e) {
+        throw $e;
     } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
+        error_log('SiteBuilder site.appearanceRemove failed: ' . $e->getMessage());
+        sb_json_error('SITE_APPEARANCEREMOVE_FAILED', 500, [
             'handler' => 'site',
             'action' => $action,
-            'file' => __FILE__,
         ]);
     }
 }
@@ -1207,5 +1139,4 @@ if ($action === 'site.appearanceRemove') {
 sb_json_error('NOT_MOVED_YET', 501, [
     'handler' => 'site',
     'action' => $action,
-    'file' => __FILE__,
 ]);

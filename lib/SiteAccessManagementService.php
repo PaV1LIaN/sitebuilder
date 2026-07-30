@@ -2,6 +2,8 @@
 
 use Bitrix\Main\Loader;
 
+require_once __DIR__ . '/OutboxService.php';
+
 class SiteAccessManagementService
 {
     public static function list(int $siteId): array
@@ -70,40 +72,32 @@ class SiteAccessManagementService
 
         $role = self::normalizeRole($role);
         $accessCode = 'U' . $targetUserId;
-        $access = sb_read_access();
-        $now = date('c');
 
-        $found = false;
+        $saveResult = sb_set_access_role(
+            $siteId,
+            $accessCode,
+            $role,
+            $currentUserId,
+            [
+                'allowOwnerAssignment' => true,
+                'allowOwnerDowngrade' => true,
+                'protectLastOwner' => true,
+            ]
+        );
 
-        foreach ($access as &$row) {
-            if (
-                (int)($row['siteId'] ?? 0) === $siteId
-                && (string)($row['accessCode'] ?? '') === $accessCode
-            ) {
-                $row['role'] = $role;
-                $row['updatedAt'] = $now;
-                $row['updatedBy'] = $currentUserId;
-                $found = true;
-                break;
-            }
-        }
-        unset($row);
+        $found = !empty($saveResult['updated']);
 
-        if (!$found) {
-            $access[] = [
-                'siteId' => $siteId,
-                'accessCode' => $accessCode,
-                'role' => $role,
-                'createdBy' => $currentUserId,
-                'createdAt' => $now,
-                'updatedAt' => $now,
-                'updatedBy' => $currentUserId,
-            ];
-        }
-
-        sb_write_access($access);
-
-        $groupSync = self::syncUserToBitrixGroup($siteId, $targetUserId, $role, $currentUserId);
+        $groupJob = OutboxService::enqueueGroupMemberReconcile(
+            $siteId,
+            $targetUserId,
+            $currentUserId
+        );
+        $groupSync = [
+            'ok' => true,
+            'queued' => true,
+            'jobId' => (int)$groupJob['id'],
+            'jobType' => (string)$groupJob['jobType'],
+        ];
 
         return [
             'siteId' => $siteId,
@@ -132,49 +126,29 @@ class SiteAccessManagementService
         }
 
         $accessCode = 'U' . $targetUserId;
-        $access = sb_read_access();
 
-        $targetRole = null;
-        $ownerCount = 0;
+        $deletedRow = sb_delete_access_row(
+            $siteId,
+            $accessCode,
+            [
+                'allowOwnerRemoval' => true,
+                'protectLastOwner' => true,
+            ]
+        );
 
-        foreach ($access as $row) {
-            if ((int)($row['siteId'] ?? 0) !== $siteId) {
-                continue;
-            }
+        $removed = $deletedRow !== null;
 
-            $role = (string)($row['role'] ?? '');
-
-            if ($role === 'OWNER') {
-                $ownerCount++;
-            }
-
-            if ((string)($row['accessCode'] ?? '') === $accessCode) {
-                $targetRole = $role;
-            }
-        }
-
-        if ($targetRole === 'OWNER' && $ownerCount <= 1) {
-            throw new RuntimeException('LAST_OWNER_CANNOT_BE_REMOVED');
-        }
-
-        $next = [];
-        $removed = false;
-
-        foreach ($access as $row) {
-            if (
-                (int)($row['siteId'] ?? 0) === $siteId
-                && (string)($row['accessCode'] ?? '') === $accessCode
-            ) {
-                $removed = true;
-                continue;
-            }
-
-            $next[] = $row;
-        }
-
-        sb_write_access($next);
-
-        $groupSync = self::removeUserFromBitrixGroup($siteId, $targetUserId, $currentUserId);
+        $groupJob = OutboxService::enqueueGroupMemberReconcile(
+            $siteId,
+            $targetUserId,
+            $currentUserId
+        );
+        $groupSync = [
+            'ok' => true,
+            'queued' => true,
+            'jobId' => (int)$groupJob['id'],
+            'jobType' => (string)$groupJob['jobType'],
+        ];
 
         return [
             'siteId' => $siteId,
@@ -184,6 +158,61 @@ class SiteAccessManagementService
             'groupSync' => $groupSync,
             'items' => self::list($siteId),
         ];
+    }
+
+    /**
+     * Приводит членство пользователя в рабочей группе к текущей прямой роли
+     * SiteBuilder. Метод вызывается только worker-ом после COMMIT.
+     */
+    public static function reconcileUserMembership(
+        int $siteId,
+        int $targetUserId,
+        int $actorUserId
+    ): array {
+        if ($siteId <= 0 || $targetUserId <= 0) {
+            throw new InvalidArgumentException('INVALID_GROUP_MEMBER_RECONCILE_TARGET');
+        }
+
+        $groupId = self::getSiteBitrixGroupId($siteId);
+        if ($groupId <= 0) {
+            throw new RuntimeException('BITRIX_GROUP_NOT_READY');
+        }
+
+        $row = sb_db_fetch_one("
+            SELECT role
+            FROM sitebuilder.access
+            WHERE site_id=:site_id AND access_code=:access_code
+            LIMIT 1
+        ", [
+            ':site_id' => $siteId,
+            ':access_code' => 'U' . $targetUserId,
+        ]);
+
+        $role = strtoupper(trim((string)($row['role'] ?? '')));
+        if ($role === '') {
+            $result = self::removeUserFromBitrixGroup(
+                $siteId,
+                $targetUserId,
+                $actorUserId
+            );
+        } else {
+            $result = self::syncUserToBitrixGroup(
+                $siteId,
+                $targetUserId,
+                self::normalizeRole($role),
+                $actorUserId
+            );
+        }
+
+        if (empty($result['ok']) && empty($result['skipped'])) {
+            $errorCode = strtoupper(trim((string)($result['error'] ?? 'GROUP_MEMBER_RECONCILE_FAILED')));
+            if (!preg_match('/^[A-Z][A-Z0-9_]{2,119}$/', $errorCode)) {
+                $errorCode = 'GROUP_MEMBER_RECONCILE_FAILED';
+            }
+            throw new RuntimeException($errorCode);
+        }
+
+        return $result;
     }
 
     protected static function normalizeRole(string $role): string

@@ -21,6 +21,9 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
     $context->currentUserId
 );
 
+$block = BlockRepository::getById($context->blockId);
+
 DiskResponse::success([
     'settings' => $settings,
+    'blockVersion' => max(1, (int)($block['version'] ?? 1)),
 ]);

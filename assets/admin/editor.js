@@ -1509,8 +1509,18 @@
         var block = getCurrentBlock();
         if (!block) return;
 
+        var duplicateVersions = {};
+        (state.blocks || []).forEach(function (item) {
+            var itemId = Number((item && item.id) || 0);
+            if (itemId > 0) {
+                duplicateVersions[itemId] = Math.max(1, Number((item && item.version) || 1));
+            }
+        });
+
         await api('block.duplicate', {
-            id: block.id
+            id: Number(block.id || 0),
+            expectedVersion: Math.max(1, Number(block.version || 1)),
+            expectedVersions: JSON.stringify(duplicateVersions)
         });
 
         await loadBlocks();
@@ -1598,7 +1608,8 @@
 
         try {
             var res = await api('site.ensureGroup', {
-                siteId: siteId
+                siteId: siteId,
+                expectedVersion: Number((state.site && state.site.version) || 1)
             });
 
             state.site = res.site || state.site;
@@ -1606,7 +1617,9 @@
             renderBitrixGroupPanel();
 
             if (resultNode) {
-                resultNode.textContent = JSON.stringify(res, null, 2);
+                resultNode.textContent = res.queued
+                    ? 'Создание рабочей группы поставлено в очередь. Задание #' + Number((res.job && res.job.id) || 0)
+                    : JSON.stringify(res, null, 2);
             }
         } catch (e) {
             if (resultNode) {
@@ -1624,10 +1637,11 @@
             });
 
             if (resultNode) {
-                resultNode.textContent = JSON.stringify(res, null, 2);
+                var syncJob = res.jobs && res.jobs.sync ? res.jobs.sync : null;
+                resultNode.textContent = res.queued
+                    ? 'Синхронизация прав поставлена в очередь. Задание #' + Number((syncJob && syncJob.id) || 0)
+                    : JSON.stringify(res, null, 2);
             }
-
-            await loadAccessList();
         } catch (e) {
             if (resultNode) {
                 resultNode.textContent = JSON.stringify(e, null, 2);
@@ -1889,7 +1903,9 @@
             var syncText = '';
 
             if (groupSync) {
-                if (groupSync.ok) {
+                if (groupSync.queued) {
+                    syncText = '\nСинхронизация с группой Битрикс24 поставлена в очередь (задание #' + Number(groupSync.jobId || 0) + ').';
+                } else if (groupSync.ok) {
                     syncText = '\nПользователь также синхронизирован с группой Битрикс24.';
                 } else if (groupSync.error) {
                     syncText = '\nНо с группой Битрикс24 не синхронизировался: ' + groupSync.error;
@@ -1924,7 +1940,11 @@
             state.accessItems = Array.isArray(res.items) ? res.items : [];
             renderAccessList();
 
-            setAccessMessage('Доступ удалён', 'success');
+            var groupSync = res.result && res.result.groupSync ? res.result.groupSync : null;
+            var queuedText = groupSync && groupSync.queued
+                ? ' Синхронизация с группой поставлена в очередь (задание #' + Number(groupSync.jobId || 0) + ').'
+                : '';
+            setAccessMessage('Доступ удалён.' + queuedText, 'success');
         } catch (e) {
             setAccessMessage('Ошибка удаления доступа: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
         }

@@ -55,7 +55,8 @@ async function ensureBitrixGroup() {
 
     try {
         var res = await api('site.ensureGroup', {
-            siteId: siteId
+            siteId: siteId,
+            expectedVersion: Number((state.site && state.site.version) || 1)
         });
 
         state.site = res.site || state.site;
@@ -63,7 +64,9 @@ async function ensureBitrixGroup() {
         renderBitrixGroupPanel();
 
         if (resultNode) {
-            resultNode.textContent = JSON.stringify(res, null, 2);
+            resultNode.textContent = res.queued
+                ? 'Создание рабочей группы поставлено в очередь. Задание #' + Number((res.job && res.job.id) || 0)
+                : JSON.stringify(res, null, 2);
         }
     } catch (e) {
         if (resultNode) {
@@ -81,10 +84,11 @@ async function syncAccess() {
         });
 
         if (resultNode) {
-            resultNode.textContent = JSON.stringify(res, null, 2);
+            var syncJob = res.jobs && res.jobs.sync ? res.jobs.sync : null;
+            resultNode.textContent = res.queued
+                ? 'Синхронизация прав поставлена в очередь. Задание #' + Number((syncJob && syncJob.id) || 0)
+                : JSON.stringify(res, null, 2);
         }
-
-        await loadAccessList();
     } catch (e) {
         if (resultNode) {
             resultNode.textContent = JSON.stringify(e, null, 2);
@@ -346,7 +350,9 @@ async function grantAccessRole() {
         var syncText = '';
 
         if (groupSync) {
-            if (groupSync.ok) {
+            if (groupSync.queued) {
+                syncText = '\nСинхронизация с группой Битрикс24 поставлена в очередь (задание #' + Number(groupSync.jobId || 0) + ').';
+            } else if (groupSync.ok) {
                 syncText = '\nПользователь также синхронизирован с группой Битрикс24.';
             } else if (groupSync.error) {
                 syncText = '\nНо с группой Битрикс24 не синхронизировался: ' + groupSync.error;

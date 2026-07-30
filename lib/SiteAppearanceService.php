@@ -25,11 +25,11 @@ class SiteAppearanceService
     {
         $site = self::getSiteOrFail($siteId);
         $settings = self::normalizeAppearanceSettings($site['settings'] ?? []);
-
+        $settings['siteVersion'] = max(1, (int)($site['version'] ?? 1));
         return self::withUrls($settings);
     }
 
-    public static function update(int $siteId, array $data, int $currentUserId): array
+    public static function update(int $siteId, array $data, int $currentUserId, int $expectedVersion): array
     {
         $site = self::getSiteOrFail($siteId);
         $settings = self::normalizeAppearanceSettings($site['settings'] ?? []);
@@ -58,12 +58,12 @@ class SiteAppearanceService
             $settings['logoSize'] = self::normalizeLogoSize((int)$data['logoSize']);
         }
 
-        self::saveSiteSettings($siteId, $settings, $currentUserId);
-
+        $savedSite = self::saveSiteSettings($siteId, $settings, $currentUserId, $expectedVersion, 'appearance_update');
+        $settings['siteVersion'] = (int)$savedSite['version'];
         return self::withUrls($settings);
     }
 
-    public static function upload(int $siteId, string $type, array $file, int $currentUserId): array
+    public static function upload(int $siteId, string $type, array $file, int $currentUserId, int $expectedVersion): array
     {
         $type = self::normalizeAssetType($type);
 
@@ -87,18 +87,48 @@ class SiteAppearanceService
             throw new RuntimeException('FILE_SAVE_ERROR');
         }
 
-        if ($oldFileId > 0) {
-            CFile::Delete($oldFileId);
+        /*
+         * Если БД откатится, новый файл больше никому не принадлежит.
+         * Старый файл удаляем только после успешного COMMIT.
+         */
+        if (function_exists('sb_db_after_rollback')) {
+            sb_db_after_rollback(static function () use ($newFileId): void {
+                if (class_exists('CFile')) {
+                    CFile::Delete($newFileId);
+                }
+            });
         }
 
         $settings[$oldFileIdKey] = $newFileId;
 
-        self::saveSiteSettings($siteId, $settings, $currentUserId);
+        try {
+            $savedSite = self::saveSiteSettings($siteId, $settings, $currentUserId, $expectedVersion, 'appearance_upload_' . $type);
+        } catch (Throwable $e) {
+            if (empty($GLOBALS['SB_REQUEST_TRANSACTION_ACTIVE'])) {
+                CFile::Delete($newFileId);
+            }
+            throw $e;
+        }
 
+        if ($oldFileId > 0) {
+            $deleteOldFile = static function () use ($oldFileId): void {
+                if (class_exists('CFile')) {
+                    CFile::Delete($oldFileId);
+                }
+            };
+
+            if (function_exists('sb_db_after_commit')) {
+                sb_db_after_commit($deleteOldFile);
+            } else {
+                $deleteOldFile();
+            }
+        }
+
+        $settings['siteVersion'] = (int)$savedSite['version'];
         return self::withUrls($settings);
     }
 
-    public static function remove(int $siteId, string $type, int $currentUserId): array
+    public static function remove(int $siteId, string $type, int $currentUserId, int $expectedVersion): array
     {
         $type = self::normalizeAssetType($type);
 
@@ -112,14 +142,25 @@ class SiteAppearanceService
         $fileIdKey = $type === 'logo' ? 'logoFileId' : 'backgroundFileId';
         $fileId = (int)($settings[$fileIdKey] ?? 0);
 
-        if ($fileId > 0) {
-            CFile::Delete($fileId);
-        }
-
         $settings[$fileIdKey] = 0;
 
-        self::saveSiteSettings($siteId, $settings, $currentUserId);
+        $savedSite = self::saveSiteSettings($siteId, $settings, $currentUserId, $expectedVersion, 'appearance_remove_' . $type);
 
+        if ($fileId > 0) {
+            $deleteFile = static function () use ($fileId): void {
+                if (class_exists('CFile')) {
+                    CFile::Delete($fileId);
+                }
+            };
+
+            if (function_exists('sb_db_after_commit')) {
+                sb_db_after_commit($deleteFile);
+            } else {
+                $deleteFile();
+            }
+        }
+
+        $settings['siteVersion'] = (int)$savedSite['version'];
         return self::withUrls($settings);
     }
 
@@ -128,51 +169,30 @@ class SiteAppearanceService
         if ($siteId <= 0) {
             throw new RuntimeException('EMPTY_SITE_ID');
         }
-
-        if (!function_exists('sb_read_sites')) {
-            throw new RuntimeException('STORAGE_NOT_LOADED');
-        }
-
-        $sites = sb_read_sites();
-
-        foreach ($sites as $site) {
-            if ((int)($site['id'] ?? 0) === $siteId) {
-                return $site;
-            }
-        }
-
-        throw new RuntimeException('SITE_NOT_FOUND');
-    }
-
-    protected static function saveSiteSettings(int $siteId, array $settings, int $currentUserId): void
-    {
-        if (!function_exists('sb_read_sites') || !function_exists('sb_write_sites')) {
-            throw new RuntimeException('STORAGE_NOT_LOADED');
-        }
-
-        $sites = sb_read_sites();
-        $found = false;
-
-        foreach ($sites as &$site) {
-            if ((int)($site['id'] ?? 0) !== $siteId) {
-                continue;
-            }
-
-            $currentSettings = is_array($site['settings'] ?? null) ? $site['settings'] : [];
-            $site['settings'] = array_merge($currentSettings, $settings);
-            $site['updatedBy'] = $currentUserId;
-            $site['updatedAt'] = date('c');
-
-            $found = true;
-            break;
-        }
-        unset($site);
-
-        if (!$found) {
+        $site = RevisionService::getSite($siteId, false);
+        if (!$site) {
             throw new RuntimeException('SITE_NOT_FOUND');
         }
+        return $site;
+    }
 
-        sb_write_sites($sites);
+    protected static function saveSiteSettings(
+        int $siteId,
+        array $settings,
+        int $currentUserId,
+        int $expectedVersion,
+        string $operation
+    ): array {
+        $site = self::getSiteOrFail($siteId);
+        $currentSettings = is_array($site['settings'] ?? null) ? $site['settings'] : [];
+        $site['settings'] = array_merge($currentSettings, $settings);
+
+        return RevisionService::saveSite(
+            $site,
+            RevisionService::requireExpectedVersion($expectedVersion),
+            $currentUserId,
+            $operation
+        );
     }
 
     protected static function normalizeAppearanceSettings(array $settings): array

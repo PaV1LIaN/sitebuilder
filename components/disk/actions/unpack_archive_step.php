@@ -41,6 +41,7 @@ if ($rootFolderId <= 0 || $targetFolderId <= 0 || $fileId <= 0) {
 }
 
 DiskValidator::assertFolderInsideRoot($targetFolderId, $rootFolderId, $context);
+DiskValidator::assertFileInsideRoot($fileId, $rootFolderId, $context);
 
 $file = File::loadById($fileId);
 

@@ -18,6 +18,7 @@
       siteId: Number(parsed.siteId || this.root.dataset.siteId || 0),
       pageId: Number(parsed.pageId || this.root.dataset.pageId || 0),
       blockId: Number(parsed.blockId || this.root.dataset.blockId || 0),
+      blockVersion: Number(parsed.blockVersion || 1),
       rootFolderId: parsed.rootFolderId || null,
       currentFolderId: parsed.currentFolderId || null,
       settings: parsed.settings || {},
@@ -51,6 +52,7 @@
       this.state.pageId = Number(data.pageId || this.state.pageId || 0);
       this.state.blockId = Number(data.blockId || this.state.blockId || 0);
       this.state.settings = data.settings || {};
+      this.state.blockVersion = Number(data.blockVersion || this.state.blockVersion || 1);
       this.state.permissions = data.permissions || {};
       this.state.rootFolderId = data.rootFolderId || null;
       this.state.currentFolderId = data.currentFolderId || null;
@@ -2519,6 +2521,8 @@
         throw new Error((rootOptionsRes && (rootOptionsRes.message || rootOptionsRes.error)) || 'GET_ROOT_OPTIONS_ERROR');
       }
 
+      this.state.blockVersion = Number(settingsRes.data.blockVersion || this.state.blockVersion || 1);
+
       this.fillSettingsForm(
         settingsRes.data.settings || {},
         rootOptionsRes.data || {}
@@ -2704,6 +2708,7 @@
 
       var payload = this.getBasePayload();
       payload.sessid = this.getSessid();
+      payload.expectedVersion = Number(this.state.blockVersion || 1);
       payload.settings = this.collectSettingsForm();
 
       var res = await this.api('saveSettings', payload);
@@ -2712,6 +2717,7 @@
       }
 
       this.state.settings = res.data.settings || this.state.settings;
+      this.state.blockVersion = Number(res.data.blockVersion || this.state.blockVersion || 1);
       this.state.viewMode = this.state.settings.viewMode || 'table';
 
       this.applyInitialViewMode();

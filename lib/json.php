@@ -10,64 +10,151 @@ if (!function_exists('sb_data_path')) {
     }
 }
 
-if (!function_exists('sb_read_json_file')) {
-    function sb_read_json_file(string $file): array
+if (!function_exists('sb_json_ensure_directory')) {
+    function sb_json_ensure_directory(string $path): void
     {
-        $path = sb_data_path($file);
-        if (!file_exists($path)) {
+        $dir = dirname($path);
+
+        if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+            throw new RuntimeException('Cannot create JSON data directory');
+        }
+    }
+}
+
+if (!function_exists('sb_json_decode_file_unlocked')) {
+    function sb_json_decode_file_unlocked(string $path): array
+    {
+        if (!is_file($path)) {
             return [];
         }
 
-        $fp = fopen($path, 'rb');
-        if (!$fp) {
-            return [];
+        $raw = file_get_contents($path);
+        if ($raw === false) {
+            throw new RuntimeException('Cannot read JSON file');
         }
 
-        $raw = '';
-        if (flock($fp, LOCK_SH)) {
-            $raw = stream_get_contents($fp);
-            flock($fp, LOCK_UN);
-        } else {
-            $raw = stream_get_contents($fp);
-        }
-
-        fclose($fp);
-
-        // Удаляем BOM, если вдруг файл с ним
         if (strncmp($raw, "\xEF\xBB\xBF", 3) === 0) {
             $raw = substr($raw, 3);
         }
 
-        $data = json_decode((string)$raw, true);
-        return is_array($data) ? $data : [];
+        if (trim($raw) === '') {
+            return [];
+        }
+
+        $data = json_decode($raw, true);
+        if (!is_array($data)) {
+            throw new RuntimeException('Invalid JSON file');
+        }
+
+        return array_values($data);
+    }
+}
+
+if (!function_exists('sb_json_write_file_unlocked')) {
+    function sb_json_write_file_unlocked(string $path, array $data, string $errMsg): void
+    {
+        $json = json_encode(
+            array_values($data),
+            JSON_UNESCAPED_UNICODE
+            | JSON_UNESCAPED_SLASHES
+            | JSON_PRETTY_PRINT
+            | JSON_THROW_ON_ERROR
+        );
+
+        $tempPath = $path . '.tmp.' . getmypid() . '.' . bin2hex(random_bytes(4));
+        $written = file_put_contents($tempPath, $json);
+
+        if ($written === false) {
+            @unlink($tempPath);
+            throw new RuntimeException($errMsg);
+        }
+
+        @chmod($tempPath, 0664);
+
+        if (!rename($tempPath, $path)) {
+            @unlink($tempPath);
+            throw new RuntimeException($errMsg);
+        }
+    }
+}
+
+if (!function_exists('sb_read_json_file')) {
+    function sb_read_json_file(string $file): array
+    {
+        $path = sb_data_path($file);
+        sb_json_ensure_directory($path);
+
+        $lock = fopen($path . '.lock', 'c+');
+        if ($lock === false) {
+            throw new RuntimeException('Cannot open JSON lock file');
+        }
+
+        try {
+            if (!flock($lock, LOCK_SH)) {
+                throw new RuntimeException('Cannot lock ' . $file);
+            }
+
+            return sb_json_decode_file_unlocked($path);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 }
 
 if (!function_exists('sb_write_json_file')) {
     function sb_write_json_file(string $file, array $data, string $errMsg): void
     {
-        $dir = dirname(sb_data_path($file));
-        if (!is_dir($dir)) {
-            mkdir($dir, 0775, true);
-        }
-
         $path = sb_data_path($file);
-        $fp = fopen($path, 'c+');
-        if (!$fp) {
+        sb_json_ensure_directory($path);
+
+        $lock = fopen($path . '.lock', 'c+');
+        if ($lock === false) {
             throw new RuntimeException($errMsg);
         }
 
-        if (!flock($fp, LOCK_EX)) {
-            fclose($fp);
-            throw new RuntimeException('Cannot lock ' . $file);
+        try {
+            if (!flock($lock, LOCK_EX)) {
+                throw new RuntimeException('Cannot lock ' . $file);
+            }
+
+            sb_json_write_file_unlocked($path, $data, $errMsg);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+}
+
+if (!function_exists('sb_mutate_json_file')) {
+    /**
+     * Выполняет read-modify-write под одной LOCK_EX-блокировкой.
+     * Callback получает массив по ссылке и может вернуть произвольный результат.
+     */
+    function sb_mutate_json_file(string $file, callable $mutator, string $errMsg = 'Cannot update JSON file')
+    {
+        $path = sb_data_path($file);
+        sb_json_ensure_directory($path);
+
+        $lock = fopen($path . '.lock', 'c+');
+        if ($lock === false) {
+            throw new RuntimeException($errMsg);
         }
 
-        ftruncate($fp, 0);
-        rewind($fp);
-        fwrite($fp, json_encode(array_values($data), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-        fflush($fp);
-        flock($fp, LOCK_UN);
-        fclose($fp);
+        try {
+            if (!flock($lock, LOCK_EX)) {
+                throw new RuntimeException('Cannot lock ' . $file);
+            }
+
+            $data = sb_json_decode_file_unlocked($path);
+            $result = $mutator($data);
+            sb_json_write_file_unlocked($path, $data, $errMsg);
+
+            return $result;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 }
 

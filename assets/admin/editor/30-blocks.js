@@ -1084,14 +1084,6 @@ async function createBlock(type) {
             await assignBlockToSection(createdBlockId, targetSectionId, targetColumn);
         }
 
-        if (isTableBlock) {
-            await api('block.update', {
-                id: createdBlockId,
-                content: JSON.stringify(content),
-                props: JSON.stringify(props)
-            });
-        }
-
         state.currentBlockId = createdBlockId;
         await loadBlocks();
     }
@@ -1107,14 +1099,19 @@ async function saveBlock() {
         return;
     }
 
-    await api('block.update', {
-        id: block.id,
+    var res = await api('block.update', {
+        id: Number(block.id || 0),
         content: JSON.stringify(collected.content),
-        props: JSON.stringify(collected.props)
+        props: JSON.stringify(collected.props),
+        expectedVersion: entityVersion(block)
     });
 
-    await saveBlockPlacement(block);
+    var savedBlock = res.block || block;
+    if (res.block) {
+        replaceStateBlock(res.block);
+    }
 
+    await saveBlockPlacement(savedBlock);
     await loadBlocks();
 }
 
@@ -1123,7 +1120,9 @@ async function duplicateBlock() {
     if (!block) return;
 
     await api('block.duplicate', {
-        id: block.id
+        id: Number(block.id || 0),
+        expectedVersion: entityVersion(block),
+        expectedVersions: JSON.stringify(buildVersionMap(state.blocks))
     });
 
     await loadBlocks();
@@ -1135,7 +1134,8 @@ async function deleteBlock() {
     if (!confirm('Удалить блок?')) return;
 
     await api('block.delete', {
-        id: block.id
+        id: Number(block.id || 0),
+        expectedVersion: entityVersion(block)
     });
 
     state.currentBlockId = 0;
@@ -1146,9 +1146,24 @@ async function moveBlock(dir) {
     var block = getCurrentBlock();
     if (!block) return;
 
+    var siblings = state.blocks.slice().sort(function (a, b) {
+        var sortCmp = Number(a.sort || 0) - Number(b.sort || 0);
+        return sortCmp !== 0 ? sortCmp : Number(a.id || 0) - Number(b.id || 0);
+    });
+    var position = siblings.findIndex(function (item) {
+        return Number(item.id || 0) === Number(block.id || 0);
+    });
+    var targetPosition = dir === 'up' ? position - 1 : position + 1;
+    var involved = [block];
+
+    if (siblings[targetPosition]) {
+        involved.push(siblings[targetPosition]);
+    }
+
     await api('block.move', {
-        id: block.id,
-        dir: dir
+        id: Number(block.id || 0),
+        dir: dir,
+        expectedVersions: JSON.stringify(buildVersionMap(involved))
     });
 
     await loadBlocks();

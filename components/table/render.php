@@ -1,6 +1,8 @@
 <?php
 global $USER;
 
+$blockId = (int)($block['id'] ?? 0);
+$blockVersion = max(1, (int)($block['version'] ?? 1));
 $title = trim((string)($content['title'] ?? ''));
 
 $columns = is_array($content['columns'] ?? null) ? $content['columns'] : [];
@@ -450,6 +452,7 @@ $renderViewCell = static function (array $column, array $row) use ($valueToText,
     <?php if ($isEditMode): ?>
         data-public-editable-table
         data-block-id="<?= $blockId ?>"
+        data-block-version="<?= $blockVersion ?>"
         data-content="<?= sb_public_h((string)$contentJson) ?>"
         data-props="<?= sb_public_h((string)$propsJson) ?>"
     <?php endif; ?>

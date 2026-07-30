@@ -4,9 +4,38 @@ use Bitrix\Main\Loader;
 
 class SiteAccessSyncService
 {
+    /**
+     * Основная точка входа, которую вызывает API site.syncAccess.
+     */
+    public static function sync(
+        int $siteId,
+        int $currentUserId,
+        bool $strict = true
+    ): array {
+        if ($siteId <= 0) {
+            throw new RuntimeException('EMPTY_SITE_ID');
+        }
+
+        if (!function_exists('sb_find_site')) {
+            throw new RuntimeException('SITEBUILDER_SITE_REPOSITORY_NOT_FOUND');
+        }
+
+        $site = sb_find_site($siteId);
+
+        if (!is_array($site)) {
+            throw new RuntimeException('SITE_NOT_FOUND');
+        }
+
+        return self::syncSiteAccessFromBitrixGroup(
+            $site,
+            $currentUserId,
+            $strict
+        );
+    }
+
     public static function syncSiteAccessFromBitrixGroup(array $site, int $currentUserId, bool $strict = true): array
     {
-        if (!function_exists('sb_read_access') || !function_exists('sb_write_access')) {
+        if (!function_exists('sb_add_access_role_if_missing')) {
             throw new RuntimeException('SITEBUILDER_ACCESS_STORAGE_FUNCTIONS_NOT_FOUND');
         }
 
@@ -55,88 +84,31 @@ class SiteAccessSyncService
             }
         }
 
-        $access = sb_read_access();
-        $nextAccess = [];
-
         $created = 0;
         $updated = 0;
         $removed = 0;
         $kept = 0;
 
-        $existingTargetCodes = [];
-        $now = date('c');
+        foreach ($targetAccess as $accessCode => $role) {
+            $saveResult = sb_add_access_role_if_missing(
+                $siteId,
+                $accessCode,
+                $role,
+                $currentUserId
+            );
 
-        foreach ($access as $row) {
-            $rowSiteId = (int)($row['siteId'] ?? 0);
-
-            if ($rowSiteId !== $siteId) {
-                $nextAccess[] = $row;
-                continue;
-            }
-
-            $accessCode = (string)($row['accessCode'] ?? '');
-
-            if ($accessCode === '') {
-                continue;
-            }
-
-            if (!preg_match('/^U\d+$/', $accessCode)) {
-                $nextAccess[] = $row;
-                $kept++;
-                continue;
-            }
-
-            if (!isset($targetAccess[$accessCode])) {
-                if ($strict) {
-                    $removed++;
-                    continue;
-                }
-
-                $nextAccess[] = $row;
-                $kept++;
-                continue;
-            }
-
-            $newRole = $targetAccess[$accessCode];
-            $oldRole = (string)($row['role'] ?? '');
-
-            if ($oldRole !== $newRole) {
-                $row['role'] = $newRole;
-                $row['updatedAt'] = $now;
-                $row['updatedBy'] = $currentUserId;
-                $updated++;
+            if (!empty($saveResult['created'])) {
+                $created++;
             } else {
                 $kept++;
             }
-
-            $nextAccess[] = $row;
-            $existingTargetCodes[$accessCode] = true;
         }
-
-        foreach ($targetAccess as $accessCode => $role) {
-            if (isset($existingTargetCodes[$accessCode])) {
-                continue;
-            }
-
-            $nextAccess[] = [
-                'siteId' => $siteId,
-                'accessCode' => $accessCode,
-                'role' => $role,
-                'createdBy' => $currentUserId,
-                'createdAt' => $now,
-                'updatedAt' => $now,
-                'updatedBy' => $currentUserId,
-            ];
-
-            $created++;
-        }
-
-        sb_write_access($nextAccess);
 
         return [
             'siteId' => $siteId,
             'bitrixGroupId' => $groupId,
-            'strict' => $strict,
+            'strictRequested' => $strict,
+            'strictApplied' => false,
             'created' => $created,
             'updated' => $updated,
             'removed' => $removed,

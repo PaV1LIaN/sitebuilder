@@ -153,6 +153,35 @@ if ($action === 'block.create') {
         sb_json_error('TYPE_REQUIRED', 422);
     }
 
+    $content = sb_default_block_content($type);
+    $props = [];
+
+    $contentRaw = $_POST['content'] ?? null;
+    if ($contentRaw !== null) {
+        $decodedContent = is_array($contentRaw)
+            ? $contentRaw
+            : json_decode((string)$contentRaw, true);
+
+        if (!is_array($decodedContent)) {
+            sb_json_error('BAD_CONTENT_JSON', 422);
+        }
+
+        $content = $decodedContent;
+    }
+
+    $propsRaw = $_POST['props'] ?? null;
+    if ($propsRaw !== null) {
+        $decodedProps = is_array($propsRaw)
+            ? $propsRaw
+            : json_decode((string)$propsRaw, true);
+
+        if (!is_array($decodedProps)) {
+            sb_json_error('BAD_PROPS_JSON', 422);
+        }
+
+        $props = $decodedProps;
+    }
+
     $pageContext = sb_block_handler_get_page($pageId);
 
     $currentUserId =
@@ -174,8 +203,8 @@ if ($action === 'block.create') {
             $pageId,
             $blocks
         ),
-        'content' => sb_default_block_content($type),
-        'props' => [],
+        'content' => $content,
+        'props' => $props,
         'createdBy' => $currentUserId,
         'createdAt' => date('c'),
         'updatedAt' => date('c'),
@@ -184,7 +213,7 @@ if ($action === 'block.create') {
 
     $blocks[] = $block;
 
-    sb_write_blocks($blocks);
+    sb_write_blocks([$block]);
 
     sb_json_ok([
         'block' => sb_normalize_block_record(
@@ -279,49 +308,33 @@ if ($action === 'block.update') {
         }
     }
 
-    $blocks = sb_read_blocks();
-    $updated = null;
+    $updated = $block;
 
-    foreach ($blocks as &$currentBlock) {
-        if (
-            (int)($currentBlock['id'] ?? 0)
-            !== $id
-        ) {
-            continue;
-        }
-
-        if ($newType !== null) {
-            $currentBlock['type'] = $newType;
-        }
-
-        if ($newContent !== null) {
-            $currentBlock['content'] = $newContent;
-        }
-
-        if ($newProps !== null) {
-            $currentBlock['props'] = $newProps;
-        }
-
-        $currentBlock['updatedAt'] = date('c');
-        $currentBlock['updatedBy'] =
-            $currentUserId;
-
-        $updated = $currentBlock;
-
-        break;
-    }
-    unset($currentBlock);
-
-    if (!$updated) {
-        sb_json_error('BLOCK_NOT_FOUND', 404);
+    if ($newType !== null) {
+        $updated['type'] = $newType;
     }
 
-    sb_write_blocks($blocks);
+    if ($newContent !== null) {
+        $updated['content'] = $newContent;
+    }
+
+    if ($newProps !== null) {
+        $updated['props'] = $newProps;
+    }
+
+    $expectedVersion = RevisionService::requireExpectedVersion(
+        $_POST['expectedVersion'] ?? null
+    );
+
+    $saved = RevisionService::saveBlock(
+        $updated,
+        $expectedVersion,
+        $currentUserId,
+        'content_update'
+    );
 
     sb_json_ok([
-        'block' => sb_normalize_block_record(
-            $updated
-        ),
+        'block' => sb_normalize_block_record($saved),
     ]);
 }
 
@@ -355,27 +368,64 @@ if ($action === 'block.delete') {
         $currentUserId
     );
 
-    $blocks = sb_read_blocks();
-    $before = count($blocks);
+    $expectedVersion = RevisionService::requireExpectedVersion(
+        $_POST['expectedVersion'] ?? null
+    );
 
-    $blocks = array_values(array_filter(
-        $blocks,
-        static function ($currentBlock) use ($id) {
-            return
-                (int)($currentBlock['id'] ?? 0)
-                !== $id;
-        }
-    ));
+    $lockedBlock = RevisionService::getBlock($id, true);
 
-    if (count($blocks) === $before) {
+    if (!$lockedBlock) {
         sb_json_error('BLOCK_NOT_FOUND', 404);
     }
 
-    sb_write_blocks($blocks);
+    if ((int)$lockedBlock['pageId'] !== $pageId) {
+        sb_json_error('BLOCK_CONTEXT_CHANGED', 409, [
+            'entityType' => RevisionService::ENTITY_BLOCK,
+            'entityId' => $id,
+            'expectedVersion' => $expectedVersion,
+            'currentVersion' => (int)($lockedBlock['version'] ?? 0),
+        ]);
+    }
+
+    RevisionService::assertExpected(
+        $lockedBlock,
+        $expectedVersion,
+        RevisionService::ENTITY_BLOCK
+    );
+    RevisionService::recordDeletedBlock($lockedBlock, $currentUserId);
+
+    $stmt = sb_db()->prepare("
+        DELETE FROM sitebuilder.block
+        WHERE id = :id
+          AND page_id = :page_id
+          AND version = :version
+    ");
+    $stmt->execute([
+        ':id' => $id,
+        ':page_id' => $pageId,
+        ':version' => $expectedVersion,
+    ]);
+
+    if ($stmt->rowCount() !== 1) {
+        $latest = RevisionService::getBlock($id, false);
+
+        if ($latest) {
+            throw new SiteBuilderVersionConflictException(
+                RevisionService::ENTITY_BLOCK,
+                $id,
+                $expectedVersion,
+                (int)($latest['version'] ?? 0)
+            );
+        }
+
+        sb_json_error('BLOCK_NOT_FOUND', 404);
+    }
 
     sb_json_ok([
         'deleted' => true,
         'id' => $id,
+        'siteId' => (int)$pageContext['siteId'],
+        'pageId' => $pageId,
     ]);
 }
 
@@ -389,21 +439,28 @@ if ($action === 'block.duplicate') {
         sb_json_error('ID_REQUIRED', 422);
     }
 
-    $sourceBlock = sb_find_block($id);
+    $expectedVersion = RevisionService::requireExpectedVersion(
+        $_POST['expectedVersion'] ?? null
+    );
+    $versionMap = RevisionService::decodeVersionMap(
+        $_POST['expectedVersions'] ?? null
+    );
+
+    $sourceBlock = RevisionService::getBlock($id, true);
 
     if (!$sourceBlock) {
         sb_json_error('BLOCK_NOT_FOUND', 404);
     }
 
-    $pageId = (int)(
-        $sourceBlock['pageId'] ?? 0
+    RevisionService::assertExpected(
+        $sourceBlock,
+        $expectedVersion,
+        RevisionService::ENTITY_BLOCK
     );
 
-    $pageContext =
-        sb_block_handler_get_page($pageId);
-
-    $currentUserId =
-        sb_block_handler_current_user_id();
+    $pageId = (int)($sourceBlock['pageId'] ?? 0);
+    $pageContext = sb_block_handler_get_page($pageId);
+    $currentUserId = sb_block_handler_current_user_id();
 
     sb_block_handler_require_page_edit(
         $pageContext['siteId'],
@@ -411,51 +468,66 @@ if ($action === 'block.duplicate') {
         $currentUserId
     );
 
+    $sourceSort = (int)($sourceBlock['sort'] ?? 500);
     $blocks = sb_read_blocks();
 
-    $sourceSort = (int)(
-        $sourceBlock['sort'] ?? 500
-    );
-
     /*
-     * Освобождаем позицию сразу после
-     * копируемого блока.
+     * Освобождаем позицию после исходного блока. Каждая затронутая
+     * запись проверяется по версии, поэтому дублирование не может
+     * молча перезаписать параллельную сортировку.
      */
-    foreach ($blocks as &$currentBlock) {
+    foreach ($blocks as $currentBlock) {
         if (
-            (int)($currentBlock['pageId'] ?? 0)
-                === $pageId
-            && (int)($currentBlock['sort'] ?? 0)
-                > $sourceSort
+            (int)($currentBlock['pageId'] ?? 0) !== $pageId
+            || (int)($currentBlock['sort'] ?? 0) <= $sourceSort
         ) {
-            $currentBlock['sort'] =
-                (int)($currentBlock['sort'] ?? 0)
-                + 10;
-
-            $currentBlock['updatedAt'] = date('c');
-            $currentBlock['updatedBy'] =
-                $currentUserId;
+            continue;
         }
+
+        $currentId = (int)($currentBlock['id'] ?? 0);
+        $currentExpectedVersion = RevisionService::requireVersionFromMap(
+            $versionMap,
+            $currentId
+        );
+        $lockedBlock = RevisionService::getBlock($currentId, true);
+
+        if (!$lockedBlock || (int)$lockedBlock['pageId'] !== $pageId) {
+            sb_json_error('BLOCK_NOT_FOUND', 404, ['blockId' => $currentId]);
+        }
+
+        $lockedBlock['sort'] = (int)$lockedBlock['sort'] + 10;
+        RevisionService::saveBlock(
+            $lockedBlock,
+            $currentExpectedVersion,
+            $currentUserId,
+            'duplicate_shift'
+        );
     }
-    unset($currentBlock);
 
-    $copy = $sourceBlock;
+    $now = date('c');
+    $copy = sb_normalize_block_record([
+        'id' => RevisionService::nextEntityId(RevisionService::ENTITY_BLOCK),
+        'pageId' => $pageId,
+        'type' => (string)($sourceBlock['type'] ?? 'text'),
+        'sort' => $sourceSort + 10,
+        'content' => is_array($sourceBlock['content'] ?? null)
+            ? $sourceBlock['content']
+            : [],
+        'props' => is_array($sourceBlock['props'] ?? null)
+            ? $sourceBlock['props']
+            : [],
+        'createdBy' => $currentUserId,
+        'createdAt' => $now,
+        'updatedBy' => $currentUserId,
+        'updatedAt' => $now,
+        'version' => 1,
+    ]);
 
-    $copy['id'] = sb_next_block_id($blocks);
-    $copy['sort'] = $sourceSort + 10;
-    $copy['createdBy'] = $currentUserId;
-    $copy['createdAt'] = date('c');
-    $copy['updatedAt'] = date('c');
-    $copy['updatedBy'] = $currentUserId;
-
-    $blocks[] = $copy;
-
-    sb_write_blocks($blocks);
+    sb_write_blocks([$copy]);
+    $savedCopy = RevisionService::getBlock((int)$copy['id'], false) ?? $copy;
 
     sb_json_ok([
-        'block' => sb_normalize_block_record(
-            $copy
-        ),
+        'block' => sb_normalize_block_record($savedCopy),
     ]);
 }
 
@@ -593,31 +665,45 @@ if ($action === 'block.move') {
         $siblings[$swapPosition]['sort'] ?? 500
     );
 
-    foreach ($blocks as &$currentBlock) {
-        $currentBlockId = (int)(
-            $currentBlock['id'] ?? 0
-        );
+    $firstBlock = null;
+    $secondBlock = null;
 
+    foreach ($blocks as $currentBlock) {
+        $currentBlockId = (int)($currentBlock['id'] ?? 0);
         if ($currentBlockId === $firstId) {
-            $currentBlock['sort'] = $secondSort;
-            $currentBlock['updatedAt'] = date('c');
-            $currentBlock['updatedBy'] =
-                $currentUserId;
-        }
-
-        if ($currentBlockId === $secondId) {
-            $currentBlock['sort'] = $firstSort;
-            $currentBlock['updatedAt'] = date('c');
-            $currentBlock['updatedBy'] =
-                $currentUserId;
+            $firstBlock = $currentBlock;
+        } elseif ($currentBlockId === $secondId) {
+            $secondBlock = $currentBlock;
         }
     }
-    unset($currentBlock);
 
-    sb_write_blocks($blocks);
+    if (!$firstBlock || !$secondBlock) {
+        sb_json_error('BLOCK_NOT_FOUND_IN_PAGE', 404);
+    }
+
+    $firstBlock['sort'] = $secondSort;
+    $secondBlock['sort'] = $firstSort;
+
+    $versionMap = RevisionService::decodeVersionMap(
+        $_POST['expectedVersions'] ?? null
+    );
+
+    $firstSaved = RevisionService::saveBlock(
+        $firstBlock,
+        RevisionService::requireVersionFromMap($versionMap, $firstId),
+        $currentUserId,
+        'reorder'
+    );
+    $secondSaved = RevisionService::saveBlock(
+        $secondBlock,
+        RevisionService::requireVersionFromMap($versionMap, $secondId),
+        $currentUserId,
+        'reorder'
+    );
 
     sb_json_ok([
         'moved' => true,
+        'blocks' => [$firstSaved, $secondSaved],
     ]);
 }
 
@@ -734,36 +820,41 @@ if ($action === 'block.reorder') {
     }
 
     $blocks = sb_read_blocks();
+    $versionMap = RevisionService::decodeVersionMap(
+        $_POST['expectedVersions'] ?? null
+    );
+    $savedBlocks = [];
 
-    foreach ($blocks as &$currentBlock) {
-        $blockId = (int)(
-            $currentBlock['id'] ?? 0
-        );
+    foreach ($blocks as $currentBlock) {
+        $blockId = (int)($currentBlock['id'] ?? 0);
 
         if (
-            (int)($currentBlock['pageId'] ?? 0)
-                !== $pageId
+            (int)($currentBlock['pageId'] ?? 0) !== $pageId
             || !isset($sortMap[$blockId])
         ) {
             continue;
         }
 
-        $currentBlock['sort'] =
-            $sortMap[$blockId];
+        $newSort = (int)$sortMap[$blockId];
+        if ((int)($currentBlock['sort'] ?? 0) === $newSort) {
+            continue;
+        }
 
-        $currentBlock['updatedAt'] = date('c');
-        $currentBlock['updatedBy'] =
-            $currentUserId;
+        $currentBlock['sort'] = $newSort;
+        $savedBlocks[] = RevisionService::saveBlock(
+            $currentBlock,
+            RevisionService::requireVersionFromMap($versionMap, $blockId),
+            $currentUserId,
+            'reorder'
+        );
     }
-    unset($currentBlock);
-
-    sb_write_blocks($blocks);
 
     sb_json_ok([
         'blocks' => array_map(
             'sb_normalize_block_record',
             sb_blocks_for_page($pageId)
         ),
+        'updatedBlocks' => $savedBlocks,
     ]);
 }
 

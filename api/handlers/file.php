@@ -11,8 +11,8 @@ if ($action === 'file.list') {
     sb_require_viewer($siteId);
 
     try {
-        $folder = sb_disk_ensure_site_folder($siteId);
-        $children = sb_disk_get_children($folder);
+        $folder = sb_disk_get_site_folder($siteId);
+        $children = $folder ? sb_disk_get_children($folder) : [];
 
         $files = [];
         foreach ($children as $child) {
@@ -40,12 +40,17 @@ if ($action === 'file.list') {
 
         sb_json_ok([
             'files' => $files,
-            'folderId' => (int)$folder->getId(),
+            'folderId' => $folder ? (int)$folder->getId() : 0,
         ]);
     } catch (Throwable $e) {
-        sb_json_error('DISK_ERROR', 500, [
-            'message' => $e->getMessage(),
-        ]);
+        error_log(sprintf(
+            'SiteBuilder %s failed: %s in %s:%d',
+            $action,
+            $e->getMessage(),
+            $e->getFile(),
+            $e->getLine()
+        ));
+        sb_json_error('DISK_ERROR', 500);
     }
 }
 
@@ -77,6 +82,14 @@ if ($action === 'file.upload') {
         $folder = sb_disk_ensure_site_folder($siteId);
         $file = sb_disk_upload_file_to_folder($folder, $upload);
 
+        if (function_exists('sb_db_after_rollback')) {
+            sb_db_after_rollback(static function () use ($file): void {
+                if ($file instanceof \Bitrix\Disk\File) {
+                    sb_disk_delete_file($file);
+                }
+            });
+        }
+
         sb_json_ok([
             'file' => [
                 'id' => (int)$file->getId(),
@@ -87,9 +100,14 @@ if ($action === 'file.upload') {
             'folderId' => (int)$folder->getId(),
         ]);
     } catch (Throwable $e) {
-        sb_json_error('DISK_ERROR', 500, [
-            'message' => $e->getMessage(),
-        ]);
+        error_log(sprintf(
+            'SiteBuilder %s failed: %s in %s:%d',
+            $action,
+            $e->getMessage(),
+            $e->getFile(),
+            $e->getLine()
+        ));
+        sb_json_error('DISK_ERROR', 500);
     }
 }
 
@@ -123,9 +141,14 @@ if ($action === 'file.delete') {
 
         sb_json_ok();
     } catch (Throwable $e) {
-        sb_json_error('DISK_ERROR', 500, [
-            'message' => $e->getMessage(),
-        ]);
+        error_log(sprintf(
+            'SiteBuilder %s failed: %s in %s:%d',
+            $action,
+            $e->getMessage(),
+            $e->getFile(),
+            $e->getLine()
+        ));
+        sb_json_error('DISK_ERROR', 500);
     }
 }
 

@@ -29,6 +29,7 @@ $rootFolderId = DiskRootResolver::resolve($context, $settings);
 $permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId);
 
 DiskValidator::assertCan($permissions, 'canDownload');
+DiskValidator::assertFileInsideRoot($fileId, $rootFolderId, $context);
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 $url = $adapter->getDownloadUrl($context, $fileId);

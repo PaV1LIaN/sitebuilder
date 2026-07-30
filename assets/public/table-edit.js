@@ -1683,6 +1683,7 @@
 
     function saveBlock(root) {
         var blockId = Number(root.getAttribute('data-block-id') || 0);
+        var blockVersion = Math.max(1, Number(root.getAttribute('data-block-version') || 1));
         var content = collectContentFromDom(root);
         var props = parseJson(root.getAttribute('data-props'), {});
 
@@ -1698,6 +1699,7 @@
         formData.append('action', 'block.update');
         formData.append('sessid', sessid);
         formData.append('id', String(blockId));
+        formData.append('expectedVersion', String(blockVersion));
         formData.append('content', JSON.stringify(content));
         formData.append('props', JSON.stringify(props || {}));
 
@@ -1721,6 +1723,10 @@
                     throw new Error((res && (res.message || res.error)) || 'SAVE_ERROR');
                 }
 
+                if (res.block && Number(res.block.version || 0) > 0) {
+                    root.setAttribute('data-block-version', String(res.block.version));
+                }
+
                 setDirty(root, false);
 
                 if (btn) {
@@ -1733,7 +1739,13 @@
             })
             .catch(function (err) {
                 console.error(err);
-                alert('Не удалось сохранить таблицу: ' + err.message);
+
+                if (err && err.message === 'VERSION_CONFLICT') {
+                    alert('Таблица уже изменена другим пользователем. Обновите страницу перед повторным сохранением.');
+                } else {
+                    alert('Не удалось сохранить таблицу: ' + (err && err.message ? err.message : 'SAVE_ERROR'));
+                }
+
                 setDirty(root, true);
             })
             .finally(function () {

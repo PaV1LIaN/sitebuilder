@@ -73,6 +73,8 @@ register_shutdown_function(static function () use ($sbDiskShouldBuffer) {
 
 require_once __DIR__ . '/bootstrap.php';
 
+sitebuilder_require_api_auth();
+
 if (!function_exists('sb_disk_user_name_by_id')) {
     function sb_disk_user_name_by_id(int $userId): string
     {
@@ -316,19 +318,36 @@ try {
         @ob_end_clean();
     }
 
-    if (class_exists('DiskResponse')) {
-        DiskResponse::error('SERVER_ERROR', $e->getMessage(), [
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-        ]);
+    if ($e instanceof SiteBuilderVersionConflictException) {
+        http_response_code(409);
+        DiskResponse::error(
+            'VERSION_CONFLICT',
+            'Объект был изменён в другой вкладке.',
+            $e->context()
+        );
     }
 
-    sb_disk_force_json_error(
-        'SERVER_ERROR',
+    if (
+        $e instanceof InvalidArgumentException
+        && $e->getMessage() === 'EXPECTED_VERSION_REQUIRED'
+    ) {
+        http_response_code(422);
+        DiskResponse::error(
+            'EXPECTED_VERSION_REQUIRED',
+            'Не передана версия блока.'
+        );
+    }
+
+    error_log(sprintf(
+        'SiteBuilder Disk API error: %s in %s:%d',
         $e->getMessage(),
-        [
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-        ]
+        $e->getFile(),
+        $e->getLine()
+    ));
+
+    http_response_code(500);
+    DiskResponse::error(
+        'SERVER_ERROR',
+        'Внутренняя ошибка сервера.'
     );
 }
