@@ -24,11 +24,14 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 $rootInfo = DiskRootResolver::resolveWithSource($context, $settings, true);
 $permissions = DiskPermissionService::resolve($context, $settings, $rootInfo['rootFolderId']);
 
+$block = BlockRepository::getById($context->blockId);
+
 DiskResponse::success([
     'siteId' => $context->siteId,
     'pageId' => $context->pageId,
     'blockId' => $context->blockId,
     'settings' => $settings,
+    'blockVersion' => max(1, (int)($block['version'] ?? 1)),
     'permissions' => $permissions,
     'rootFolderId' => $rootInfo['rootFolderId'],
     'currentFolderId' => $rootInfo['rootFolderId'],

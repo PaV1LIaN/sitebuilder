@@ -151,6 +151,25 @@ if (!function_exists('sb_public_pages_for_site')) {
                 (int)($b['id'] ?? 0);
         });
 
+        /*
+         * Публичный рендер SiteBuilder всё равно находится за авторизацией.
+         * Поэтому опубликованный статус сам по себе не даёт доступ к странице:
+         * дополнительно учитываем глобальную роль и точечные page_access права.
+         */
+        global $USER;
+
+        $currentUserId = is_object($USER) ? (int)$USER->GetID() : 0;
+
+        if (class_exists('PageAccessService') && $currentUserId > 0) {
+            $visiblePages = PageAccessService::filterVisiblePages(
+                $visiblePages,
+                $siteId,
+                $currentUserId
+            );
+        } else {
+            $visiblePages = [];
+        }
+
         return $visiblePages;
     }
 }
@@ -248,120 +267,31 @@ if (!function_exists('sb_public_page_sections')) {
             return [];
         }
 
-        $sections = [];
-
-        if (function_exists('sb_read_page_sections')) {
-            try {
-                $sections = sb_read_page_sections();
-            } catch (Throwable $e) {
-                $sections = [];
-            }
-        }
-
-        if (empty($sections) && function_exists('sb_read_json_file')) {
-            foreach (['page_sections.json', 'pageSections.json'] as $jsonFile) {
-                try {
-                    $rows = sb_read_json_file($jsonFile);
-                    if (is_array($rows) && !empty($rows)) {
-                        $sections = $rows;
-                        break;
-                    }
-                } catch (Throwable $e) {
-                }
-            }
-        }
-
         $repoFile = __DIR__ . '/PageSectionRepository.php';
-        if (empty($sections) && file_exists($repoFile)) {
+        if (is_file($repoFile)) {
             require_once $repoFile;
         }
 
-        if (empty($sections) && class_exists('PageSectionRepository')) {
-            $methods = [
-                'listByPage',
-                'getByPage',
-                'getList',
-                'getByPageId',
-                'getForPage',
-                'findByPage',
-                'forPage',
-                'pageSections',
-            ];
-
-            foreach ($methods as $method) {
-                if (!method_exists('PageSectionRepository', $method)) {
-                    continue;
-                }
-
-                foreach ([[ $siteId, $pageId ], [ $pageId ]] as $args) {
-                    try {
-                        $result = call_user_func_array(['PageSectionRepository', $method], $args);
-                        $rows = sb_public_extract_sections_result($result);
-                        if (!empty($rows)) {
-                            $sections = $rows;
-                            break 2;
-                        }
-                    } catch (Throwable $e) {
-                    }
-                }
-            }
-        }
-
-        if (empty($sections) && function_exists('sb_db_fetch_all')) {
-            $queries = [
-                "SELECT id, site_id, page_id, title, sort, layout, props FROM sitebuilder.page_section WHERE page_id = :page_id ORDER BY sort ASC, id ASC",
-                "SELECT id, site_id, page_id, title, sort, layout_json AS layout, props_json AS props FROM sitebuilder.page_section WHERE page_id = :page_id ORDER BY sort ASC, id ASC",
-                "SELECT id, site_id, page_id, title, sort, layout, props FROM sitebuilder.page_sections WHERE page_id = :page_id ORDER BY sort ASC, id ASC",
-                "SELECT id, site_id, page_id, title, sort, layout_json AS layout, props_json AS props FROM sitebuilder.page_sections WHERE page_id = :page_id ORDER BY sort ASC, id ASC",
-            ];
-
-            foreach ($queries as $sql) {
-                try {
-                    $rows = sb_db_fetch_all($sql, [':page_id' => $pageId]);
-                    if (is_array($rows) && !empty($rows)) {
-                        $sections = $rows;
-                        break;
-                    }
-                } catch (Throwable $e) {
-                }
-            }
-        }
-
-        if (!is_array($sections)) {
+        if (!class_exists('PageSectionRepository')) {
             return [];
         }
 
-        $sections = array_values(array_filter($sections, static function ($section) use ($siteId, $pageId) {
-            if (!is_array($section)) {
-                return false;
-            }
+        try {
+            $sections = PageSectionRepository::listForPage($siteId, $pageId);
+        } catch (Throwable $e) {
+            error_log('SiteBuilder public sections load failed: ' . $e->getMessage());
+            return [];
+        }
 
-            $sectionPageId = (int)($section['pageId'] ?? $section['page_id'] ?? 0);
-            $sectionSiteId = (int)($section['siteId'] ?? $section['site_id'] ?? 0);
-
-            if ($sectionPageId > 0 && $sectionPageId !== $pageId) {
-                return false;
-            }
-
-            if ($sectionSiteId > 0 && $sectionSiteId !== $siteId) {
-                return false;
-            }
-
-            return true;
-        }));
-
-        $sections = array_map(static function ($section) use ($siteId, $pageId) {
+        $sections = array_map(static function (array $section) use ($siteId, $pageId): array {
             return sb_public_normalize_page_section($section, $siteId, $pageId);
         }, $sections);
 
-        usort($sections, static function ($a, $b) {
+        usort($sections, static function (array $a, array $b): int {
             $sortCmp = (int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500);
-
-            if ($sortCmp !== 0) {
-                return $sortCmp;
-            }
-
-            return (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);
+            return $sortCmp !== 0
+                ? $sortCmp
+                : (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);
         });
 
         return $sections;

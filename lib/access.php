@@ -13,9 +13,22 @@ if (!function_exists('sb_user_access_code')) {
 }
 
 if (!function_exists('sb_get_role')) {
-    function sb_get_role(int $siteId, string $accessCode): ?string
+    function sb_get_role(int $siteId, ?string $accessCode = null): ?string
     {
         $siteId = (int)$siteId;
+
+        if ($accessCode === null || trim($accessCode) === '') {
+            global $USER;
+
+            if (
+                is_object($USER)
+                && method_exists($USER, 'IsAuthorized')
+                && $USER->IsAuthorized()
+            ) {
+                $accessCode = 'U' . (int)$USER->GetID();
+            }
+        }
+
         $accessCode = trim((string)$accessCode);
 
         if ($siteId <= 0 || $accessCode === '') {
@@ -35,9 +48,19 @@ if (!function_exists('sb_get_role')) {
 if (!function_exists('sb_get_role_from_access_table')) {
     function sb_get_role_from_access_table(int $siteId, string $accessCode): ?string
     {
-        $access = sb_read_access();
+        if (function_exists('sb_find_access_row')) {
+            $row = sb_find_access_row($siteId, $accessCode);
 
-        foreach ($access as $row) {
+            if (!$row) {
+                return null;
+            }
+
+            $role = trim((string)($row['role'] ?? ''));
+
+            return $role !== '' ? $role : null;
+        }
+
+        foreach (sb_read_access() as $row) {
             if (
                 (int)($row['siteId'] ?? 0) === $siteId
                 && (string)($row['accessCode'] ?? '') === $accessCode
@@ -254,6 +277,63 @@ if (!function_exists('sb_role_rank')) {
             default:
                 return 0;
         }
+    }
+}
+
+
+if (!function_exists('sb_role_allows')) {
+    /**
+     * Единая матрица глобальных ролей.
+     *
+     * VIEWER: просмотр страниц и Диска.
+     * EDITOR: права VIEWER + изменение файлов Диска.
+     * ADMIN: права EDITOR + изменение страниц, блоков, меню и layout.
+     * OWNER: полный контроль, включая операции уровня владельца.
+     */
+    function sb_role_allows(?string $role, string $permission): bool
+    {
+        $rank = sb_role_rank($role);
+        $permission = strtolower(trim($permission));
+
+        if (in_array($permission, [
+            'view',
+            'site_view',
+            'page_view',
+            'disk_view',
+            'file_read',
+        ], true)) {
+            return $rank >= 1;
+        }
+
+        if (in_array($permission, [
+            'disk_edit',
+            'file_write',
+        ], true)) {
+            return $rank >= 2;
+        }
+
+        if (in_array($permission, [
+            'edit',
+            'content_edit',
+            'page_edit',
+            'block_edit',
+            'menu_edit',
+            'layout_edit',
+            'publish',
+            'admin',
+            'manage_access',
+        ], true)) {
+            return $rank >= 3;
+        }
+
+        if (in_array($permission, [
+            'owner',
+            'site_delete',
+        ], true)) {
+            return $rank >= 4;
+        }
+
+        return false;
     }
 }
 

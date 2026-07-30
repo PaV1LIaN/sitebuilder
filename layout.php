@@ -1,12 +1,10 @@
 <?php
-require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/auth.php';
 
 global $APPLICATION, $USER;
 
-if (!$USER->IsAuthorized()) {
-    require $_SERVER['DOCUMENT_ROOT'] . '/auth.php';
-    exit;
-}
+sitebuilder_require_auth();
 
 CJSCore::Init(['ajax']);
 
@@ -14,6 +12,17 @@ header('Content-Type: text/html; charset=UTF-8');
 
 $basePath = rtrim(str_replace($_SERVER['DOCUMENT_ROOT'], '', __DIR__), '/');
 $siteId = (int)($_GET['siteId'] ?? 0);
+
+
+foreach ([
+    __DIR__ . '/lib/db.php',
+    __DIR__ . '/lib/json.php',
+    __DIR__ . '/lib/response.php',
+    __DIR__ . '/lib/helpers.php',
+    __DIR__ . '/lib/access.php',
+] as $libFile) {
+    require_once $libFile;
+}
 
 if ($siteId <= 0) {
     ?>
@@ -34,6 +43,10 @@ if ($siteId <= 0) {
     </html>
     <?php
     exit;
+}
+
+if (!$USER->IsAdmin()) {
+    sb_require_content_manager($siteId);
 }
 ?>
 <!doctype html>
@@ -120,7 +133,11 @@ if ($siteId <= 0) {
         <div>
             <a class="sb-back-link" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/index.php">← К списку сайтов</a>
             <h1 class="sb-title">Layout сайта</h1>
-            <p class="sb-subtitle">siteId = <?= (int)$siteId ?></p>
+            <p class="sb-subtitle">siteId = <?= (int)$siteId ?> · версия <span id="layoutVersion">—</span></p>
+        </div>
+        <div class="sb-actions">
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/versions.php?siteId=<?= (int)$siteId ?>&entityType=layout&entityId=<?= (int)$siteId ?>">История layout</a>
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/audit.php?siteId=<?= (int)$siteId ?>">Журнал</a>
         </div>
     </div>
 
@@ -313,9 +330,18 @@ if ($siteId <= 0) {
             }
 
             state.layout = res.layout || null;
+            renderVersion();
             renderSettings();
             renderZones();
         });
+    }
+
+
+    function renderVersion() {
+        var node = document.getElementById('layoutVersion');
+        if (node) {
+            node.textContent = String(Number((state.layout && state.layout.version) || 1));
+        }
     }
 
     function renderSettings() {
@@ -442,6 +468,7 @@ if ($siteId <= 0) {
 
         api('layout.updateSettings', {
             siteId: SITE_ID,
+            expectedVersion: Number((state.layout && state.layout.version) || 1),
             settings: JSON.stringify(settings)
         }, function (res) {
             if (!res || res.ok !== true) {
@@ -450,6 +477,7 @@ if ($siteId <= 0) {
             }
 
             state.layout = res.layout || state.layout;
+            renderVersion();
             renderSettings();
             renderZones();
         });
@@ -458,6 +486,7 @@ if ($siteId <= 0) {
     function addLayoutBlock(zone, type) {
         api('layout.block.create', {
             siteId: SITE_ID,
+            expectedVersion: Number((state.layout && state.layout.version) || 1),
             zone: zone,
             type: type
         }, function (res) {
@@ -467,6 +496,7 @@ if ($siteId <= 0) {
             }
 
             state.layout = res.layout || state.layout;
+            renderVersion();
             renderZones();
         });
     }
@@ -549,6 +579,7 @@ if ($siteId <= 0) {
         api('layout.block.update', {
             siteId: SITE_ID,
             id: currentId,
+            expectedVersion: Number((state.layout && state.layout.version) || 1),
             content: contentText,
             props: propsText
         }, function (res) {
@@ -558,6 +589,7 @@ if ($siteId <= 0) {
             }
 
             state.layout = res.layout || state.layout;
+            renderVersion();
             renderZones();
 
             var found = findLayoutBlock(currentId);
@@ -585,7 +617,8 @@ if ($siteId <= 0) {
 
         api('layout.block.delete', {
             siteId: SITE_ID,
-            id: blockId
+            id: blockId,
+            expectedVersion: Number((state.layout && state.layout.version) || 1)
         }, function (res) {
             if (!res || res.ok !== true) {
                 alert('Не удалось удалить layout block');
@@ -593,6 +626,7 @@ if ($siteId <= 0) {
             }
 
             state.layout = res.layout || state.layout;
+            renderVersion();
 
             if (Number(state.currentBlockId || 0) === Number(blockId || 0)) {
                 clearLayoutBlockEditor();
@@ -606,7 +640,8 @@ if ($siteId <= 0) {
         api('layout.block.move', {
             siteId: SITE_ID,
             id: blockId,
-            dir: dir
+            dir: dir,
+            expectedVersion: Number((state.layout && state.layout.version) || 1)
         }, function (res) {
             if (!res || res.ok !== true) {
                 alert('Не удалось переместить layout block');
@@ -614,6 +649,7 @@ if ($siteId <= 0) {
             }
 
             state.layout = res.layout || state.layout;
+            renderVersion();
             renderZones();
         });
     }

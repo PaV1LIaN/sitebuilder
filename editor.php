@@ -1,12 +1,10 @@
 <?php
-require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/auth.php';
 
 global $APPLICATION, $USER;
 
-if (!$USER->IsAuthorized()) {
-    require $_SERVER['DOCUMENT_ROOT'] . '/auth.php';
-    exit;
-}
+sitebuilder_require_auth();
 
 CJSCore::Init(['ajax']);
 
@@ -21,6 +19,7 @@ $libFiles = [
     __DIR__ . '/lib/storage_db.php',
     __DIR__ . '/lib/response.php',
     __DIR__ . '/lib/helpers.php',
+    __DIR__ . '/lib/RevisionService.php',
     __DIR__ . '/lib/access.php',
     __DIR__ . '/lib/PageAccessRepository.php',
     __DIR__ . '/lib/PageAccessService.php',
@@ -68,7 +67,7 @@ if ($USER->IsAdmin()) {
 
 /*
  * Глобальные роли:
- * EDITOR, ADMIN и OWNER.
+ * ADMIN и OWNER.
  *
  * Используем access.php, потому что он также учитывает
  * резервные роли группы Битрикс24.
@@ -77,7 +76,7 @@ if (!$canOpenEditor) {
     $globalRole = sb_get_role($siteId);
     $globalRoleRank = sb_role_rank($globalRole);
 
-    if ($globalRoleRank >= 2) {
+    if ($globalRoleRank >= 3) {
         $canOpenEditor = true;
     }
 }
@@ -137,7 +136,7 @@ if (!$canOpenEditor) {
 
         <p class="sb-subtitle">
             Для открытия редактора требуется глобальная роль
-            EDITOR, ADMIN или OWNER либо право редактирования
+            ADMIN или OWNER либо право редактирования
             хотя бы одной страницы.
         </p>
 
@@ -197,6 +196,30 @@ if (!$canOpenEditor) {
             <a class="sb-btn sb-btn-light sb-btn-small" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/settings.php?siteId=<?= (int)$siteId ?>">
                 Настройки
             </a>
+
+            <?php if ($USER->IsAdmin() || (int)($globalRoleRank ?? 0) >= 3): ?>
+                <a class="sb-btn sb-btn-light sb-btn-small" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/trash.php?siteId=<?= (int)$siteId ?>">
+                    Корзина
+                </a>
+                <a class="sb-btn sb-btn-light sb-btn-small" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/audit.php?siteId=<?= (int)$siteId ?>">
+                    Журнал
+                </a>
+                <a class="sb-btn sb-btn-light sb-btn-small" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/jobs.php?siteId=<?= (int)$siteId ?>">
+                    Задания
+                </a>
+                <a class="sb-btn sb-btn-light sb-btn-small" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/queue_health.php?siteId=<?= (int)$siteId ?>">
+                    Очередь
+                </a>
+                <a class="sb-btn sb-btn-light sb-btn-small" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/alerts.php?siteId=<?= (int)$siteId ?>">
+                    Оповещения
+                </a>
+                <a class="sb-btn sb-btn-light sb-btn-small" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/external_resources.php?siteId=<?= (int)$siteId ?>">
+                    Внешние ресурсы
+                </a>
+                <a class="sb-btn sb-btn-light sb-btn-small" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/backups.php?siteId=<?= (int)$siteId ?>">
+                    Резервные копии
+                </a>
+            <?php endif; ?>
 
             <?php if ($USER->IsAdmin()): ?>
                 <button class="sb-btn sb-btn-primary sb-btn-small" type="button" id="saveAsTemplateBtn">
@@ -571,6 +594,24 @@ if (!$canOpenEditor) {
                     </div>
                 </div>
 
+                <div class="sb-panel" id="historyPanel">
+                    <h2 class="sb-panel-title">История изменений</h2>
+                    <p class="sb-editor-note">
+                        Версии защищают от перезаписи чужой работы. Любую сохранённую версию существующей страницы или блока можно восстановить.
+                    </p>
+
+                    <div class="sb-editor-inspector-actions">
+                        <button class="sb-btn sb-btn-light" type="button" id="pageHistoryBtn">История страницы</button>
+                        <button class="sb-btn sb-btn-light" type="button" id="blockHistoryBtn">История блока</button>
+                    </div>
+
+                    <div id="historyMessage" class="sb-empty" style="margin-top:12px;">
+                        Выберите страницу или блок и откройте историю.
+                    </div>
+
+                    <div id="historyList" class="sb-history-list"></div>
+                </div>
+
                 <div class="sb-panel" id="siteGroupPanel" hidden>
                     <h2 class="sb-panel-title">Группа Битрикс24 и права</h2>
                     <p class="sb-editor-note">
@@ -692,13 +733,14 @@ window.SB_EDITOR_CONFIG = {
 </script>
 
 <script src="/bitrix/js/main/core/core.js"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=2"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=2"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=2"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=2"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=3"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=3"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=3"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=3"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/35-history.js?v=1"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=2"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=2"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=2"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=3"></script>
 
 </body>
 </html>

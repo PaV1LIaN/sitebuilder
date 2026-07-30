@@ -2,6 +2,7 @@
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessRepository.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessService.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageSectionRepository.php';
 
 /*
  * Локальные функции обработчика страниц.
@@ -537,7 +538,7 @@ if ($action === 'page.create') {
         $slug = sb_slugify($title);
     }
 
-    $id = sb_next_id($pages, 'id');
+    $id = RevisionService::nextEntityId(RevisionService::ENTITY_PAGE);
     $maxSort = 0;
 
     foreach ($pages as $page) {
@@ -561,13 +562,15 @@ if ($action === 'page.create') {
         'sort' => $maxSort > 0 ? $maxSort + 10 : 10,
         'status' => 'draft',
         'publishedAt' => null,
+        'createdBy' => $currentUserId,
         'createdAt' => date('c'),
+        'updatedBy' => $currentUserId,
         'updatedAt' => date('c'),
     ]);
 
     $pages[] = $page;
 
-    sb_write_pages($pages);
+    sb_write_pages([$page]);
 
     /*
      * Если страницу создал пользователь с доступом только
@@ -589,6 +592,99 @@ if ($action === 'page.create') {
 
     sb_json_ok([
         'page' => $page,
+    ]);
+}
+
+
+/*
+ * Единое сохранение свойств страницы с optimistic locking.
+ */
+if ($action === 'page.save') {
+    $id = (int)($_POST['id'] ?? 0);
+    $title = trim((string)($_POST['title'] ?? ''));
+    $slug = trim((string)($_POST['slug'] ?? ''));
+    $parentId = (int)($_POST['parentId'] ?? 0);
+    $status = trim((string)($_POST['status'] ?? 'draft'));
+    $expectedVersion = RevisionService::requireExpectedVersion(
+        $_POST['expectedVersion'] ?? null
+    );
+
+    if ($id <= 0) {
+        sb_json_error('PAGE_ID_REQUIRED', 422);
+    }
+
+    if ($title === '') {
+        sb_json_error('TITLE_REQUIRED', 422);
+    }
+
+    if (!in_array($status, ['draft', 'published'], true)) {
+        sb_json_error('INVALID_STATUS', 422);
+    }
+
+    $currentUserId = sb_page_handler_current_user_id();
+    $pages = sb_read_pages();
+    $page = sb_page_handler_find_by_id($pages, $id);
+
+    if (!$page) {
+        sb_json_error('PAGE_NOT_FOUND', 404);
+    }
+
+    $siteId = (int)($page['siteId'] ?? 0);
+    sb_page_handler_require_page_edit($siteId, $id, $currentUserId);
+
+    $hasGlobalEdit = sb_page_handler_has_global_edit($siteId, $currentUserId);
+
+    if ($slug === '') {
+        $slug = sb_slugify($title);
+    }
+
+    if ($parentId === $id) {
+        sb_json_error('PAGE_CANNOT_BE_OWN_PARENT', 422);
+    }
+
+    if ($parentId > 0) {
+        $parent = sb_page_handler_find_by_id($pages, $parentId);
+
+        if (!$parent || (int)($parent['siteId'] ?? 0) !== $siteId) {
+            sb_json_error('PARENT_PAGE_NOT_FOUND', 404);
+        }
+
+        if (sb_page_handler_is_descendant($pages, $id, $parentId)) {
+            sb_json_error('CYCLIC_PARENT_RELATION', 422);
+        }
+
+        if (
+            !$hasGlobalEdit
+            && !PageAccessService::canEditPage($siteId, $parentId, $currentUserId)
+        ) {
+            sb_json_error('PARENT_PAGE_EDIT_ACCESS_DENIED', 403);
+        }
+    } elseif (!$hasGlobalEdit && (int)($page['parentId'] ?? 0) !== 0) {
+        sb_json_error('MOVE_PAGE_TO_ROOT_ACCESS_DENIED', 403);
+    }
+
+    $page['title'] = $title;
+    $page['slug'] = $slug;
+    $page['parentId'] = $parentId;
+
+    if ((string)($page['status'] ?? 'draft') !== $status) {
+        $page['publishedAt'] = $status === 'published' ? date('c') : null;
+    }
+    $page['status'] = $status;
+
+    $saved = RevisionService::savePage(
+        $page,
+        $expectedVersion,
+        $currentUserId,
+        'save'
+    );
+
+    sb_json_ok([
+        'page' => sb_page_handler_add_access_info(
+            $saved,
+            $siteId,
+            $currentUserId
+        ),
     ]);
 }
 
@@ -698,14 +794,19 @@ if ($action === 'page.updateMeta') {
 
     $page['title'] = $title;
     $page['slug'] = $slug;
-    $page['updatedAt'] = date('c');
 
-    $pages[$index] = sb_normalize_page_record($page);
-
-    sb_write_pages($pages);
+    $expectedVersion = RevisionService::requireExpectedVersion(
+        $_POST['expectedVersion'] ?? null
+    );
+    $savedPage = RevisionService::savePage(
+        $page,
+        $expectedVersion,
+        $currentUserId,
+        'meta_update'
+    );
 
     $resultPage = sb_page_handler_add_access_info(
-        $pages[$index],
+        $savedPage,
         $siteId,
         $currentUserId
     );
@@ -801,14 +902,19 @@ if ($action === 'page.setParent') {
     }
 
     $page['parentId'] = $parentId;
-    $page['updatedAt'] = date('c');
 
-    $pages[$index] = sb_normalize_page_record($page);
-
-    sb_write_pages($pages);
+    $expectedVersion = RevisionService::requireExpectedVersion(
+        $_POST['expectedVersion'] ?? null
+    );
+    $savedPage = RevisionService::savePage(
+        $page,
+        $expectedVersion,
+        $currentUserId,
+        'parent_change'
+    );
 
     $resultPage = sb_page_handler_add_access_info(
-        $pages[$index],
+        $savedPage,
         $siteId,
         $currentUserId
     );
@@ -861,14 +967,18 @@ if ($action === 'page.setStatus') {
             ? date('c')
             : null;
 
-    $page['updatedAt'] = date('c');
-
-    $pages[$index] = sb_normalize_page_record($page);
-
-    sb_write_pages($pages);
+    $expectedVersion = RevisionService::requireExpectedVersion(
+        $_POST['expectedVersion'] ?? null
+    );
+    $savedPage = RevisionService::savePage(
+        $page,
+        $expectedVersion,
+        $currentUserId,
+        'status_change'
+    );
 
     $resultPage = sb_page_handler_add_access_info(
-        $pages[$index],
+        $savedPage,
         $siteId,
         $currentUserId
     );
@@ -1011,23 +1121,33 @@ if ($action === 'page.move') {
     $secondSort = (int)($pages[$secondIndex]['sort'] ?? 500);
 
     $pages[$firstIndex]['sort'] = $secondSort;
-    $pages[$firstIndex]['updatedAt'] = date('c');
-
     $pages[$secondIndex]['sort'] = $firstSort;
-    $pages[$secondIndex]['updatedAt'] = date('c');
 
-    $pages[$firstIndex] = sb_normalize_page_record(
-        $pages[$firstIndex]
+    $versionMap = RevisionService::decodeVersionMap(
+        $_POST['expectedVersions'] ?? null
     );
 
-    $pages[$secondIndex] = sb_normalize_page_record(
-        $pages[$secondIndex]
-    );
+    $firstId = (int)$pages[$firstIndex]['id'];
+    $secondId = (int)$pages[$secondIndex]['id'];
+    $firstExpected = RevisionService::requireVersionFromMap($versionMap, $firstId);
+    $secondExpected = RevisionService::requireVersionFromMap($versionMap, $secondId);
 
-    sb_write_pages($pages);
+    $firstSaved = RevisionService::savePage(
+        $pages[$firstIndex],
+        $firstExpected,
+        $currentUserId,
+        'reorder'
+    );
+    $secondSaved = RevisionService::savePage(
+        $pages[$secondIndex],
+        $secondExpected,
+        $currentUserId,
+        'reorder'
+    );
 
     sb_json_ok([
         'moved' => true,
+        'pages' => [$firstSaved, $secondSaved],
     ]);
 }
 
@@ -1112,44 +1232,237 @@ if ($action === 'page.delete') {
         }
     }
 
-    $pages = array_values(array_filter(
+    $deletePageIds = array_values(array_map(
+        'intval',
+        array_keys($idsToDelete)
+    ));
+
+    $versionMap = RevisionService::decodeVersionMap(
+        $_POST['expectedVersions'] ?? null
+    );
+
+    foreach ($deletePageIds as $deletePageId) {
+        $deletePage = sb_page_handler_find_by_id($pages, $deletePageId);
+        if (!$deletePage) {
+            sb_json_error('PAGE_NOT_FOUND', 404, ['pageId' => $deletePageId]);
+        }
+
+        $expectedVersion = RevisionService::requireVersionFromMap(
+            $versionMap,
+            $deletePageId
+        );
+        $lockedPage = RevisionService::getPage($deletePageId, true);
+
+        if (!$lockedPage) {
+            sb_json_error('PAGE_NOT_FOUND', 404, ['pageId' => $deletePageId]);
+        }
+
+        RevisionService::assertExpected(
+            $lockedPage,
+            $expectedVersion,
+            RevisionService::ENTITY_PAGE
+        );
+    }
+
+    $placeholders = implode(',', array_fill(0, count($deletePageIds), '?'));
+    $pdo = sb_db();
+
+    $pageSnapshots = array_values(array_filter(
         $pages,
-        static function ($page) use ($idsToDelete) {
-            return !isset(
-                $idsToDelete[(int)($page['id'] ?? 0)]
-            );
-        }
+        static fn(array $candidate): bool => isset($idsToDelete[(int)($candidate['id'] ?? 0)])
     ));
 
-    sb_write_pages($pages);
-
-    $blocks = sb_read_blocks();
-
-    $blocks = array_values(array_filter(
-        $blocks,
-        static function ($block) use ($idsToDelete) {
-            return !isset(
-                $idsToDelete[(int)($block['pageId'] ?? 0)]
-            );
-        }
+    $blocksToDelete = array_values(array_filter(
+        sb_read_blocks(),
+        static fn(array $block): bool => isset($idsToDelete[(int)($block['pageId'] ?? 0)])
     ));
 
-    sb_write_blocks($blocks);
+    $sectionsToDelete = PageSectionRepository::listForPageIds($deletePageIds);
+
+    $accessStmt = $pdo->prepare("
+        SELECT site_id,page_id,access_code,can_view,can_edit,can_disk_view,can_disk_edit,include_children,created_by,created_at,updated_at
+        FROM sitebuilder.page_access
+        WHERE site_id = ? AND page_id IN ($placeholders)
+    ");
+    $accessStmt->execute(array_merge([$siteId], $deletePageIds));
+    $pageAccessToDelete = array_map(static function (array $row): array {
+        $toBool = static function (mixed $value): bool {
+            if (is_bool($value)) {
+                return $value;
+            }
+
+            return in_array(
+                strtolower(trim((string)$value)),
+                ['1', 't', 'true', 'y', 'yes', 'on'],
+                true
+            );
+        };
+
+        return [
+            'siteId' => (int)$row['site_id'],
+            'pageId' => (int)$row['page_id'],
+            'accessCode' => (string)$row['access_code'],
+            'canView' => $toBool($row['can_view'] ?? false),
+            'canEdit' => $toBool($row['can_edit'] ?? false),
+            'canDiskView' => $toBool($row['can_disk_view'] ?? false),
+            'canDiskEdit' => $toBool($row['can_disk_edit'] ?? false),
+            'includeChildren' => $toBool($row['include_children'] ?? false),
+            'createdBy' => !empty($row['created_by']) ? (int)$row['created_by'] : 0,
+            'createdAt' => (string)($row['created_at'] ?? ''),
+            'updatedAt' => (string)($row['updated_at'] ?? ''),
+        ];
+    }, $accessStmt->fetchAll(PDO::FETCH_ASSOC));
+
+    $siteBeforeDelete = RevisionService::getSite($siteId, true);
+    if (!$siteBeforeDelete) {
+        sb_json_error('SITE_NOT_FOUND', 404);
+    }
+    $wasHomePage = isset($idsToDelete[(int)($siteBeforeDelete['homePageId'] ?? 0)]);
 
     /*
-     * Удаляем правила доступа удалённых страниц.
+     * Убираем ссылки на удаляемые страницы из меню того же сайта.
      */
-    sb_page_handler_delete_access_rows(
+    $menus = sb_read_menus();
+    $changedMenus = [];
+    $removedMenuItems = [];
+
+    foreach ($menus as &$menu) {
+        if ((int)($menu['siteId'] ?? 0) !== $siteId) {
+            continue;
+        }
+
+        $items = is_array($menu['items'] ?? null)
+            ? $menu['items']
+            : [];
+
+        $removedItems = array_values(array_filter(
+            $items,
+            static function (array $item) use ($idsToDelete): bool {
+                return (string)($item['type'] ?? '') === 'page'
+                    && isset($idsToDelete[(int)($item['pageId'] ?? 0)]);
+            }
+        ));
+
+        $filteredItems = array_values(array_filter(
+            $items,
+            static function (array $item) use ($idsToDelete): bool {
+                if ((string)($item['type'] ?? '') !== 'page') {
+                    return true;
+                }
+
+                return !isset(
+                    $idsToDelete[(int)($item['pageId'] ?? 0)]
+                );
+            }
+        ));
+
+        if (count($filteredItems) === count($items)) {
+            continue;
+        }
+
+        $removedMenuItems[] = [
+            'menuId' => (int)$menu['id'],
+            'menuName' => (string)($menu['name'] ?? ''),
+            'items' => $removedItems,
+        ];
+
+        $menu['items'] = $filteredItems;
+        $menu['updatedBy'] = $currentUserId;
+        $menu['updatedAt'] = date('c');
+        $changedMenus[] = $menu;
+    }
+    unset($menu);
+
+    $recycleBinId = RecycleBinService::storePageTree(
         $siteId,
-        array_keys($idsToDelete)
+        $id,
+        (string)($page['title'] ?? ('Страница #' . $id)),
+        [
+            'rootPageId' => $id,
+            'pages' => $pageSnapshots,
+            'blocks' => $blocksToDelete,
+            'sections' => $sectionsToDelete,
+            'pageAccess' => $pageAccessToDelete,
+            'removedMenuItems' => $removedMenuItems,
+            'wasHomePage' => $wasHomePage,
+        ],
+        $currentUserId
     );
+
+    foreach ($changedMenus as $changedMenu) {
+        RevisionService::saveMenu(
+            $changedMenu,
+            (int)($changedMenu['version'] ?? 1),
+            $currentUserId,
+            'page_reference_remove'
+        );
+    }
+
+    if ($wasHomePage) {
+        $siteBeforeDelete['homePageId'] = 0;
+        $siteBeforeDelete = RevisionService::saveSite(
+            $siteBeforeDelete,
+            (int)$siteBeforeDelete['version'],
+            $currentUserId,
+            'home_page_removed'
+        );
+    }
+
+    $stmt = $pdo->prepare("
+        DELETE FROM sitebuilder.page_access
+        WHERE site_id = ?
+          AND page_id IN ($placeholders)
+    ");
+    $stmt->execute(array_merge(
+        [$siteId],
+        $deletePageIds
+    ));
+
+    foreach ($blocksToDelete as $blockToDelete) {
+        RevisionService::recordDeletedBlock($blockToDelete, $currentUserId);
+    }
+    foreach ($deletePageIds as $deletePageId) {
+        $deletePage = sb_page_handler_find_by_id($pages, $deletePageId);
+        if ($deletePage) {
+            RevisionService::recordDeletedPage($deletePage, $currentUserId);
+        }
+    }
+
+    /* Секции теперь находятся в PostgreSQL и удаляются в той же транзакции. */
+    $deletedSectionCount = PageSectionRepository::deleteByPageIds($deletePageIds);
+
+    $stmt = $pdo->prepare("
+        DELETE FROM sitebuilder.block
+        WHERE page_id IN ($placeholders)
+    ");
+    $stmt->execute($deletePageIds);
+
+    $stmt = $pdo->prepare("
+        DELETE FROM sitebuilder.page
+        WHERE site_id = ?
+          AND id IN ($placeholders)
+    ");
+    $stmt->execute(array_merge(
+        [$siteId],
+        $deletePageIds
+    ));
+
+    if ($stmt->rowCount() !== count($deletePageIds)) {
+        throw new RuntimeException('PAGE_TREE_DELETE_COUNT_MISMATCH');
+    }
 
     sb_json_ok([
         'deleted' => true,
+        'id' => $id,
+        'siteId' => $siteId,
+        'pageId' => $id,
         'deletedPageIds' => array_map(
             'intval',
             array_keys($idsToDelete)
         ),
+        'recycleBinId' => $recycleBinId,
+        'deletedSectionCount' => $deletedSectionCount,
+        'siteVersion' => (int)($siteBeforeDelete['version'] ?? 1),
     ]);
 }
 
@@ -1220,7 +1533,7 @@ if ($action === 'page.duplicate') {
         }
     }
 
-    $newId = sb_next_id($pages, 'id');
+    $newId = RevisionService::nextEntityId(RevisionService::ENTITY_PAGE);
     $maxSort = 0;
 
     foreach ($pages as $page) {
@@ -1252,13 +1565,15 @@ if ($action === 'page.duplicate') {
             : (int)($source['sort'] ?? 10) + 10,
         'status' => 'draft',
         'publishedAt' => null,
+        'createdBy' => $currentUserId,
         'createdAt' => date('c'),
+        'updatedBy' => $currentUserId,
         'updatedAt' => date('c'),
     ]);
 
     $pages[] = $copy;
 
-    sb_write_pages($pages);
+    sb_write_pages([$copy]);
 
     $blocks = sb_read_blocks();
 
@@ -1268,9 +1583,13 @@ if ($action === 'page.duplicate') {
             return (int)($block['pageId'] ?? 0) === $id;
         }
     ));
+    $newBlocks = [];
+    $reservedBlockIds = !empty($sourceBlocks)
+        ? RevisionService::reserveEntityIds(RevisionService::ENTITY_BLOCK, count($sourceBlocks))
+        : [];
 
-    foreach ($sourceBlocks as $sourceBlock) {
-        $newBlockId = sb_next_id($blocks, 'id');
+    foreach ($sourceBlocks as $sourceBlockIndex => $sourceBlock) {
+        $newBlockId = (int)$reservedBlockIds[$sourceBlockIndex];
 
         $newBlock = sb_normalize_block_record([
             'id' => $newBlockId,
@@ -1287,14 +1606,18 @@ if ($action === 'page.duplicate') {
             )
                 ? $sourceBlock['props']
                 : [],
+            'createdBy' => $currentUserId,
             'createdAt' => date('c'),
+            'updatedBy' => $currentUserId,
             'updatedAt' => date('c'),
+            'version' => 1,
         ]);
 
         $blocks[] = $newBlock;
+        $newBlocks[] = $newBlock;
     }
 
-    sb_write_blocks($blocks);
+    sb_write_blocks($newBlocks);
 
     /*
      * Пользователю с доступом только к отдельной странице

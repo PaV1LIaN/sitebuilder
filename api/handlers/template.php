@@ -11,6 +11,42 @@ if (!class_exists('SiteTemplateService')) {
     sb_json_error('SiteTemplateService.php не подключен', 500);
 }
 
+if (!function_exists('sb_template_handle_exception')) {
+    function sb_template_handle_exception(Throwable $e, string $action): never
+    {
+        if ($e instanceof SiteBuilderResourceBusyException) {
+            sb_json_error('RESOURCE_BUSY', 423, $e->context());
+        }
+
+        if ($e instanceof PDOException) {
+            $sqlState = sb_db_exception_sqlstate($e);
+            if ($sqlState === '55P03') {
+                sb_json_error('RESOURCE_BUSY', 423);
+            }
+            if ($sqlState === '40P01' || $sqlState === '40001') {
+                sb_json_error('RETRY_TRANSACTION', 409);
+            }
+            error_log('SiteBuilder template database error [' . $sqlState . ']: ' . $e->getMessage());
+            sb_json_error('INTERNAL_ERROR', 500, ['action' => $action]);
+        }
+
+        $error = trim($e->getMessage());
+        $statuses = [
+            'TEMPLATE_NOT_FOUND' => 404,
+            'SITE_NOT_FOUND' => 404,
+            'NAME_REQUIRED' => 422,
+            'SITE_FIELD_NOT_ALLOWED' => 422,
+        ];
+
+        if (isset($statuses[$error])) {
+            sb_json_error($error, $statuses[$error], ['action' => $action]);
+        }
+
+        error_log('SiteBuilder template operation failed [' . $action . ']: ' . $error);
+        sb_json_error('TEMPLATE_OPERATION_FAILED', 500, ['action' => $action]);
+    }
+}
+
 if ($action === 'template.list') {
     sb_json_ok([
         'templates' => SiteTemplateService::listSiteTemplates(),
@@ -67,10 +103,7 @@ if ($action === 'template.createFromSite') {
             'action' => $action,
         ]);
     } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
-            'handler' => 'template',
-            'action' => $action,
-        ]);
+        sb_template_handle_exception($e, $action);
     }
 }
 
@@ -98,10 +131,7 @@ if ($action === 'template.update') {
             'action' => $action,
         ]);
     } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
-            'handler' => 'template',
-            'action' => $action,
-        ]);
+        sb_template_handle_exception($e, $action);
     }
 }
 
@@ -123,10 +153,7 @@ if ($action === 'template.delete') {
             'action' => $action,
         ]);
     } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
-            'handler' => 'template',
-            'action' => $action,
-        ]);
+        sb_template_handle_exception($e, $action);
     }
 }
 
@@ -156,10 +183,7 @@ if ($action === 'template.createSite') {
             'action' => $action,
         ]);
     } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500, [
-            'handler' => 'template',
-            'action' => $action,
-        ]);
+        sb_template_handle_exception($e, $action);
     }
 }
 

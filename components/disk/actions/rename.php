@@ -39,6 +39,7 @@ if ($entityId <= 0) {
 }
 
 DiskValidator::assertNonEmptyString($newName, 'EMPTY_NAME');
+DiskValidator::assertItemInsideRoot($entityType, $entityId, $rootFolderId, $context);
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 $item = $adapter->rename($context, $entityType, $entityId, $newName);

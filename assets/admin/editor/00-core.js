@@ -18,7 +18,11 @@ var state = {
     accessItems: [],
     userSearchResults: [],
     selectedAccessUser: null,
-    userSearchTimer: null
+    userSearchTimer: null,
+    historyItems: [],
+    historyUsers: {},
+    historyEntityType: '',
+    historyEntityId: 0
 };
 
 var output = document.getElementById('output') || document.getElementById('outputFallback');
@@ -126,6 +130,10 @@ function api(action, data) {
                 if (res && res.ok) {
                     resolve(res);
                 } else {
+                    if (res && res.error === 'VERSION_CONFLICT') {
+                        handleVersionConflict(res);
+                    }
+
                     reject(res || {error: 'UNKNOWN'});
                 }
             },
@@ -144,6 +152,67 @@ function api(action, data) {
 
 function apiData(res) {
     return res && res.data ? res.data : res;
+}
+
+
+function entityVersion(entity) {
+    return Math.max(1, Number((entity && entity.version) || 1));
+}
+
+function buildVersionMap(items) {
+    var result = {};
+
+    (items || []).forEach(function (item) {
+        var id = Number((item && item.id) || 0);
+        if (id > 0) {
+            result[id] = entityVersion(item);
+        }
+    });
+
+    return result;
+}
+
+function replaceStatePage(page) {
+    if (!page) return;
+
+    var id = Number(page.id || 0);
+    state.pages = state.pages.map(function (current) {
+        return Number(current.id || 0) === id ? page : current;
+    });
+}
+
+function replaceStateBlock(block) {
+    if (!block) return;
+
+    var id = Number(block.id || 0);
+    state.blocks = state.blocks.map(function (current) {
+        return Number(current.id || 0) === id ? block : current;
+    });
+}
+
+function handleVersionConflict(error) {
+    var currentVersion = Number((error && error.currentVersion) || 0);
+    var message = 'Объект уже изменён другим пользователем. Данные будут обновлены с сервера.';
+
+    if (currentVersion > 0) {
+        message += '\nАктуальная версия: ' + currentVersion + '.';
+    }
+
+    alert(message);
+
+    window.setTimeout(async function () {
+        try {
+            if (typeof loadPages === 'function') {
+                await loadPages();
+            }
+
+            if (typeof loadBlocks === 'function') {
+                await loadBlocks();
+            }
+        } catch (reloadError) {
+            console.error(reloadError);
+        }
+    }, 0);
 }
 
 function getInputValue(id) {

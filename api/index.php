@@ -4,6 +4,63 @@ require_once __DIR__ . '/bootstrap.php';
 
 $action = (string)($_POST['action'] ?? '');
 
+/*
+ * Все изменяющие API-запросы выполняются в управляемой транзакции.
+ * RequestLockService выбирает точечные advisory locks по action:
+ * lifecycle сайта, дерево страниц, блоки страницы, menu, layout и т. д.
+ * Независимые страницы и сайты больше не сериализуются общей блокировкой.
+ *
+ * site.delete и maintenance.run используют собственные транзакции.
+ * Удаление сайта дополнительно получает exclusive lifecycle-lock.
+ */
+$readOnlyActions = [
+    'ping',
+    'site.list',
+    'site.get',
+    'site.accessList',
+    'site.appearanceGet',
+    'file.list',
+    'page.list',
+    'pageAccess.list',
+    'menu.list',
+    'block.list',
+    'section.list',
+    'template.list',
+    'template.get',
+    'user.search',
+    'history.list',
+    'history.get',
+    'trash.list',
+    'trash.get',
+    'audit.list',
+    'audit.get',
+    'maintenance.status',
+    'pageSection.list',
+    'job.list',
+    'job.get',
+    'job.health',
+    'system.alert.list',
+    'system.alert.get',
+    'external.resource.list',
+    'external.reconcile.list',
+    'external.reconcile.get',
+    'backup.list',
+    'backup.get',
+    'integrity.list',
+    'integrity.get',
+];
+
+if (
+    $action !== ''
+    && $action !== 'site.delete'
+    && $action !== 'maintenance.run'
+    && $action !== 'job.run'
+    && !in_array($action, $readOnlyActions, true)
+) {
+    sb_db_begin_request_transaction();
+    RequestLockService::lockMutation($action, $_POST);
+}
+
 if ($action === 'ping') {
     require __DIR__ . '/handlers/common.php';
     exit;
@@ -35,6 +92,7 @@ if (
     $action === 'page.create' ||
     $action === 'page.delete' ||
     $action === 'page.duplicate' ||
+    $action === 'page.save' ||
     $action === 'page.updateMeta' ||
     $action === 'page.setStatus' ||
     $action === 'page.setParent' ||
@@ -131,6 +189,83 @@ if (
     exit;
 }
 
+
+
+if (
+    $action === 'trash.list' ||
+    $action === 'trash.get' ||
+    $action === 'trash.restore' ||
+    $action === 'trash.purge'
+) {
+    require __DIR__ . '/handlers/trash.php';
+    exit;
+}
+
+if (
+    $action === 'history.list' ||
+    $action === 'history.get' ||
+    $action === 'history.restore'
+) {
+    require __DIR__ . '/handlers/history.php';
+    exit;
+}
+
+
+if (
+    $action === 'audit.list' ||
+    $action === 'audit.get' ||
+    $action === 'maintenance.status' ||
+    $action === 'maintenance.run'
+) {
+    require __DIR__ . '/handlers/audit.php';
+    exit;
+}
+
+
+if (
+    $action === 'job.list' ||
+    $action === 'job.health' ||
+    $action === 'job.get' ||
+    $action === 'job.retry' ||
+    $action === 'job.cancel' ||
+    $action === 'job.run'
+) {
+    require __DIR__ . '/handlers/job.php';
+    exit;
+}
+
+if (
+    $action === 'system.alert.list' ||
+    $action === 'system.alert.get' ||
+    $action === 'system.alert.ack' ||
+    $action === 'system.alert.resolve' ||
+    $action === 'external.resource.list' ||
+    $action === 'external.resource.cleanup' ||
+    $action === 'external.reconcile.list' ||
+    $action === 'external.reconcile.get' ||
+    $action === 'external.reconcile.enqueue'
+) {
+    require __DIR__ . '/handlers/system.php';
+    exit;
+}
+
+
+if (
+    $action === 'backup.list' ||
+    $action === 'backup.get' ||
+    $action === 'backup.create' ||
+    $action === 'backup.import' ||
+    $action === 'backup.verify' ||
+    $action === 'backup.restore' ||
+    $action === 'backup.delete' ||
+    $action === 'integrity.list' ||
+    $action === 'integrity.get' ||
+    $action === 'integrity.run'
+) {
+    require __DIR__ . '/handlers/backup.php';
+    exit;
+}
+
 if (
     $action === 'user.search'
 ) {
@@ -152,5 +287,4 @@ if (
 
 sb_json_error('UNKNOWN_ACTION', 400, [
     'action' => $action,
-    'file' => __FILE__,
 ]);

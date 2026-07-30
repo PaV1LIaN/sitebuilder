@@ -1,5 +1,9 @@
 <?php
-require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/auth.php';
+
+sitebuilder_require_auth();
+
 require_once __DIR__ . '/bootstrap.php';
 
 use Bitrix\Disk\File;
@@ -35,6 +39,16 @@ try {
     if (empty($permissions['canView'])) {
         throw new RuntimeException('ACCESS_DENIED');
     }
+
+    if ($mode === 'edit' && empty($permissions['canUpload'])) {
+        throw new RuntimeException('ACCESS_DENIED');
+    }
+
+    DiskValidator::assertFileInsideRoot(
+        $fileId,
+        $rootInfo['rootFolderId'],
+        $context
+    );
 
     $file = File::loadById($fileId);
     if (!$file instanceof File) {

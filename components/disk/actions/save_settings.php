@@ -74,10 +74,21 @@ $normalized = [
     'useSiteRootFallback' => disk_normalize_bool($settings['useSiteRootFallback'] ?? true),
 ];
 
-DiskSettingsRepository::save($context->blockId, $normalized);
+$expectedVersion = RevisionService::requireExpectedVersion(
+    $data['expectedVersion'] ?? null
+);
+
+DiskSettingsRepository::save(
+    $context->blockId,
+    $normalized,
+    $expectedVersion,
+    $currentUserId
+);
 
 $updatedSettings = DiskSettingsRepository::getByBlockId($context->blockId);
+$updatedBlock = BlockRepository::getById($context->blockId);
 
 DiskResponse::success([
     'settings' => $updatedSettings,
+    'blockVersion' => max(1, (int)($updatedBlock['version'] ?? 1)),
 ]);

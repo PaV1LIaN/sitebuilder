@@ -37,6 +37,32 @@ function getSectionById(sectionId) {
     }) || null;
 }
 
+
+function pageSectionVersionMap() {
+    var versions = {};
+
+    state.pageSections.forEach(function (section) {
+        var id = Number(section.id || 0);
+        var version = Number(section.version || 1);
+
+        if (id > 0 && version > 0) {
+            versions[id] = version;
+        }
+    });
+
+    return versions;
+}
+
+async function refreshSectionsAfterConflict(error) {
+    if (!error || error.error !== 'VERSION_CONFLICT') {
+        return false;
+    }
+
+    await loadPageSections();
+    setPageSectionsMessage('Секции были изменены в другой вкладке. Загружена актуальная версия.', 'error');
+    return true;
+}
+
 function getSectionColumns(sectionId) {
     var section = getSectionById(sectionId);
 
@@ -308,11 +334,19 @@ async function saveBlockPlacement(block) {
         return;
     }
 
-    await api('pageSection.assignBlock', {
+    var res = await api('pageSection.assignBlock', {
         blockId: Number(block.id || 0),
         sectionId: sectionId,
-        column: column
+        column: column,
+        expectedVersion: entityVersion(block)
     });
+
+    if (res.block) {
+        replaceStateBlock(res.block);
+        return res.block;
+    }
+
+    return block;
 }
 
 async function assignBlockToSection(blockId, sectionId, column) {
@@ -324,11 +358,28 @@ async function assignBlockToSection(blockId, sectionId, column) {
         return;
     }
 
-    await api('pageSection.assignBlock', {
+    var block = state.blocks.find(function (item) {
+        return Number(item.id || 0) === blockId;
+    }) || null;
+
+    var payload = {
         blockId: blockId,
         sectionId: sectionId,
         column: column
-    });
+    };
+
+    if (block) {
+        payload.expectedVersion = entityVersion(block);
+    }
+
+    var res = await api('pageSection.assignBlock', payload);
+
+    if (res.block) {
+        replaceStateBlock(res.block);
+        return res.block;
+    }
+
+    return block;
 }
 
 async function ensureUnsectionedBlocksAssigned() {
@@ -452,7 +503,8 @@ async function savePageSection(sectionId) {
         var res = await api('pageSection.update', {
             sectionId: sectionId,
             title: title,
-            layout: JSON.stringify(layout)
+            layout: JSON.stringify(layout),
+            expectedVersion: Number(section.version || 1)
         });
 
         var data = apiData(res);
@@ -469,6 +521,7 @@ async function savePageSection(sectionId) {
         setPageSectionsMessage('Секция сохранена', 'success');
     } catch (e) {
         console.error(e);
+        if (await refreshSectionsAfterConflict(e)) return;
         setPageSectionsMessage('Не удалось сохранить секцию: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
     }
 }
@@ -483,7 +536,8 @@ async function movePageSection(sectionId, dir) {
     try {
         var res = await api('pageSection.move', {
             sectionId: sectionId,
-            dir: dir
+            dir: dir,
+            expectedVersions: JSON.stringify(pageSectionVersionMap())
         });
 
         var data = apiData(res);
@@ -494,6 +548,7 @@ async function movePageSection(sectionId, dir) {
         renderBlocks();
     } catch (e) {
         console.error(e);
+        if (await refreshSectionsAfterConflict(e)) return;
         setPageSectionsMessage('Не удалось переместить секцию: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
     }
 }
@@ -514,7 +569,8 @@ async function deletePageSection(sectionId) {
 
     try {
         var res = await api('pageSection.delete', {
-            sectionId: sectionId
+            sectionId: sectionId,
+            expectedVersion: Number((section && section.version) || 1)
         });
 
         var data = apiData(res);
@@ -537,6 +593,7 @@ async function deletePageSection(sectionId) {
         setPageSectionsMessage('Секция удалена', 'success');
     } catch (e) {
         console.error(e);
+        if (await refreshSectionsAfterConflict(e)) return;
         setPageSectionsMessage('Не удалось удалить секцию: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
     }
 }

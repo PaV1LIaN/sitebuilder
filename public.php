@@ -1,5 +1,15 @@
 <?php
-require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/auth.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/db.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/storage_db.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/storage_db_extra.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/response.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/access.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessRepository.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessService.php';
+
+sitebuilder_require_auth();
 
 header('Content-Type: text/html; charset=UTF-8');
 

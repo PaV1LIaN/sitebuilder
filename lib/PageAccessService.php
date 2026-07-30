@@ -56,7 +56,7 @@ class PageAccessService
      *
      * Доступ дают:
      * - администратор Битрикс;
-     * - глобальная роль EDITOR и выше;
+     * - глобальная роль ADMIN и выше;
      * - точечное право can_edit.
      */
     public static function canEditPage(
@@ -306,8 +306,8 @@ class PageAccessService
      * Матрица:
      *
      * VIEWER = просмотр страницы и Диска.
-     * EDITOR = изменение страницы и Диска.
-     * ADMIN  = все возможности редактора и управление.
+     * EDITOR = просмотр страницы и изменение Диска.
+     * ADMIN  = изменение страниц, Диска и управление.
      * OWNER  = полный контроль.
      */
     public static function hasGlobalSiteAccess(
@@ -335,14 +335,15 @@ class PageAccessService
             return $role >= 1;
         }
 
-        if (
-            $permission === 'edit'
-            || $permission === 'disk_edit'
-        ) {
+        if ($permission === 'disk_edit') {
             return $role >= 2;
         }
 
-        if ($permission === 'admin') {
+        if (
+            $permission === 'edit'
+            || $permission === 'admin'
+            || $permission === 'manage_access'
+        ) {
             return $role >= 3;
         }
 

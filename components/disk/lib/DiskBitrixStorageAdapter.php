@@ -352,7 +352,7 @@ class DiskBitrixStorageAdapter
             'extension' => $extension,
             'mimeType' => $mimeType,
             'size' => (int)$file->getSize(),
-            'downloadUrl' => $this->buildDownloadUrl($file),
+            'downloadUrl' => $this->buildScopedDownloadUrl($context, $file),
             'previewUrl' => $isOffice
                 ? $this->buildViewerSrc($file)
                 : $this->buildPreviewUrl($context, $file),
@@ -361,6 +361,18 @@ class DiskBitrixStorageAdapter
             'updatedAt' => $this->normalizeDate($file->getUpdateTime()),
             'createdBy' => (int)$file->getCreatedBy(),
         ];
+    }
+
+    protected function buildScopedDownloadUrl(DiskContext $context, File $file): string
+    {
+        return '/local/sitebuilder/components/disk/api.php?'
+            . http_build_query([
+                'action' => 'download',
+                'siteId' => (int)$context->siteId,
+                'pageId' => (int)$context->pageId,
+                'blockId' => (int)$context->blockId,
+                'fileId' => (int)$file->getId(),
+            ]);
     }
 
     protected function buildDownloadUrl(File $file): string

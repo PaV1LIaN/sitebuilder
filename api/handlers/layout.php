@@ -2,526 +2,134 @@
 
 global $USER;
 
-if ($action === 'layout.get') {
-    $siteId = (int)($_POST['siteId'] ?? 0);
-    if ($siteId <= 0) {
-        sb_json_error('SITE_ID_REQUIRED', 422);
+if (!function_exists('sb_layout_handler_get_or_create')) {
+    function sb_layout_handler_get_or_create(int $siteId, int $userId): array
+    {
+        $layout = RevisionService::getLayout($siteId, false);
+        if ($layout) return sb_normalize_layout_record($layout);
+
+        $default = sb_layout_default_record($siteId);
+        $stmt = sb_db()->prepare("\n            INSERT INTO sitebuilder.layout (site_id,settings_json,zones_json,created_by,created_at,updated_by,updated_at,version)\n            VALUES (:site_id,CAST(:settings AS jsonb),CAST(:zones AS jsonb),:user_id,NOW(),:user_id,NOW(),1)\n            ON CONFLICT (site_id) DO NOTHING\n            RETURNING site_id,settings_json,zones_json,created_by,created_at,updated_by,updated_at,version\n        ");
+        $stmt->execute([
+            ':site_id'=>$siteId,
+            ':settings'=>json_encode($default['settings'],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR),
+            ':zones'=>json_encode($default['zones'],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR),
+            ':user_id'=>$userId>0?$userId:null,
+        ]);
+        $row=$stmt->fetch();
+        $layout=$row?sb_map_layout_row($row):RevisionService::getLayout($siteId,false);
+        if(!$layout) throw new RuntimeException('LAYOUT_CREATE_FAILED');
+        if($row) RevisionService::recordLayout($layout,'create',$userId);
+        return sb_normalize_layout_record($layout);
     }
+}
 
+if (!function_exists('sb_layout_handler_require')) {
+    function sb_layout_handler_require(int $siteId): array
+    {
+        if ($siteId <= 0) sb_json_error('SITE_ID_REQUIRED', 422);
+        sb_require_content_manager($siteId);
+        return sb_layout_handler_get_or_create($siteId, (int)($GLOBALS['USER']->GetID()));
+    }
+}
+
+if ($action === 'layout.get') {
+    $siteId=(int)($_POST['siteId']??0);
+    if($siteId<=0) sb_json_error('SITE_ID_REQUIRED',422);
     sb_require_viewer($siteId);
-
-    $layout = sb_layout_ensure_record($siteId);
-
-    sb_json_ok([
-        'layout' => $layout,
-        'handler' => 'layout',
-        'file' => __FILE__,
-    ]);
+    $layout=sb_layout_handler_get_or_create($siteId,(int)$USER->GetID());
+    sb_json_ok(['layout'=>$layout,'handler'=>'layout']);
 }
 
 if ($action === 'layout.updateSettings') {
-    $siteId = (int)($_POST['siteId'] ?? 0);
-    if ($siteId <= 0) {
-        sb_json_error('SITE_ID_REQUIRED', 422);
-    }
+    $siteId=(int)($_POST['siteId']??0);
+    $layout=sb_layout_handler_require($siteId);
+    $raw=$_POST['settings']??null;
+    if($raw===null) sb_json_error('SETTINGS_REQUIRED',422);
+    $settings=is_array($raw)?$raw:json_decode((string)$raw,true);
+    if(!is_array($settings)) sb_json_error('BAD_SETTINGS_JSON',422);
 
-    sb_require_content_manager($siteId);
-
-    $settingsRaw = $_POST['settings'] ?? null;
-    if ($settingsRaw === null) {
-        sb_json_error('SETTINGS_REQUIRED', 422);
-    }
-
-    if (is_array($settingsRaw)) {
-        $settings = $settingsRaw;
-    } else {
-        $settings = json_decode((string)$settingsRaw, true);
-        if (!is_array($settings)) {
-            sb_json_error('BAD_SETTINGS_JSON', 422);
-        }
-    }
-
-    $allowedKeys = [
-        'showHeader',
-        'showFooter',
-        'showLeft',
-        'showRight',
-        'leftWidth',
-        'rightWidth',
-        'leftMode',
-    ];
-
-    $filtered = [];
-    foreach ($allowedKeys as $key) {
-        if (array_key_exists($key, $settings)) {
-            $filtered[$key] = $settings[$key];
-        }
-    }
-
-    if (isset($filtered['showHeader'])) {
-        $filtered['showHeader'] = (bool)$filtered['showHeader'];
-    }
-    if (isset($filtered['showFooter'])) {
-        $filtered['showFooter'] = (bool)$filtered['showFooter'];
-    }
-    if (isset($filtered['showLeft'])) {
-        $filtered['showLeft'] = (bool)$filtered['showLeft'];
-    }
-    if (isset($filtered['showRight'])) {
-        $filtered['showRight'] = (bool)$filtered['showRight'];
-    }
-    if (isset($filtered['leftWidth'])) {
-        $filtered['leftWidth'] = max(120, min(800, (int)$filtered['leftWidth']));
-    }
-    if (isset($filtered['rightWidth'])) {
-        $filtered['rightWidth'] = max(120, min(800, (int)$filtered['rightWidth']));
-    }
-    if (isset($filtered['leftMode'])) {
-        $filtered['leftMode'] = in_array((string)$filtered['leftMode'], ['blocks', 'menu'], true)
-            ? (string)$filtered['leftMode']
-            : 'blocks';
-    }
-
-    $layouts = sb_read_layouts();
-    $updated = null;
-    $found = false;
-
-    foreach ($layouts as &$layout) {
-        if ((int)($layout['siteId'] ?? 0) !== $siteId) {
-            continue;
-        }
-
-        $layout = sb_normalize_layout_record($layout);
-        $layout['settings'] = array_merge($layout['settings'], $filtered);
-        $layout['updatedAt'] = date('c');
-        $layout['updatedBy'] = (int)$USER->GetID();
-
-        $updated = $layout;
-        $found = true;
-        break;
-    }
-    unset($layout);
-
-    if (!$found) {
-        $updated = sb_layout_default_record($siteId);
-        $updated['settings'] = array_merge($updated['settings'], $filtered);
-        $updated['createdAt'] = date('c');
-        $updated['createdBy'] = (int)$USER->GetID();
-        $updated['updatedAt'] = date('c');
-        $updated['updatedBy'] = (int)$USER->GetID();
-        $layouts[] = $updated;
-    }
-
-    sb_write_layouts($layouts);
-
-    sb_json_ok([
-        'layout' => sb_normalize_layout_record($updated),
-        'handler' => 'layout',
-        'file' => __FILE__,
-    ]);
+    $allowed=['showHeader','showFooter','showLeft','showRight','leftWidth','rightWidth','leftMode'];
+    $filtered=[];
+    foreach($allowed as $key) if(array_key_exists($key,$settings)) $filtered[$key]=$settings[$key];
+    foreach(['showHeader','showFooter','showLeft','showRight'] as $key) if(isset($filtered[$key])) $filtered[$key]=(bool)$filtered[$key];
+    if(isset($filtered['leftWidth'])) $filtered['leftWidth']=max(120,min(800,(int)$filtered['leftWidth']));
+    if(isset($filtered['rightWidth'])) $filtered['rightWidth']=max(120,min(800,(int)$filtered['rightWidth']));
+    if(isset($filtered['leftMode'])) $filtered['leftMode']=in_array((string)$filtered['leftMode'],['blocks','menu'],true)?(string)$filtered['leftMode']:'blocks';
+    $layout['settings']=array_merge($layout['settings'],$filtered);
+    $saved=RevisionService::saveLayout($layout,RevisionService::requireExpectedVersion($_POST['expectedVersion']??null),(int)$USER->GetID(),'settings_update');
+    sb_json_ok(['layout'=>sb_normalize_layout_record($saved),'handler'=>'layout']);
 }
 
 if ($action === 'layout.block.list') {
-    $siteId = (int)($_POST['siteId'] ?? 0);
-    $zone = trim((string)($_POST['zone'] ?? ''));
-
-    if ($siteId <= 0) {
-        sb_json_error('SITE_ID_REQUIRED', 422);
-    }
-    if (!sb_layout_valid_zone($zone)) {
-        sb_json_error('BAD_ZONE', 422);
-    }
-
+    $siteId=(int)($_POST['siteId']??0); $zone=trim((string)($_POST['zone']??''));
+    if($siteId<=0) sb_json_error('SITE_ID_REQUIRED',422);
+    if(!sb_layout_valid_zone($zone)) sb_json_error('BAD_ZONE',422);
     sb_require_viewer($siteId);
-
-    $layout = sb_layout_ensure_record($siteId);
-
-    sb_json_ok([
-        'blocks' => array_values($layout['zones'][$zone] ?? []),
-        'zone' => $zone,
-        'handler' => 'layout',
-        'file' => __FILE__,
-    ]);
+    $layout=sb_layout_handler_get_or_create($siteId,(int)$USER->GetID());
+    sb_json_ok(['blocks'=>array_values($layout['zones'][$zone]??[]),'zone'=>$zone,'layoutVersion'=>(int)$layout['version']]);
 }
 
 if ($action === 'layout.block.create') {
-    $siteId = (int)($_POST['siteId'] ?? 0);
-    $zone = trim((string)($_POST['zone'] ?? ''));
-    $type = trim((string)($_POST['type'] ?? 'text'));
-
-    if ($siteId <= 0) {
-        sb_json_error('SITE_ID_REQUIRED', 422);
-    }
-    if (!sb_layout_valid_zone($zone)) {
-        sb_json_error('BAD_ZONE', 422);
-    }
-    if ($type === '') {
-        sb_json_error('TYPE_REQUIRED', 422);
-    }
-
-    sb_require_content_manager($siteId);
-
-    $layouts = sb_read_layouts();
-    $updatedLayout = null;
-    $newBlock = null;
-    $found = false;
-
-    foreach ($layouts as &$layout) {
-        if ((int)($layout['siteId'] ?? 0) !== $siteId) {
-            continue;
-        }
-
-        $layout = sb_normalize_layout_record($layout);
-
-        $newBlock = [
-            'id' => sb_layout_next_block_id($layout),
-            'type' => $type,
-            'sort' => sb_layout_next_block_sort($layout, $zone),
-            'content' => sb_default_block_content($type),
-            'props' => [],
-            'createdBy' => (int)$USER->GetID(),
-            'createdAt' => date('c'),
-            'updatedAt' => date('c'),
-            'updatedBy' => (int)$USER->GetID(),
-        ];
-
-        $layout['zones'][$zone][] = $newBlock;
-        $layout['updatedAt'] = date('c');
-        $layout['updatedBy'] = (int)$USER->GetID();
-
-        $updatedLayout = $layout;
-        $found = true;
-        break;
-    }
-    unset($layout);
-
-    if (!$found) {
-        $updatedLayout = sb_layout_default_record($siteId);
-
-        $newBlock = [
-            'id' => 1,
-            'type' => $type,
-            'sort' => 10,
-            'content' => sb_default_block_content($type),
-            'props' => [],
-            'createdBy' => (int)$USER->GetID(),
-            'createdAt' => date('c'),
-            'updatedAt' => date('c'),
-            'updatedBy' => (int)$USER->GetID(),
-        ];
-
-        $updatedLayout['zones'][$zone][] = $newBlock;
-        $updatedLayout['createdAt'] = date('c');
-        $updatedLayout['createdBy'] = (int)$USER->GetID();
-        $updatedLayout['updatedAt'] = date('c');
-        $updatedLayout['updatedBy'] = (int)$USER->GetID();
-
-        $layouts[] = $updatedLayout;
-    }
-
-    sb_write_layouts($layouts);
-
-    sb_json_ok([
-        'block' => sb_normalize_block_record($newBlock),
-        'zone' => $zone,
-        'layout' => sb_normalize_layout_record($updatedLayout),
-        'handler' => 'layout',
-        'file' => __FILE__,
-    ]);
+    $siteId=(int)($_POST['siteId']??0); $zone=trim((string)($_POST['zone']??'')); $type=trim((string)($_POST['type']??'text'));
+    if(!sb_layout_valid_zone($zone)) sb_json_error('BAD_ZONE',422);
+    if($type==='') sb_json_error('TYPE_REQUIRED',422);
+    $layout=sb_layout_handler_require($siteId);
+    $now=date('c');
+    $block=[
+        'id'=>sb_layout_next_block_id($layout),'type'=>$type,'sort'=>sb_layout_next_block_sort($layout,$zone),
+        'content'=>sb_default_block_content($type),'props'=>[],'createdBy'=>(int)$USER->GetID(),'createdAt'=>$now,'updatedBy'=>(int)$USER->GetID(),'updatedAt'=>$now,
+    ];
+    $layout['zones'][$zone][]=$block;
+    $saved=RevisionService::saveLayout($layout,RevisionService::requireExpectedVersion($_POST['expectedVersion']??null),(int)$USER->GetID(),'block_create');
+    sb_json_ok(['block'=>sb_normalize_block_record($block),'zone'=>$zone,'layout'=>sb_normalize_layout_record($saved)]);
 }
 
 if ($action === 'layout.block.update') {
-    $siteId = (int)($_POST['siteId'] ?? 0);
-    $id = (int)($_POST['id'] ?? 0);
-
-    if ($siteId <= 0) {
-        sb_json_error('SITE_ID_REQUIRED', 422);
+    $siteId=(int)($_POST['siteId']??0); $id=(int)($_POST['id']??0);
+    if($id<=0) sb_json_error('ID_REQUIRED',422);
+    $layout=sb_layout_handler_require($siteId);
+    $contentRaw=$_POST['content']??null; $propsRaw=$_POST['props']??null; $typeRaw=$_POST['type']??null;
+    $newContent=null; $newProps=null; $newType=null;
+    if($contentRaw!==null){$newContent=is_array($contentRaw)?$contentRaw:json_decode((string)$contentRaw,true);if(!is_array($newContent))sb_json_error('BAD_CONTENT_JSON',422);}
+    if($propsRaw!==null){$newProps=is_array($propsRaw)?$propsRaw:json_decode((string)$propsRaw,true);if(!is_array($newProps))sb_json_error('BAD_PROPS_JSON',422);}
+    if($typeRaw!==null){$newType=trim((string)$typeRaw);if($newType==='')sb_json_error('TYPE_REQUIRED',422);}
+    $found=false; $updatedBlock=null;
+    foreach(['header','footer','left','right'] as $zone){
+        foreach($layout['zones'][$zone] as &$block){
+            if((int)($block['id']??0)!==$id)continue;
+            if($newType!==null)$block['type']=$newType; if($newContent!==null)$block['content']=$newContent; if($newProps!==null)$block['props']=$newProps;
+            $block['updatedAt']=date('c');$block['updatedBy']=(int)$USER->GetID();$updatedBlock=$block;$found=true;break 2;
+        } unset($block);
     }
-    if ($id <= 0) {
-        sb_json_error('ID_REQUIRED', 422);
-    }
-
-    sb_require_content_manager($siteId);
-
-    $contentRaw = $_POST['content'] ?? null;
-    $propsRaw = $_POST['props'] ?? null;
-    $typeRaw = $_POST['type'] ?? null;
-
-    $newContent = null;
-    $newProps = null;
-    $newType = null;
-
-    if ($contentRaw !== null) {
-        if (is_array($contentRaw)) {
-            $newContent = $contentRaw;
-        } else {
-            $decoded = json_decode((string)$contentRaw, true);
-            if (!is_array($decoded)) {
-                sb_json_error('BAD_CONTENT_JSON', 422);
-            }
-            $newContent = $decoded;
-        }
-    }
-
-    if ($propsRaw !== null) {
-        if (is_array($propsRaw)) {
-            $newProps = $propsRaw;
-        } else {
-            $decoded = json_decode((string)$propsRaw, true);
-            if (!is_array($decoded)) {
-                sb_json_error('BAD_PROPS_JSON', 422);
-            }
-            $newProps = $decoded;
-        }
-    }
-
-    if ($typeRaw !== null) {
-        $newType = trim((string)$typeRaw);
-        if ($newType === '') {
-            sb_json_error('TYPE_REQUIRED', 422);
-        }
-    }
-
-    $layouts = sb_read_layouts();
-    $updatedBlock = null;
-    $updatedLayout = null;
-    $foundLayout = false;
-    $foundBlock = false;
-
-    foreach ($layouts as &$layout) {
-        if ((int)($layout['siteId'] ?? 0) !== $siteId) {
-            continue;
-        }
-
-        $foundLayout = true;
-        $layout = sb_normalize_layout_record($layout);
-
-        foreach (['header', 'footer', 'left', 'right'] as $zone) {
-            foreach ($layout['zones'][$zone] as &$block) {
-                if ((int)($block['id'] ?? 0) !== $id) {
-                    continue;
-                }
-
-                if ($newType !== null) {
-                    $block['type'] = $newType;
-                }
-                if ($newContent !== null) {
-                    $block['content'] = $newContent;
-                }
-                if ($newProps !== null) {
-                    $block['props'] = $newProps;
-                }
-
-                $block['updatedAt'] = date('c');
-                $block['updatedBy'] = (int)$USER->GetID();
-                $block['_zone'] = $zone;
-
-                $updatedBlock = $block;
-                $foundBlock = true;
-                break 2;
-            }
-            unset($block);
-        }
-
-        if ($foundBlock) {
-            $layout['updatedAt'] = date('c');
-            $layout['updatedBy'] = (int)$USER->GetID();
-            $updatedLayout = $layout;
-            break;
-        }
-    }
-    unset($layout);
-
-    if (!$foundLayout) {
-        sb_json_error('LAYOUT_NOT_FOUND', 404);
-    }
-
-    if (!$foundBlock || !$updatedBlock) {
-        sb_json_error('BLOCK_NOT_FOUND', 404);
-    }
-
-    sb_write_layouts($layouts);
-
-    sb_json_ok([
-        'block' => sb_normalize_block_record($updatedBlock),
-        'layout' => sb_normalize_layout_record($updatedLayout),
-        'handler' => 'layout',
-        'file' => __FILE__,
-    ]);
+    unset($block);
+    if(!$found) sb_json_error('BLOCK_NOT_FOUND',404);
+    $saved=RevisionService::saveLayout($layout,RevisionService::requireExpectedVersion($_POST['expectedVersion']??null),(int)$USER->GetID(),'block_update');
+    sb_json_ok(['block'=>sb_normalize_block_record($updatedBlock),'layout'=>sb_normalize_layout_record($saved)]);
 }
 
 if ($action === 'layout.block.delete') {
-    $siteId = (int)($_POST['siteId'] ?? 0);
-    $id = (int)($_POST['id'] ?? 0);
-
-    if ($siteId <= 0) {
-        sb_json_error('SITE_ID_REQUIRED', 422);
-    }
-    if ($id <= 0) {
-        sb_json_error('ID_REQUIRED', 422);
-    }
-
-    sb_require_content_manager($siteId);
-
-    $layouts = sb_read_layouts();
-    $updatedLayout = null;
-    $foundLayout = false;
-    $foundBlock = false;
-
-    foreach ($layouts as &$layout) {
-        if ((int)($layout['siteId'] ?? 0) !== $siteId) {
-            continue;
-        }
-
-        $foundLayout = true;
-        $layout = sb_normalize_layout_record($layout);
-
-        foreach (['header', 'footer', 'left', 'right'] as $zone) {
-            $before = count($layout['zones'][$zone]);
-            $layout['zones'][$zone] = array_values(array_filter(
-                $layout['zones'][$zone],
-                static function ($block) use ($id) {
-                    return (int)($block['id'] ?? 0) !== $id;
-                }
-            ));
-
-            if (count($layout['zones'][$zone]) !== $before) {
-                $foundBlock = true;
-                $layout['updatedAt'] = date('c');
-                $layout['updatedBy'] = (int)$USER->GetID();
-                $updatedLayout = $layout;
-                break;
-            }
-        }
-
-        if ($foundBlock) {
-            break;
-        }
-    }
-    unset($layout);
-
-    if (!$foundLayout) {
-        sb_json_error('LAYOUT_NOT_FOUND', 404);
-    }
-
-    if (!$foundBlock) {
-        sb_json_error('BLOCK_NOT_FOUND', 404);
-    }
-
-    sb_write_layouts($layouts);
-
-    sb_json_ok([
-        'layout' => sb_normalize_layout_record($updatedLayout),
-        'handler' => 'layout',
-        'file' => __FILE__,
-    ]);
+    $siteId=(int)($_POST['siteId']??0); $id=(int)($_POST['id']??0); if($id<=0)sb_json_error('ID_REQUIRED',422);
+    $layout=sb_layout_handler_require($siteId);$found=false;
+    foreach(['header','footer','left','right'] as $zone){$before=count($layout['zones'][$zone]);$layout['zones'][$zone]=array_values(array_filter($layout['zones'][$zone],static fn(array $b):bool=>(int)($b['id']??0)!==$id));if(count($layout['zones'][$zone])!==$before){$found=true;break;}}
+    if(!$found)sb_json_error('BLOCK_NOT_FOUND',404);
+    $saved=RevisionService::saveLayout($layout,RevisionService::requireExpectedVersion($_POST['expectedVersion']??null),(int)$USER->GetID(),'block_delete');
+    sb_json_ok(['layout'=>sb_normalize_layout_record($saved)]);
 }
 
 if ($action === 'layout.block.move') {
-    $siteId = (int)($_POST['siteId'] ?? 0);
-    $id = (int)($_POST['id'] ?? 0);
-    $dir = trim((string)($_POST['dir'] ?? ''));
-
-    if ($siteId <= 0) {
-        sb_json_error('SITE_ID_REQUIRED', 422);
+    $siteId=(int)($_POST['siteId']??0);$id=(int)($_POST['id']??0);$dir=trim((string)($_POST['dir']??''));
+    if($id<=0)sb_json_error('ID_REQUIRED',422);if(!in_array($dir,['up','down'],true))sb_json_error('DIR_REQUIRED',422);
+    $layout=sb_layout_handler_require($siteId);$found=false;$changed=false;
+    foreach(['header','footer','left','right'] as $zone){
+        $siblings=$layout['zones'][$zone];$pos=null;foreach($siblings as $i=>$block)if((int)($block['id']??0)===$id){$pos=$i;break;}
+        if($pos===null)continue;$found=true;$swap=$dir==='up'?$pos-1:$pos+1;
+        if(isset($siblings[$swap])){$a=(int)($layout['zones'][$zone][$pos]['sort']??500);$b=(int)($layout['zones'][$zone][$swap]['sort']??500);$layout['zones'][$zone][$pos]['sort']=$b;$layout['zones'][$zone][$swap]['sort']=$a;$changed=true;}break;
     }
-    if ($id <= 0) {
-        sb_json_error('ID_REQUIRED', 422);
-    }
-    if ($dir !== 'up' && $dir !== 'down') {
-        sb_json_error('DIR_REQUIRED', 422);
-    }
-
-    sb_require_content_manager($siteId);
-
-    $layouts = sb_read_layouts();
-    $updatedLayout = null;
-    $foundLayout = false;
-    $foundBlock = false;
-
-    foreach ($layouts as &$layout) {
-        if ((int)($layout['siteId'] ?? 0) !== $siteId) {
-            continue;
-        }
-
-        $foundLayout = true;
-        $layout = sb_normalize_layout_record($layout);
-
-        foreach (['header', 'footer', 'left', 'right'] as $zone) {
-            $siblings = $layout['zones'][$zone];
-
-            $pos = null;
-            for ($i = 0, $cnt = count($siblings); $i < $cnt; $i++) {
-                if ((int)($siblings[$i]['id'] ?? 0) === $id) {
-                    $pos = $i;
-                    break;
-                }
-            }
-
-            if ($pos === null) {
-                continue;
-            }
-
-            $foundBlock = true;
-
-            if ($dir === 'up' && $pos === 0) {
-                $updatedLayout = $layout;
-                break 2;
-            }
-
-            if ($dir === 'down' && $pos === count($siblings) - 1) {
-                $updatedLayout = $layout;
-                break 2;
-            }
-
-            $swapPos = ($dir === 'up') ? $pos - 1 : $pos + 1;
-
-            $sortA = (int)($siblings[$pos]['sort'] ?? 500);
-            $sortB = (int)($siblings[$swapPos]['sort'] ?? 500);
-
-            $layout['zones'][$zone][$pos]['sort'] = $sortB;
-            $layout['zones'][$zone][$pos]['updatedAt'] = date('c');
-            $layout['zones'][$zone][$pos]['updatedBy'] = (int)$USER->GetID();
-
-            $layout['zones'][$zone][$swapPos]['sort'] = $sortA;
-            $layout['zones'][$zone][$swapPos]['updatedAt'] = date('c');
-            $layout['zones'][$zone][$swapPos]['updatedBy'] = (int)$USER->GetID();
-
-            usort($layout['zones'][$zone], static function ($a, $b) {
-                $sortCmp = (int)($a['sort'] ?? 500) <=> (int)($b['sort'] ?? 500);
-                if ($sortCmp !== 0) {
-                    return $sortCmp;
-                }
-                return (int)($a['id'] ?? 0) <=> (int)$b['id'];
-            });
-
-            $layout['updatedAt'] = date('c');
-            $layout['updatedBy'] = (int)$USER->GetID();
-            $updatedLayout = $layout;
-            break 2;
-        }
-    }
-    unset($layout);
-
-    if (!$foundLayout) {
-        sb_json_error('LAYOUT_NOT_FOUND', 404);
-    }
-
-    if (!$foundBlock) {
-        sb_json_error('BLOCK_NOT_FOUND', 404);
-    }
-
-    sb_write_layouts($layouts);
-
-    sb_json_ok([
-        'layout' => sb_normalize_layout_record($updatedLayout),
-        'handler' => 'layout',
-        'file' => __FILE__,
-    ]);
+    if(!$found)sb_json_error('BLOCK_NOT_FOUND',404);
+    $expected=RevisionService::requireExpectedVersion($_POST['expectedVersion']??null);
+    if($changed)$saved=RevisionService::saveLayout($layout,$expected,(int)$USER->GetID(),'block_move');else{RevisionService::assertExpected($layout,$expected,RevisionService::ENTITY_LAYOUT);$saved=$layout;}
+    sb_json_ok(['layout'=>sb_normalize_layout_record($saved)]);
 }
 
-sb_json_error('NOT_MOVED_YET', 501, [
-    'handler' => 'layout',
-    'action' => $action,
-    'file' => __FILE__,
-]);
+sb_json_error('UNKNOWN_LAYOUT_ACTION',400);

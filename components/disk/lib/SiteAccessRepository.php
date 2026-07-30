@@ -8,6 +8,21 @@ class SiteAccessRepository
             return null;
         }
 
+        /*
+         * Общий resolver учитывает прямую роль U{id}
+         * и резервную роль рабочей группы Битрикс24.
+         */
+        if (function_exists('sb_get_role')) {
+            $globalRole = sb_get_role($siteId, 'U' . $userId);
+            $mappedGlobalRole = self::mapSitebuilderRoleToDiskRole(
+                strtoupper(trim((string)$globalRole))
+            );
+
+            if ($mappedGlobalRole !== null) {
+                return $mappedGlobalRole;
+            }
+        }
+
         $accessCodes = self::buildAccessCodes($userId);
         if (empty($accessCodes)) {
             return null;

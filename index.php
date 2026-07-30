@@ -1,12 +1,10 @@
 <?php
-require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/auth.php';
 
 global $APPLICATION, $USER;
 
-if (!$USER->IsAuthorized()) {
-    require $_SERVER['DOCUMENT_ROOT'] . '/auth.php';
-    exit;
-}
+sitebuilder_require_auth();
 
 CJSCore::Init(['ajax']);
 
@@ -15,6 +13,7 @@ header('Content-Type: text/html; charset=UTF-8');
 $basePath = rtrim(str_replace($_SERVER['DOCUMENT_ROOT'], '', __DIR__), '/');
 $canCreateSite = $USER->IsAdmin();
 $isBitrixAdmin = $USER->IsAdmin();
+$isSitebuilderGuest = sitebuilder_is_guest();
 ?>
 <!doctype html>
 <html lang="ru">
@@ -357,11 +356,27 @@ $isBitrixAdmin = $USER->IsAdmin();
                 <input class="sb-dashboard-search" type="text" id="dashboardSearch" placeholder="Поиск по сайтам">
                 <button class="sb-btn sb-btn-light" type="button" id="reloadBtn">Обновить</button>
 
+                <?php if ($isBitrixAdmin): ?>
+                    <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/queue_health.php">Очередь</a>
+                    <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/alerts.php">Оповещения</a>
+                    <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/external_resources.php">Внешние ресурсы</a>
+                    <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/deployment.php">Развёртывание</a>
+                <?php endif; ?>
+
                 <?php if ($canCreateSite): ?>
                     <button class="sb-btn sb-btn-light" type="button" id="createSectionBtn">Секции</button>
                     <button class="sb-btn sb-btn-light" type="button" id="reloadTemplatesBtn">Шаблоны</button>
                     <button class="sb-btn sb-btn-primary" type="button" id="createSiteQuickBtn">Создать сайт</button>
                 <?php endif; ?>
+
+                <?php if ($isSitebuilderGuest): ?>
+                    <span class="sb-role-badge sb-role-badge--viewer">Гостевой режим</span>
+                <?php endif; ?>
+
+                <form method="post" action="<?= htmlspecialchars((string)sitebuilder_auth_config()['logout_url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" style="display:inline-flex">
+                    <?= bitrix_sessid_post() ?>
+                    <button class="sb-btn sb-btn-light" type="submit">Выйти</button>
+                </form>
             </div>
         </header>
 
@@ -1196,7 +1211,9 @@ $isBitrixAdmin = $USER->IsAdmin();
         }, function (res) {
             var site = res.site || {};
             closeCreateFromTemplateModal();
-            alert('Сайт создан из шаблона');
+            alert(res.provisioningQueued
+                ? 'Сайт создан из шаблона. Группа и папка Диска поставлены в очередь.'
+                : 'Сайт создан из шаблона');
             loadSites();
             if (site.id) {
                 window.location.href = BASE_PATH + '/editor.php?siteId=' + Number(site.id || 0);
@@ -1431,8 +1448,16 @@ $isBitrixAdmin = $USER->IsAdmin();
             return;
         }
 
+        var expectedVersions = {};
+        allSites.forEach(function (site) {
+            if (Number(site.sectionId || 0) === sectionId) {
+                expectedVersions[Number(site.id || 0)] = Number(site.version || 1);
+            }
+        });
+
         api('section.delete', {
-            id: sectionId
+            id: sectionId,
+            expectedVersions: JSON.stringify(expectedVersions)
         }, function () {
             reloadSectionsUi();
             loadSites();
@@ -1442,10 +1467,20 @@ $isBitrixAdmin = $USER->IsAdmin();
         });
     }
 
+    function currentSiteVersion(siteId) {
+        siteId = Number(siteId || 0);
+        var site = allSites.find(function (item) {
+            return Number(item.id || 0) === siteId;
+        });
+
+        return Number((site && site.version) || 1);
+    }
+
     function setSiteSection(siteId, sectionId) {
         api('site.setSection', {
             siteId: siteId,
-            sectionId: sectionId
+            sectionId: sectionId,
+            expectedVersion: currentSiteVersion(siteId)
         }, function () {
             loadSites();
         }, function (err) {
@@ -1459,14 +1494,10 @@ $isBitrixAdmin = $USER->IsAdmin();
         api('site.syncAccess', {
             siteId: siteId
         }, function (res) {
-            var result = res.result || {};
-
             alert(
-                'Права синхронизированы.\n\n' +
-                'Создано: ' + Number(result.created || 0) + '\n' +
-                'Обновлено: ' + Number(result.updated || 0) + '\n' +
-                'Удалено: ' + Number(result.removed || 0) + '\n' +
-                'Без изменений: ' + Number(result.kept || 0)
+                res.queued
+                    ? 'Синхронизация прав поставлена в очередь. Статус можно посмотреть в разделе «Задания».'
+                    : 'Синхронизация завершена.'
             );
 
             loadSites();
@@ -1478,12 +1509,13 @@ $isBitrixAdmin = $USER->IsAdmin();
 
     function ensureGroup(siteId) {
         api('site.ensureGroup', {
-            siteId: siteId
+            siteId: siteId,
+            expectedVersion: currentSiteVersion(siteId)
         }, function (res) {
             alert(
-                res.created
-                    ? 'Группа Битрикс24 создана. ID: ' + Number(res.bitrixGroupId || 0)
-                    : 'Группа уже была создана. ID: ' + Number(res.bitrixGroupId || 0)
+                res.queued
+                    ? 'Создание группы поставлено в очередь. Статус можно посмотреть в разделе «Задания».'
+                    : 'Группа уже создана. ID: ' + Number(res.bitrixGroupId || 0)
             );
 
             loadSites();
@@ -1499,7 +1531,7 @@ $isBitrixAdmin = $USER->IsAdmin();
         var firstConfirm = confirm(
             'Удалить сайт "' + name + '"?\n\n' +
             'Будут удалены страницы, блоки, меню, доступы, шаблоны и layout внутри SiteBuilder.\n' +
-            'Группа Битрикс24 и файлы диска сейчас не удаляются автоматически.'
+            'Рабочая группа Битрикс24 и папка сайта в Диске будут поставлены в безопасную фоновую очистку.'
         );
 
         if (!firstConfirm) {
@@ -1517,8 +1549,9 @@ $isBitrixAdmin = $USER->IsAdmin();
 
         api('site.delete', {
             id: siteId
-        }, function () {
-            alert('Сайт удалён');
+        }, function (res) {
+            var jobs = res && res.cleanupJobs ? Object.keys(res.cleanupJobs).length : 0;
+            alert('Сайт удалён' + (jobs ? '. Заданий очистки: ' + jobs : ''));
             loadSites();
         }, function (err) {
             var message = err && (err.error || err.message) ? (err.error || err.message) : 'UNKNOWN_ERROR';

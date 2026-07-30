@@ -251,7 +251,6 @@ if ($action === 'user.search') {
             'users' => [],
             'handler' => 'user',
             'action' => 'user.search',
-            'file' => __FILE__,
         ]);
     }
 
@@ -303,12 +302,10 @@ if ($action === 'user.search') {
         'action' => 'user.search',
         'query' => $query,
         'tokens' => $tokens,
-        'file' => __FILE__,
     ]);
 }
 
 sb_json_error('NOT_MOVED_YET', 501, [
     'handler' => 'user',
     'action' => $action,
-    'file' => __FILE__,
 ]);

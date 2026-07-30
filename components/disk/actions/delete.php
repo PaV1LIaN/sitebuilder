@@ -31,6 +31,8 @@ if (!is_array($items) || empty($items)) {
     throw new RuntimeException('EMPTY_ITEMS');
 }
 
+DiskValidator::assertItemsInsideRoot($items, $rootFolderId, $context);
+
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 $result = $adapter->delete($context, $items);
 

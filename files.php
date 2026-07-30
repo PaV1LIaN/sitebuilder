@@ -1,12 +1,10 @@
 <?php
-require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/auth.php';
 
 global $APPLICATION, $USER;
 
-if (!$USER->IsAuthorized()) {
-    require $_SERVER['DOCUMENT_ROOT'] . '/auth.php';
-    exit;
-}
+sitebuilder_require_auth();
 
 CJSCore::Init(['ajax']);
 

@@ -136,7 +136,8 @@ if ($action === 'pageSection.update') {
         $updated = PageSectionRepository::update(
             $sectionId,
             $fields,
-            (int)$USER->GetID()
+            (int)$USER->GetID(),
+            RevisionService::requireExpectedVersion($_POST['expectedVersion'] ?? null)
         );
 
         sb_json_ok([
@@ -146,8 +147,14 @@ if ($action === 'pageSection.update') {
                 (int)$updated['pageId']
             ),
         ]);
-    } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500);
+    } catch (SiteBuilderVersionConflictException|InvalidArgumentException $e) {
+        throw $e;
+    } catch (RuntimeException $e) {
+        $known = ['PAGE_SECTION_NOT_FOUND'];
+        if (in_array($e->getMessage(), $known, true)) {
+            sb_json_error($e->getMessage(), 422);
+        }
+        throw $e;
     }
 }
 
@@ -168,7 +175,12 @@ if ($action === 'pageSection.move') {
     sb_require_content_manager((int)$section['siteId']);
 
     try {
-        $moved = PageSectionRepository::move($sectionId, $dir, (int)$USER->GetID());
+        $moved = PageSectionRepository::move(
+            $sectionId,
+            $dir,
+            (int)$USER->GetID(),
+            RevisionService::decodeVersionMap($_POST['expectedVersions'] ?? null)
+        );
 
         sb_json_ok([
             'moved' => $moved,
@@ -177,8 +189,14 @@ if ($action === 'pageSection.move') {
                 (int)$section['pageId']
             ),
         ]);
-    } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500);
+    } catch (SiteBuilderVersionConflictException|InvalidArgumentException $e) {
+        throw $e;
+    } catch (RuntimeException $e) {
+        $known = ['INVALID_DIR', 'PAGE_SECTION_NOT_FOUND', 'PAGE_SECTION_NOT_FOUND_IN_SIBLINGS'];
+        if (in_array($e->getMessage(), $known, true)) {
+            sb_json_error($e->getMessage(), 422);
+        }
+        throw $e;
     }
 }
 
@@ -198,17 +216,30 @@ if ($action === 'pageSection.delete') {
     sb_require_content_manager((int)$section['siteId']);
 
     try {
-        PageSectionRepository::delete($sectionId, (int)$USER->GetID());
+        PageSectionRepository::delete(
+            $sectionId,
+            (int)$USER->GetID(),
+            RevisionService::requireExpectedVersion($_POST['expectedVersion'] ?? null)
+        );
 
         sb_json_ok([
             'deleted' => true,
+            'id' => $sectionId,
+            'siteId' => (int)$section['siteId'],
+            'pageId' => (int)$section['pageId'],
             'sections' => PageSectionRepository::listForPage(
                 (int)$section['siteId'],
                 (int)$section['pageId']
             ),
         ]);
-    } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500);
+    } catch (SiteBuilderVersionConflictException|InvalidArgumentException $e) {
+        throw $e;
+    } catch (RuntimeException $e) {
+        $known = ['PAGE_SECTION_NOT_FOUND', 'CANNOT_DELETE_LAST_SECTION', 'TARGET_SECTION_NOT_FOUND'];
+        if (in_array($e->getMessage(), $known, true)) {
+            sb_json_error($e->getMessage(), 422);
+        }
+        throw $e;
     }
 }
 
@@ -233,20 +264,21 @@ if ($action === 'pageSection.assignBlock') {
 
     sb_require_content_manager((int)$section['siteId']);
 
-    try {
-        $block = PageSectionRepository::assignBlock(
-            $blockId,
-            $sectionId,
-            $column,
-            (int)$USER->GetID()
-        );
+    $expectedVersion = RevisionService::requireExpectedVersion(
+        $_POST['expectedVersion'] ?? null
+    );
 
-        sb_json_ok([
-            'block' => $block,
-        ]);
-    } catch (Throwable $e) {
-        sb_json_error($e->getMessage(), 500);
-    }
+    $block = PageSectionRepository::assignBlock(
+        $blockId,
+        $sectionId,
+        $column,
+        (int)$USER->GetID(),
+        $expectedVersion
+    );
+
+    sb_json_ok([
+        'block' => $block,
+    ]);
 }
 
 sb_json_error('NOT_MOVED_YET', 501, [

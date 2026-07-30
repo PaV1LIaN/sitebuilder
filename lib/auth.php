@@ -201,6 +201,7 @@ function sitebuilder_require_api_auth(): void
 
     echo json_encode(
         [
+            'ok' => false,
             'success' => false,
             'error' => 'AUTH_REQUIRED',
             'message' => 'Требуется авторизация.',
@@ -211,6 +212,26 @@ function sitebuilder_require_api_auth(): void
         JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
     );
 
+    exit;
+}
+
+/**
+ * Требует авторизацию администратора Битрикс.
+ * Используется только для диагностических и миграционных страниц проекта.
+ */
+function sitebuilder_require_bitrix_admin(): void
+{
+    global $USER;
+
+    sitebuilder_require_auth();
+
+    if (is_object($USER) && $USER->IsAdmin()) {
+        return;
+    }
+
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=UTF-8');
+    echo 'ACCESS_DENIED';
     exit;
 }
 
@@ -226,6 +247,13 @@ function sitebuilder_require_api_auth(): void
 function sitebuilder_authorize_guest(): array
 {
     global $USER;
+
+    if (!is_object($USER) || !method_exists($USER, 'Authorize')) {
+        return [
+            'success' => false,
+            'message' => 'Механизм авторизации Битрикс недоступен.',
+        ];
+    }
 
     $config = sitebuilder_auth_config();
     $guestUserId = (int)$config['guest_user_id'];

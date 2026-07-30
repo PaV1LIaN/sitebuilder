@@ -1,12 +1,10 @@
 <?php
-require $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/auth.php';
 
 global $APPLICATION, $USER;
 
-if (!$USER->IsAuthorized()) {
-    require $_SERVER['DOCUMENT_ROOT'] . '/auth.php';
-    exit;
-}
+sitebuilder_require_auth();
 
 CJSCore::Init(['ajax']);
 
@@ -77,10 +75,18 @@ if (!$USER->IsAdmin()) {
                 ← В редактор
             </a>
             <h1 class="sb-title">Настройки сайта</h1>
-            <p class="sb-subtitle">siteId = <?= (int)$siteId ?></p>
+            <p class="sb-subtitle">siteId = <?= (int)$siteId ?> · версия <span id="siteVersionBadge">—</span></p>
         </div>
 
         <div class="sb-settings-top-actions">
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/versions.php?siteId=<?= (int)$siteId ?>&entityType=site&entityId=<?= (int)$siteId ?>">История настроек</a>
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/trash.php?siteId=<?= (int)$siteId ?>">Корзина</a>
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/audit.php?siteId=<?= (int)$siteId ?>">Журнал</a>
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/jobs.php?siteId=<?= (int)$siteId ?>">Задания</a>
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/queue_health.php?siteId=<?= (int)$siteId ?>">Состояние очереди</a>
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/alerts.php?siteId=<?= (int)$siteId ?>">Оповещения</a>
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/external_resources.php?siteId=<?= (int)$siteId ?>">Внешние ресурсы</a>
+            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/backups.php?siteId=<?= (int)$siteId ?>">Резервные копии</a>
             <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/public.php?siteId=<?= (int)$siteId ?>" target="_blank">
                 Открыть публичную
             </a>
@@ -357,6 +363,7 @@ if (!$USER->IsAdmin()) {
         fd.append('action', 'site.appearanceUpload');
         fd.append('sessid', getSessid());
         fd.append('siteId', String(siteId));
+        fd.append('expectedVersion', String(Number((state.site && state.site.version) || (state.appearance && state.appearance.siteVersion) || 1)));
         fd.append('type', type);
         fd.append('file', file);
 
@@ -419,6 +426,10 @@ if (!$USER->IsAdmin()) {
 
     function renderBasic() {
         var site = state.site || {};
+        var versionNode = document.getElementById('siteVersionBadge');
+        if (versionNode) {
+            versionNode.textContent = String(Number(site.version || 1));
+        }
         var settings = site.settings || {};
 
         setValue('siteNameInput', site.name || '');
@@ -528,6 +539,7 @@ if (!$USER->IsAdmin()) {
 
         var res = await api('site.update', {
             siteId: siteId,
+            expectedVersion: Number((state.site && state.site.version) || 1),
             name: getValue('siteNameInput').trim(),
             slug: getValue('siteSlugInput').trim(),
             containerWidth: getValue('containerWidthInput') || '1100',
@@ -553,6 +565,7 @@ if (!$USER->IsAdmin()) {
 
         var res = await api('site.appearanceUpdate', {
             siteId: siteId,
+            expectedVersion: Number((state.site && state.site.version) || 1),
             backgroundColor: getValue('backgroundColorInput') || '#f8fafc',
             backgroundMode: getValue('backgroundModeInput') || 'cover',
             backgroundPosition: getValue('backgroundPositionInput') || 'center center',
@@ -562,7 +575,11 @@ if (!$USER->IsAdmin()) {
         });
 
         state.appearance = res.appearance || state.appearance;
+        if (state.site && state.appearance && state.appearance.siteVersion) {
+            state.site.version = Number(state.appearance.siteVersion);
+        }
 
+        renderBasic();
         renderAppearance();
 
         setMessage('Оформление сохранено', 'success');
@@ -582,7 +599,11 @@ if (!$USER->IsAdmin()) {
 
         state.appearance = res.appearance || state.appearance;
         input.value = '';
+        if (state.site && state.appearance && state.appearance.siteVersion) {
+            state.site.version = Number(state.appearance.siteVersion);
+        }
 
+        renderBasic();
         renderAppearance();
 
         setMessage('Логотип загружен', 'success');
@@ -602,7 +623,11 @@ if (!$USER->IsAdmin()) {
 
         state.appearance = res.appearance || state.appearance;
         input.value = '';
+        if (state.site && state.appearance && state.appearance.siteVersion) {
+            state.site.version = Number(state.appearance.siteVersion);
+        }
 
+        renderBasic();
         renderAppearance();
 
         setMessage('Фон загружен', 'success');
@@ -617,11 +642,16 @@ if (!$USER->IsAdmin()) {
 
         var res = await api('site.appearanceRemove', {
             siteId: siteId,
+            expectedVersion: Number((state.site && state.site.version) || 1),
             type: 'logo'
         });
 
         state.appearance = res.appearance || state.appearance;
+        if (state.site && state.appearance && state.appearance.siteVersion) {
+            state.site.version = Number(state.appearance.siteVersion);
+        }
 
+        renderBasic();
         renderAppearance();
 
         setMessage('Логотип удалён', 'success');
@@ -636,11 +666,16 @@ if (!$USER->IsAdmin()) {
 
         var res = await api('site.appearanceRemove', {
             siteId: siteId,
+            expectedVersion: Number((state.site && state.site.version) || 1),
             type: 'background'
         });
 
         state.appearance = res.appearance || state.appearance;
+        if (state.site && state.appearance && state.appearance.siteVersion) {
+            state.site.version = Number(state.appearance.siteVersion);
+        }
 
+        renderBasic();
         renderAppearance();
 
         setMessage('Фон удалён', 'success');

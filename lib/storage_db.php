@@ -19,7 +19,8 @@ function sb_read_sites(): array
             created_by,
             created_at,
             updated_by,
-            updated_at
+            updated_at,
+            version
         FROM sitebuilder.site
         ORDER BY id ASC
     ");
@@ -29,77 +30,17 @@ function sb_read_sites(): array
 
 function sb_write_sites(array $sites): bool
 {
-    $pdo = sb_db();
-    $pdo->beginTransaction();
+    $startedHere = sb_db_transaction_scope_begin();
 
     try {
-        $existingRows = sb_db_fetch_all("SELECT id FROM sitebuilder.site");
-        $existingIds = array_map('intval', array_column($existingRows, 'id'));
-
-        $incomingIds = [];
-
         foreach ($sites as $site) {
             $id = (int)($site['id'] ?? 0);
             if ($id <= 0) {
                 continue;
             }
 
-            $incomingIds[] = $id;
-
-            sb_db_execute("
-                INSERT INTO sitebuilder.site (
-                    id,
-                    name,
-                    slug,
-                    section_id,
-                    home_page_id,
-                    disk_folder_id,
-                    top_menu_id,
-                    bitrix_group_id,
-                    bitrix_group_created_by,
-                    bitrix_group_created_at,
-                    settings_json,
-                    layout_json,
-                    created_by,
-                    created_at,
-                    updated_by,
-                    updated_at
-                ) VALUES (
-                    :id,
-                    :name,
-                    :slug,
-                    :section_id,
-                    :home_page_id,
-                    :disk_folder_id,
-                    :top_menu_id,
-                    :bitrix_group_id,
-                    :bitrix_group_created_by,
-                    :bitrix_group_created_at,
-                    :settings_json::jsonb,
-                    :layout_json::jsonb,
-                    :created_by,
-                    :created_at,
-                    :updated_by,
-                    :updated_at
-                )
-                ON CONFLICT (id)
-                DO UPDATE SET
-                    name = EXCLUDED.name,
-                    slug = EXCLUDED.slug,
-                    section_id = EXCLUDED.section_id,
-                    home_page_id = EXCLUDED.home_page_id,
-                    disk_folder_id = EXCLUDED.disk_folder_id,
-                    top_menu_id = EXCLUDED.top_menu_id,
-                    bitrix_group_id = EXCLUDED.bitrix_group_id,
-                    bitrix_group_created_by = EXCLUDED.bitrix_group_created_by,
-                    bitrix_group_created_at = EXCLUDED.bitrix_group_created_at,
-                    settings_json = EXCLUDED.settings_json,
-                    layout_json = EXCLUDED.layout_json,
-                    created_by = EXCLUDED.created_by,
-                    created_at = EXCLUDED.created_at,
-                    updated_by = EXCLUDED.updated_by,
-                    updated_at = EXCLUDED.updated_at
-            ", [
+            $stmt = sb_db()->prepare("\n                INSERT INTO sitebuilder.site (\n                    id,name,slug,section_id,home_page_id,disk_folder_id,top_menu_id,\n                    bitrix_group_id,bitrix_group_created_by,bitrix_group_created_at,\n                    settings_json,layout_json,created_by,created_at,updated_by,updated_at,version\n                ) VALUES (\n                    :id,:name,:slug,:section_id,:home_page_id,:disk_folder_id,:top_menu_id,\n                    :bitrix_group_id,:bitrix_group_created_by,:bitrix_group_created_at,\n                    CAST(:settings_json AS jsonb),CAST(:layout_json AS jsonb),\n                    :created_by,:created_at,:updated_by,:updated_at,:version\n                )\n                RETURNING\n                    id,name,slug,section_id,home_page_id,disk_folder_id,top_menu_id,\n                    bitrix_group_id,bitrix_group_created_by,bitrix_group_created_at,\n                    settings_json,layout_json,created_by,created_at,updated_by,updated_at,version\n            ");
+            $stmt->execute([
                 ':id' => $id,
                 ':name' => (string)($site['name'] ?? ''),
                 ':slug' => (string)($site['slug'] ?? ''),
@@ -110,26 +51,30 @@ function sb_write_sites(array $sites): bool
                 ':bitrix_group_id' => !empty($site['bitrixGroupId']) ? (int)$site['bitrixGroupId'] : null,
                 ':bitrix_group_created_by' => !empty($site['bitrixGroupCreatedBy']) ? (int)$site['bitrixGroupCreatedBy'] : null,
                 ':bitrix_group_created_at' => !empty($site['bitrixGroupCreatedAt']) ? (string)$site['bitrixGroupCreatedAt'] : null,
-                ':settings_json' => json_encode($site['settings'] ?? [], JSON_UNESCAPED_UNICODE),
-                ':layout_json' => json_encode($site['layout'] ?? [], JSON_UNESCAPED_UNICODE),
+                ':settings_json' => json_encode($site['settings'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+                ':layout_json' => json_encode($site['layout'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
                 ':created_by' => isset($site['createdBy']) ? (int)$site['createdBy'] : null,
                 ':created_at' => (string)($site['createdAt'] ?? date('c')),
                 ':updated_by' => isset($site['updatedBy']) ? (int)$site['updatedBy'] : null,
                 ':updated_at' => (string)($site['updatedAt'] ?? date('c')),
+                ':version' => max(1, (int)($site['version'] ?? 1)),
             ]);
+
+            $row = $stmt->fetch();
+            if ($row && class_exists('RevisionService')) {
+                $saved = sb_map_site_row($row);
+                RevisionService::recordSite(
+                    $saved,
+                    'create',
+                    (int)($saved['updatedBy'] ?: $saved['createdBy'])
+                );
+            }
         }
 
-        $idsToDelete = array_diff($existingIds, $incomingIds);
-        if (!empty($idsToDelete)) {
-            $placeholders = implode(',', array_fill(0, count($idsToDelete), '?'));
-            $stmt = $pdo->prepare("DELETE FROM sitebuilder.site WHERE id IN ($placeholders)");
-            $stmt->execute(array_values($idsToDelete));
-        }
-
-        $pdo->commit();
+        sb_db_transaction_scope_commit($startedHere);
         return true;
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        sb_db_transaction_scope_rollback($startedHere);
         throw $e;
     }
 }
@@ -149,7 +94,8 @@ function sb_read_pages(): array
             created_by,
             created_at,
             updated_by,
-            updated_at
+            updated_at,
+            version
         FROM sitebuilder.page
         ORDER BY site_id ASC, sort ASC, id ASC
     ");
@@ -159,65 +105,17 @@ function sb_read_pages(): array
 
 function sb_write_pages(array $pages): bool
 {
-    $pdo = sb_db();
-    $pdo->beginTransaction();
+    $startedHere = sb_db_transaction_scope_begin();
 
     try {
-        $existingRows = sb_db_fetch_all("SELECT id FROM sitebuilder.page");
-        $existingIds = array_map('intval', array_column($existingRows, 'id'));
-
-        $incomingIds = [];
-
         foreach ($pages as $page) {
             $id = (int)($page['id'] ?? 0);
             if ($id <= 0) {
                 continue;
             }
 
-            $incomingIds[] = $id;
-
-            sb_db_execute("
-                INSERT INTO sitebuilder.page (
-                    id,
-                    site_id,
-                    title,
-                    slug,
-                    parent_id,
-                    sort,
-                    status,
-                    published_at,
-                    created_by,
-                    created_at,
-                    updated_by,
-                    updated_at
-                ) VALUES (
-                    :id,
-                    :site_id,
-                    :title,
-                    :slug,
-                    :parent_id,
-                    :sort,
-                    :status,
-                    :published_at,
-                    :created_by,
-                    :created_at,
-                    :updated_by,
-                    :updated_at
-                )
-                ON CONFLICT (id)
-                DO UPDATE SET
-                    site_id = EXCLUDED.site_id,
-                    title = EXCLUDED.title,
-                    slug = EXCLUDED.slug,
-                    parent_id = EXCLUDED.parent_id,
-                    sort = EXCLUDED.sort,
-                    status = EXCLUDED.status,
-                    published_at = EXCLUDED.published_at,
-                    created_by = EXCLUDED.created_by,
-                    created_at = EXCLUDED.created_at,
-                    updated_by = EXCLUDED.updated_by,
-                    updated_at = EXCLUDED.updated_at
-            ", [
+            $stmt = sb_db()->prepare("\n                INSERT INTO sitebuilder.page (\n                    id,site_id,title,slug,parent_id,sort,status,published_at,\n                    created_by,created_at,updated_by,updated_at,version\n                ) VALUES (\n                    :id,:site_id,:title,:slug,:parent_id,:sort,:status,:published_at,\n                    :created_by,:created_at,:updated_by,:updated_at,:version\n                )\n                RETURNING id,site_id,title,slug,parent_id,sort,status,published_at,\n                          created_by,created_at,updated_by,updated_at,version\n            ");
+            $stmt->execute([
                 ':id' => $id,
                 ':site_id' => (int)($page['siteId'] ?? 0),
                 ':title' => (string)($page['title'] ?? ''),
@@ -230,20 +128,24 @@ function sb_write_pages(array $pages): bool
                 ':created_at' => (string)($page['createdAt'] ?? date('c')),
                 ':updated_by' => isset($page['updatedBy']) ? (int)$page['updatedBy'] : null,
                 ':updated_at' => (string)($page['updatedAt'] ?? date('c')),
+                ':version' => max(1, (int)($page['version'] ?? 1)),
             ]);
+
+            $row = $stmt->fetch();
+            if ($row && class_exists('RevisionService')) {
+                $saved = sb_map_page_row($row);
+                RevisionService::recordPage(
+                    $saved,
+                    'create',
+                    (int)($saved['updatedBy'] ?: $saved['createdBy'])
+                );
+            }
         }
 
-        $idsToDelete = array_diff($existingIds, $incomingIds);
-        if (!empty($idsToDelete)) {
-            $placeholders = implode(',', array_fill(0, count($idsToDelete), '?'));
-            $stmt = $pdo->prepare("DELETE FROM sitebuilder.page WHERE id IN ($placeholders)");
-            $stmt->execute(array_values($idsToDelete));
-        }
-
-        $pdo->commit();
+        sb_db_transaction_scope_commit($startedHere);
         return true;
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        sb_db_transaction_scope_rollback($startedHere);
         throw $e;
     }
 }
@@ -261,7 +163,8 @@ function sb_read_blocks(): array
             created_by,
             created_at,
             updated_by,
-            updated_at
+            updated_at,
+            version
         FROM sitebuilder.block
         ORDER BY page_id ASC, sort ASC, id ASC
     ");
@@ -271,83 +174,45 @@ function sb_read_blocks(): array
 
 function sb_write_blocks(array $blocks): bool
 {
-    $pdo = sb_db();
-    $pdo->beginTransaction();
+    $startedHere = sb_db_transaction_scope_begin();
 
     try {
-        $existingRows = sb_db_fetch_all("SELECT id FROM sitebuilder.block");
-        $existingIds = array_map('intval', array_column($existingRows, 'id'));
-
-        $incomingIds = [];
-
         foreach ($blocks as $block) {
             $id = (int)($block['id'] ?? 0);
             if ($id <= 0) {
                 continue;
             }
 
-            $incomingIds[] = $id;
-
-            sb_db_execute("
-                INSERT INTO sitebuilder.block (
-                    id,
-                    page_id,
-                    type,
-                    sort,
-                    content_json,
-                    props_json,
-                    created_by,
-                    created_at,
-                    updated_by,
-                    updated_at
-                ) VALUES (
-                    :id,
-                    :page_id,
-                    :type,
-                    :sort,
-                    :content_json::jsonb,
-                    :props_json::jsonb,
-                    :created_by,
-                    :created_at,
-                    :updated_by,
-                    :updated_at
-                )
-                ON CONFLICT (id)
-                DO UPDATE SET
-                    page_id = EXCLUDED.page_id,
-                    type = EXCLUDED.type,
-                    sort = EXCLUDED.sort,
-                    content_json = EXCLUDED.content_json,
-                    props_json = EXCLUDED.props_json,
-                    created_by = EXCLUDED.created_by,
-                    created_at = EXCLUDED.created_at,
-                    updated_by = EXCLUDED.updated_by,
-                    updated_at = EXCLUDED.updated_at
-            ", [
+            $stmt = sb_db()->prepare("\n                INSERT INTO sitebuilder.block (\n                    id,page_id,type,sort,content_json,props_json,\n                    created_by,created_at,updated_by,updated_at,version\n                ) VALUES (\n                    :id,:page_id,:type,:sort,CAST(:content_json AS jsonb),CAST(:props_json AS jsonb),\n                    :created_by,:created_at,:updated_by,:updated_at,:version\n                )\n                RETURNING id,page_id,type,sort,content_json,props_json,\n                          created_by,created_at,updated_by,updated_at,version\n            ");
+            $stmt->execute([
                 ':id' => $id,
                 ':page_id' => (int)($block['pageId'] ?? 0),
                 ':type' => (string)($block['type'] ?? ''),
                 ':sort' => (int)($block['sort'] ?? 500),
-                ':content_json' => json_encode($block['content'] ?? [], JSON_UNESCAPED_UNICODE),
-                ':props_json' => json_encode($block['props'] ?? [], JSON_UNESCAPED_UNICODE),
+                ':content_json' => json_encode($block['content'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+                ':props_json' => json_encode($block['props'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
                 ':created_by' => isset($block['createdBy']) ? (int)$block['createdBy'] : null,
                 ':created_at' => (string)($block['createdAt'] ?? date('c')),
                 ':updated_by' => isset($block['updatedBy']) ? (int)$block['updatedBy'] : null,
                 ':updated_at' => (string)($block['updatedAt'] ?? date('c')),
+                ':version' => max(1, (int)($block['version'] ?? 1)),
             ]);
+
+            $row = $stmt->fetch();
+            if ($row && class_exists('RevisionService')) {
+                $saved = sb_map_block_row($row);
+                RevisionService::recordBlock(
+                    $saved,
+                    'create',
+                    (int)($saved['updatedBy'] ?: $saved['createdBy'])
+                );
+            }
         }
 
-        $idsToDelete = array_diff($existingIds, $incomingIds);
-        if (!empty($idsToDelete)) {
-            $placeholders = implode(',', array_fill(0, count($idsToDelete), '?'));
-            $stmt = $pdo->prepare("DELETE FROM sitebuilder.block WHERE id IN ($placeholders)");
-            $stmt->execute(array_values($idsToDelete));
-        }
-
-        $pdo->commit();
+        sb_db_transaction_scope_commit($startedHere);
         return true;
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        sb_db_transaction_scope_rollback($startedHere);
         throw $e;
     }
 }
@@ -376,6 +241,7 @@ function sb_map_site_row(array $row): array
         'createdAt' => (string)($row['created_at'] ?? ''),
         'updatedBy' => isset($row['updated_by']) ? (int)$row['updated_by'] : 0,
         'updatedAt' => (string)($row['updated_at'] ?? ''),
+        'version' => max(1, (int)($row['version'] ?? 1)),
     ];
 }
 
@@ -394,6 +260,7 @@ function sb_map_page_row(array $row): array
         'createdAt' => (string)($row['created_at'] ?? ''),
         'updatedBy' => isset($row['updated_by']) ? (int)$row['updated_by'] : 0,
         'updatedAt' => (string)($row['updated_at'] ?? ''),
+        'version' => max(1, (int)($row['version'] ?? 1)),
     ];
 }
 
@@ -410,5 +277,6 @@ function sb_map_block_row(array $row): array
         'createdAt' => (string)($row['created_at'] ?? ''),
         'updatedBy' => isset($row['updated_by']) ? (int)$row['updated_by'] : 0,
         'updatedAt' => (string)($row['updated_at'] ?? ''),
+        'version' => max(1, (int)($row['version'] ?? 1)),
     ];
 }

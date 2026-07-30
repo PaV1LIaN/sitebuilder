@@ -23,13 +23,23 @@ class DiskSettingsRepository
         return DiskSitebuilderBridge::saveBlockProps($blockId, $default);
     }
 
-    public static function save(int $blockId, array $settings): bool
+    public static function save(
+        int $blockId,
+        array $settings,
+        ?int $expectedVersion = null,
+        int $userId = 0
+    ): bool
     {
         $current = self::getByBlockId($blockId);
         $merged = array_merge($current, $settings);
         $normalized = DiskSitebuilderBridge::normalizeDiskProps($merged);
 
-        return DiskSitebuilderBridge::saveBlockProps($blockId, $normalized);
+        return DiskSitebuilderBridge::saveBlockProps(
+            $blockId,
+            $normalized,
+            $expectedVersion,
+            $userId
+        );
     }
 
     public static function ensureExistsForBlock(int $blockId, int $siteId, int $pageId, ?int $createdBy = null): array
@@ -43,7 +53,12 @@ class DiskSettingsRepository
         $normalized = DiskSitebuilderBridge::normalizeDiskProps($props);
 
         if (($block['props'] ?? []) !== $normalized) {
-            DiskSitebuilderBridge::saveBlockProps($blockId, $normalized);
+            DiskSitebuilderBridge::saveBlockProps(
+                $blockId,
+                $normalized,
+                (int)($block['version'] ?? 1),
+                (int)($createdBy ?? 0)
+            );
         }
 
         return $normalized;
