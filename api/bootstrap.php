@@ -50,8 +50,9 @@ require_once $projectRoot . '/lib/MaintenanceService.php';
 require_once $projectRoot . '/lib/disk.php';
 
 /*
- * Не отдаём пользователю stack trace и SQL-текст при необработанной ошибке.
- * Активная request-транзакция откатывается через sb_json_error().
+ * Не отдаём SQL и stack trace обычным пользователям.
+ * Администратор Битрикс получает безопасные диагностические поля,
+ * чтобы причину HTTP 500 можно было увидеть через браузер без SSH.
  */
 set_exception_handler(static function (Throwable $e): void {
     if ($e instanceof SiteBuilderResourceBusyException) {
@@ -91,8 +92,35 @@ set_exception_handler(static function (Throwable $e): void {
         $e->getLine()
     ));
 
+    $debug = [];
+    global $USER;
+
+    if (
+        is_object($USER)
+        && method_exists($USER, 'IsAdmin')
+        && $USER->IsAdmin()
+    ) {
+        $documentRoot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+        $file = $e->getFile();
+
+        if ($documentRoot !== '' && str_starts_with($file, $documentRoot)) {
+            $file = substr($file, strlen($documentRoot));
+        }
+
+        $debug = [
+            'exception' => get_class($e),
+            'message' => $e->getMessage(),
+            'file' => $file,
+            'line' => $e->getLine(),
+            'sqlState' => $e instanceof PDOException
+                ? sb_db_exception_sqlstate($e)
+                : '',
+            'action' => trim((string)($_POST['action'] ?? '')),
+        ];
+    }
+
     if (function_exists('sb_json_error')) {
-        sb_json_error('INTERNAL_ERROR', 500);
+        sb_json_error('INTERNAL_ERROR', 500, $debug);
     }
 
     if (function_exists('sb_db_rollback_request_transaction')) {
@@ -100,17 +128,16 @@ set_exception_handler(static function (Throwable $e): void {
     }
 
     http_response_code(500);
-    echo json_encode([
+    echo json_encode(array_merge([
         'ok' => false,
         'error' => 'INTERNAL_ERROR',
-    ], JSON_UNESCAPED_UNICODE);
+    ], $debug), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 });
 
-
 /*
  * Очистка запускается после регистрации exception handler: даже ошибка
- * maintenance не раскрывает SQL или stack trace в ответе API.
+ * maintenance не раскрывает SQL или stack trace обычному пользователю.
  */
 $maintenanceResult = MaintenanceService::runIfDue();
 if (is_array($maintenanceResult)) {
