@@ -222,7 +222,7 @@ final class RevisionService
             ':title'=>(string)($page['title']??$current['title']), ':slug'=>(string)($page['slug']??$current['slug']),
             ':parent_id'=>!empty($page['parentId'])?(int)$page['parentId']:null, ':sort'=>(int)($page['sort']??$current['sort']),
             ':status'=>(string)($page['status']??$current['status']), ':published_at'=>!empty($page['publishedAt'])?(string)$page['publishedAt']:null,
-            ':seo_json'=>json_encode(is_array($page['seo']??null)?$page['seo']:$current['seo'],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR),
+            ':seo_json'=>json_encode((object)(is_array($page['seo']??null)?$page['seo']:$current['seo']),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR),
             ':updated_by'=>$userId, ':id'=>$pageId, ':expected_version'=>$expectedVersion,
         ]);
         $row=$stmt->fetch(); if(!$row) self::throwLatestConflict(self::ENTITY_PAGE,$pageId,$expectedVersion);

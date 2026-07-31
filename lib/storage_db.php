@@ -125,7 +125,12 @@ function sb_write_pages(array $pages): bool
                 ':sort' => (int)($page['sort'] ?? 500),
                 ':status' => (string)($page['status'] ?? 'draft'),
                 ':published_at' => !empty($page['publishedAt']) ? (string)$page['publishedAt'] : null,
-                ':seo_json' => json_encode(is_array($page['seo'] ?? null) ? $page['seo'] : [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+                ':seo_json' => json_encode(
+                    (object)(is_array($page['seo'] ?? null) ? $page['seo'] : []),
+                    JSON_UNESCAPED_UNICODE
+                    | JSON_UNESCAPED_SLASHES
+                    | JSON_THROW_ON_ERROR
+                ),
                 ':created_by' => isset($page['createdBy']) ? (int)$page['createdBy'] : null,
                 ':created_at' => (string)($page['createdAt'] ?? date('c')),
                 ':updated_by' => isset($page['updatedBy']) ? (int)$page['updatedBy'] : null,
