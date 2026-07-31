@@ -25,7 +25,8 @@ var state = {
     historyEntityId: 0,
     inspectorTab: 'page',
     previewDevice: 'desktop',
-    pageSearch: ''
+    pageSearch: '',
+    globalBlocks: []
 };
 
 var output = document.getElementById('output') || document.getElementById('outputFallback');
@@ -239,6 +240,14 @@ function handleVersionConflict(error) {
 function getInputValue(id) {
     var el = document.getElementById(id);
     return el ? String(el.value || '') : '';
+}
+
+function setInputValue(id, value) {
+    var el = document.getElementById(id);
+
+    if (el) {
+        el.value = value == null ? '' : String(value);
+    }
 }
 
 function getChecked(id) {

@@ -13,9 +13,10 @@ if (!function_exists('sb_normalize_page_record')) {
             'parentId' => (int)($page['parentId'] ?? 0),
             'sort' => (int)($page['sort'] ?? 500),
             'status' => in_array((string)($page['status'] ?? 'draft'), ['draft', 'published'], true)
-                ? (string)$page['status']
+                ? (string)($page['status'] ?? 'draft')
                 : 'draft',
             'publishedAt' => !empty($page['publishedAt']) ? (string)$page['publishedAt'] : null,
+            'seo' => is_array($page['seo'] ?? null) ? $page['seo'] : [],
             'createdBy' => isset($page['createdBy']) ? (int)$page['createdBy'] : 0,
             'createdAt' => !empty($page['createdAt']) ? (string)$page['createdAt'] : date('c'),
             'updatedBy' => isset($page['updatedBy']) ? (int)$page['updatedBy'] : 0,
@@ -386,6 +387,69 @@ if (!function_exists('sb_default_block_content')) {
                     'imageSrc' => '',
                     'buttonText' => '',
                     'buttonHref' => '',
+                ];
+
+            case 'faq':
+                return [
+                    'title' => 'Частые вопросы',
+                    'items' => [
+                        ['question' => 'Как начать работу?', 'answer' => 'Добавьте свой ответ на частый вопрос.'],
+                        ['question' => 'Где получить помощь?', 'answer' => 'Укажите контакты или порядок обращения.'],
+                    ],
+                ];
+
+            case 'video':
+                return [
+                    'url' => '',
+                    'title' => 'Видео',
+                    'caption' => '',
+                    'poster' => '',
+                ];
+
+            case 'pricing':
+                return [
+                    'title' => 'Тарифы и варианты',
+                    'plans' => [
+                        ['name' => 'Базовый', 'price' => 'Бесплатно', 'description' => 'Для знакомства', 'features' => ['Основная возможность', 'Поддержка'], 'buttonText' => 'Выбрать', 'buttonHref' => '#', 'featured' => false],
+                        ['name' => 'Расширенный', 'price' => 'По запросу', 'description' => 'Для команды', 'features' => ['Все возможности', 'Приоритетная поддержка'], 'buttonText' => 'Оставить заявку', 'buttonHref' => '#', 'featured' => true],
+                    ],
+                ];
+
+            case 'form':
+                return [
+                    'title' => 'Оставить заявку',
+                    'description' => 'Заполните форму — мы свяжемся с вами.',
+                    'submitLabel' => 'Отправить',
+                    'successText' => 'Спасибо! Заявка отправлена.',
+                    'privacyText' => 'Нажимая кнопку, вы соглашаетесь на обработку данных.',
+                    'fields' => [
+                        ['key' => 'name', 'label' => 'Имя', 'type' => 'text', 'required' => true, 'placeholder' => 'Ваше имя', 'options' => [], 'width' => 'half'],
+                        ['key' => 'email', 'label' => 'Email', 'type' => 'email', 'required' => true, 'placeholder' => 'name@example.com', 'options' => [], 'width' => 'half'],
+                        ['key' => 'message', 'label' => 'Сообщение', 'type' => 'textarea', 'required' => false, 'placeholder' => 'Расскажите о задаче', 'options' => [], 'width' => 'full'],
+                    ],
+                ];
+
+            case 'navigation':
+                return [
+                    'brand' => 'Название сайта',
+                    'links' => [
+                        ['label' => 'Главная', 'href' => '#'],
+                        ['label' => 'О нас', 'href' => '#'],
+                        ['label' => 'Контакты', 'href' => '#'],
+                    ],
+                    'ctaLabel' => 'Связаться',
+                    'ctaHref' => '#',
+                ];
+
+            case 'footer':
+                return [
+                    'brand' => 'Название сайта',
+                    'text' => 'Краткое описание организации или проекта.',
+                    'columns' => [
+                        ['title' => 'Разделы', 'links' => [['label' => 'Главная', 'href' => '#'], ['label' => 'Контакты', 'href' => '#']]],
+                        ['title' => 'Документы', 'links' => [['label' => 'Политика конфиденциальности', 'href' => '#']]],
+                    ],
+                    'copyright' => '© ' . date('Y') . ' Все права защищены',
                 ];
 
             case 'html':

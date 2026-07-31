@@ -48,6 +48,7 @@ $readOnlyActions = [
     'backup.get',
     'integrity.list',
     'integrity.get',
+    'globalBlock.list',
 ];
 
 if (
@@ -96,7 +97,8 @@ if (
     $action === 'page.updateMeta' ||
     $action === 'page.setStatus' ||
     $action === 'page.setParent' ||
-    $action === 'page.move'
+    $action === 'page.move' ||
+    $action === 'page.reorderTree'
 ) {
     require __DIR__ . '/handlers/page.php';
     exit;
@@ -174,6 +176,17 @@ if (
     $action === 'site.setSection'
 ) {
     require __DIR__ . '/handlers/section.php';
+    exit;
+}
+
+if (
+    $action === 'globalBlock.list' ||
+    $action === 'globalBlock.create' ||
+    $action === 'globalBlock.update' ||
+    $action === 'globalBlock.rename' ||
+    $action === 'globalBlock.delete'
+) {
+    require __DIR__ . '/handlers/global_block.php';
     exit;
 }
 
@@ -276,8 +289,10 @@ if (
 if (
     $action === 'pageSection.list' ||
     $action === 'pageSection.create' ||
+    $action === 'pageSection.createPreset' ||
     $action === 'pageSection.update' ||
     $action === 'pageSection.move' ||
+    $action === 'pageSection.reorder' ||
     $action === 'pageSection.delete' ||
     $action === 'pageSection.assignBlock'
 ) {

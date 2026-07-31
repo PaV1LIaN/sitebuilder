@@ -83,6 +83,33 @@ if (!function_exists('sb_public_appearance_background_repeat')) {
     }
 }
 
+if (!function_exists('sb_public_design_font_stack')) {
+    function sb_public_design_font_stack(string $font): string
+    {
+        $map = [
+            'system' => 'Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+            'arial' => 'Arial,Helvetica,sans-serif',
+            'georgia' => 'Georgia,"Times New Roman",serif',
+            'times' => '"Times New Roman",Times,serif',
+            'mono' => 'ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace',
+        ];
+        return $map[$font] ?? $map['system'];
+    }
+}
+
+if (!function_exists('sb_public_design_shadow')) {
+    function sb_public_design_shadow(string $preset): string
+    {
+        $map = [
+            'none' => 'none',
+            'soft' => '0 12px 32px rgba(15,23,42,.08)',
+            'medium' => '0 18px 48px rgba(15,23,42,.14)',
+            'strong' => '0 24px 70px rgba(15,23,42,.22)',
+        ];
+        return $map[$preset] ?? $map['soft'];
+    }
+}
+
 if (!function_exists('sb_public_appearance_get')) {
     function sb_public_appearance_get(array $site, array $vm): array
     {
@@ -102,6 +129,20 @@ if (!function_exists('sb_public_appearance_get')) {
                 (string)($settings['accent'] ?? ($vm['accent'] ?? '#2563eb')),
                 '#2563eb'
             ),
+            'secondaryColor' => sb_public_appearance_color((string)($settings['secondaryColor'] ?? '#0f172a'), '#0f172a'),
+            'textColor' => sb_public_appearance_color((string)($settings['textColor'] ?? '#0f172a'), '#0f172a'),
+            'mutedColor' => sb_public_appearance_color((string)($settings['mutedColor'] ?? '#64748b'), '#64748b'),
+            'surfaceColor' => sb_public_appearance_color((string)($settings['surfaceColor'] ?? '#ffffff'), '#ffffff'),
+            'borderColor' => sb_public_appearance_color((string)($settings['borderColor'] ?? '#e2e8f0'), '#e2e8f0'),
+            'headingFont' => sb_public_design_font_stack((string)($settings['headingFont'] ?? 'system')),
+            'bodyFont' => sb_public_design_font_stack((string)($settings['bodyFont'] ?? 'system')),
+            'baseFontSize' => max(14, min(22, (int)($settings['baseFontSize'] ?? 16))),
+            'bodyLineHeight' => max(1.2, min(2.2, (float)($settings['bodyLineHeight'] ?? 1.6))),
+            'headingWeight' => in_array((int)($settings['headingWeight'] ?? 800), [500,600,700,800,900], true) ? (int)($settings['headingWeight'] ?? 800) : 800,
+            'radiusScale' => max(0, min(32, (int)($settings['radiusScale'] ?? 16))),
+            'buttonRadius' => max(0, min(40, (int)($settings['buttonRadius'] ?? 12))),
+            'sectionGap' => max(0, min(96, (int)($settings['sectionGap'] ?? 24))),
+            'shadowPreset' => in_array((string)($settings['shadowPreset'] ?? 'soft'), ['none','soft','medium','strong'], true) ? (string)$settings['shadowPreset'] : 'soft',
 
             'logoFileId' => $logoFileId,
             'logoUrl' => sb_public_appearance_file_url($logoFileId),
@@ -137,7 +178,25 @@ if (!function_exists('sb_public_appearance_style')) {
         $styles = [];
 
         $styles[] = '--sb-accent: ' . sb_public_h((string)($appearance['accent'] ?? '#2563eb'));
+        $styles[] = '--sb-secondary: ' . sb_public_h((string)($appearance['secondaryColor'] ?? '#0f172a'));
+        $styles[] = '--sb-text: ' . sb_public_h((string)($appearance['textColor'] ?? '#0f172a'));
+        $styles[] = '--sb-muted: ' . sb_public_h((string)($appearance['mutedColor'] ?? '#64748b'));
+        $styles[] = '--sb-surface: ' . sb_public_h((string)($appearance['surfaceColor'] ?? '#ffffff'));
+        $styles[] = '--sb-border: ' . sb_public_h((string)($appearance['borderColor'] ?? '#e2e8f0'));
+        $styles[] = '--sb-heading-font: ' . (string)($appearance['headingFont'] ?? sb_public_design_font_stack('system'));
+        $styles[] = '--sb-body-font: ' . (string)($appearance['bodyFont'] ?? sb_public_design_font_stack('system'));
+        $styles[] = '--sb-base-font-size: ' . max(14, min(22, (int)($appearance['baseFontSize'] ?? 16))) . 'px';
+        $styles[] = '--sb-body-line-height: ' . max(1.2, min(2.2, (float)($appearance['bodyLineHeight'] ?? 1.6)));
+        $styles[] = '--sb-heading-weight: ' . (int)($appearance['headingWeight'] ?? 800);
+        $styles[] = '--sb-radius: ' . max(0, min(32, (int)($appearance['radiusScale'] ?? 16))) . 'px';
+        $styles[] = '--sb-button-radius: ' . max(0, min(40, (int)($appearance['buttonRadius'] ?? 12))) . 'px';
+        $styles[] = '--sb-section-stack-gap: ' . max(0, min(96, (int)($appearance['sectionGap'] ?? 24))) . 'px';
+        $styles[] = '--sb-global-shadow: ' . sb_public_design_shadow((string)($appearance['shadowPreset'] ?? 'soft'));
         $styles[] = '--sb-logo-size: ' . max(24, min(160, (int)($appearance['logoSize'] ?? 42))) . 'px';
+        $styles[] = 'font-family:var(--sb-body-font)';
+        $styles[] = 'font-size:var(--sb-base-font-size)';
+        $styles[] = 'line-height:var(--sb-body-line-height)';
+        $styles[] = 'color:var(--sb-text)';
         $styles[] = 'background-color: ' . sb_public_h((string)($appearance['backgroundColor'] ?? '#f8fafc'));
 
         $backgroundUrl = (string)($appearance['backgroundUrl'] ?? '');
@@ -372,6 +431,21 @@ $menuHtml = sb_public_render_auto_pages_menu(
     (int)($currentPage['id'] ?? 0)
 );
 
+$pageSeo = is_array($currentPage['seo'] ?? null) ? $currentPage['seo'] : [];
+$pageSeoTitle = trim((string)($pageSeo['title'] ?? ''));
+if ($pageSeoTitle === '') {
+    $pageSeoTitle = (string)($currentPage['title'] ?? $site['name'] ?? 'SiteBuilder');
+}
+$pageSeoDescription = trim((string)($pageSeo['description'] ?? ''));
+$pageSeoKeywords = trim((string)($pageSeo['keywords'] ?? ''));
+$pageSeoRobots = (!array_key_exists('robotsIndex', $pageSeo) || !empty($pageSeo['robotsIndex']) ? 'index' : 'noindex')
+    . ','
+    . (!array_key_exists('robotsFollow', $pageSeo) || !empty($pageSeo['robotsFollow']) ? 'follow' : 'nofollow');
+$pageSeoCanonical = sb_public_safe_url($pageSeo['canonical'] ?? '');
+$pageSeoOgTitle = trim((string)($pageSeo['ogTitle'] ?? '')) ?: $pageSeoTitle;
+$pageSeoOgDescription = trim((string)($pageSeo['ogDescription'] ?? '')) ?: $pageSeoDescription;
+$pageSeoOgImage = sb_public_safe_url($pageSeo['ogImage'] ?? '', true);
+
 $pageHasDiskBlock = false;
 
 foreach ($pageBlocks as $pageBlock) {
@@ -447,9 +521,17 @@ if ($pageHasDiskBlock) {
 
     <?php $APPLICATION->ShowHead(); ?>
 
-    <title><?= sb_public_h((string)($currentPage['title'] ?? $site['name'] ?? 'SiteBuilder')) ?></title>
+    <title><?= sb_public_h($pageSeoTitle) ?></title>
+    <meta name="robots" content="<?= sb_public_h($pageSeoRobots) ?>">
+    <?php if ($pageSeoDescription !== ''): ?><meta name="description" content="<?= sb_public_h($pageSeoDescription) ?>"><?php endif; ?>
+    <?php if ($pageSeoKeywords !== ''): ?><meta name="keywords" content="<?= sb_public_h($pageSeoKeywords) ?>"><?php endif; ?>
+    <?php if ($pageSeoCanonical !== ''): ?><link rel="canonical" href="<?= sb_public_h($pageSeoCanonical) ?>"><?php endif; ?>
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="<?= sb_public_h($pageSeoOgTitle) ?>">
+    <?php if ($pageSeoOgDescription !== ''): ?><meta property="og:description" content="<?= sb_public_h($pageSeoOgDescription) ?>"><?php endif; ?>
+    <?php if ($pageSeoOgImage !== ''): ?><meta property="og:image" content="<?= sb_public_h($pageSeoOgImage) ?>"><?php endif; ?>
 
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=16">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=20">
 
     <?php if ($pageHasDiskBlock): ?>
         <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=4">
@@ -463,6 +545,7 @@ if ($pageHasDiskBlock) {
             --sb-right-width: <?= (int)$vm['rightWidth'] ?>px;
         }
     </style>
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.css?v=20">
 </head>
 <body>
 <div class="sb-public-shell" style="<?= sb_public_h($appearanceStyle) ?>">
@@ -598,5 +681,7 @@ $isPublicEditMode = (
     <script src="<?= sb_public_h($basePath) ?>/components/table/edit.js"></script>
 <?php endif; ?>
 
+<script src="<?= sb_public_h($basePath) ?>/assets/public/public-interactions.js?v=19"></script>
+<script src="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.js?v=20"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/GlobalBlockService.php';
 
 /** Проверка логической целостности модели SiteBuilder без изменения данных. */
 final class IntegrityCheckService
@@ -134,6 +135,11 @@ final class IntegrityCheckService
         $layout = sb_db_fetch_one('SELECT * FROM sitebuilder.layout WHERE site_id=:id', [':id' => $siteId]);
         $access = sb_db_fetch_all('SELECT access_code,role FROM sitebuilder.access WHERE site_id=:id', [':id' => $siteId]);
         $pageAccess = sb_db_fetch_all('SELECT * FROM sitebuilder.page_access WHERE site_id=:id', [':id' => $siteId]);
+        $globalBlockDefinitions = GlobalBlockService::exportForSite($siteId);
+        $globalBlockIds = [];
+        foreach ($globalBlockDefinitions as $definition) {
+            $globalBlockIds[(int)($definition['oldId'] ?? 0)] = true;
+        }
 
         $issues = [];
         $add = static function (string $severity, string $code, string $entityType, int $entityId, array $details = []) use (&$issues): void {
@@ -216,6 +222,15 @@ final class IntegrityCheckService
                 continue;
             }
             $props = sb_json_decode_assoc($block['props_json'] ?? []);
+            if ((string)($block['type'] ?? '') === 'global') {
+                $content = sb_json_decode_assoc($block['content_json'] ?? []);
+                $globalBlockId = (int)($content['globalBlockId'] ?? 0);
+                if ($globalBlockId <= 0 || !isset($globalBlockIds[$globalBlockId])) {
+                    $add('error', 'GLOBAL_BLOCK_REFERENCE_INVALID', 'block', $blockId, [
+                        'globalBlockId' => $globalBlockId,
+                    ]);
+                }
+            }
             $placement = is_array($props['_placement'] ?? null) ? $props['_placement'] : [];
             $sectionId = (int)($props['sectionId'] ?? $placement['sectionId'] ?? 0);
             if ($sectionId > 0) {
@@ -224,6 +239,26 @@ final class IntegrityCheckService
                     $add('error', 'BLOCK_SECTION_INVALID', 'block', $blockId, ['sectionId' => $sectionId]);
                 } elseif ((int)$section['page_id'] !== $pageId) {
                     $add('error', 'BLOCK_SECTION_PAGE_MISMATCH', 'block', $blockId, ['sectionId' => $sectionId]);
+                }
+            }
+        }
+
+        if ($layout) {
+            $zones = sb_json_decode_assoc($layout['zones_json'] ?? []);
+            foreach ($zones as $zone => $zoneBlocks) {
+                foreach ((array)$zoneBlocks as $index => $zoneBlock) {
+                    if (!is_array($zoneBlock) || (string)($zoneBlock['type'] ?? '') !== 'global') {
+                        continue;
+                    }
+                    $content = is_array($zoneBlock['content'] ?? null) ? $zoneBlock['content'] : [];
+                    $globalBlockId = (int)($content['globalBlockId'] ?? 0);
+                    if ($globalBlockId <= 0 || !isset($globalBlockIds[$globalBlockId])) {
+                        $add('error', 'LAYOUT_GLOBAL_BLOCK_REFERENCE_INVALID', 'layout', $siteId, [
+                            'zone' => (string)$zone,
+                            'index' => (int)$index,
+                            'globalBlockId' => $globalBlockId,
+                        ]);
+                    }
                 }
             }
         }
@@ -264,6 +299,7 @@ final class IntegrityCheckService
             'menus' => count($menus),
             'siteAccess' => count($access),
             'pageAccess' => count($pageAccess),
+            'globalBlocks' => count($globalBlockDefinitions),
         ];
 
         return [

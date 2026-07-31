@@ -136,6 +136,34 @@ if (!$USER->IsAdmin()) {
             <section class="sb-panel">
                 <div class="sb-settings-panel-head">
                     <div>
+                        <h2 class="sb-panel-title">Дизайн-система</h2>
+                        <p class="sb-settings-note">Общие цвета, типографика, скругления и тени для всех страниц сайта.</p>
+                    </div>
+                </div>
+                <div class="sb-design-token-grid">
+                    <div class="sb-field"><label for="secondaryColorInput">Тёмный акцент</label><input class="sb-input sb-color-input" type="color" id="secondaryColorInput" value="#0f172a"></div>
+                    <div class="sb-field"><label for="textColorInput">Основной текст</label><input class="sb-input sb-color-input" type="color" id="textColorInput" value="#0f172a"></div>
+                    <div class="sb-field"><label for="mutedColorInput">Вторичный текст</label><input class="sb-input sb-color-input" type="color" id="mutedColorInput" value="#64748b"></div>
+                    <div class="sb-field"><label for="surfaceColorInput">Цвет карточек</label><input class="sb-input sb-color-input" type="color" id="surfaceColorInput" value="#ffffff"></div>
+                    <div class="sb-field"><label for="borderColorInput">Цвет границ</label><input class="sb-input sb-color-input" type="color" id="borderColorInput" value="#e2e8f0"></div>
+                </div>
+                <div class="sb-settings-grid" style="margin-top:16px;">
+                    <div class="sb-field"><label for="headingFontInput">Шрифт заголовков</label><select class="sb-select" id="headingFontInput"><option value="system">Системный</option><option value="arial">Arial</option><option value="georgia">Georgia</option><option value="times">Times New Roman</option><option value="mono">Моноширинный</option></select></div>
+                    <div class="sb-field"><label for="bodyFontInput">Шрифт текста</label><select class="sb-select" id="bodyFontInput"><option value="system">Системный</option><option value="arial">Arial</option><option value="georgia">Georgia</option><option value="times">Times New Roman</option><option value="mono">Моноширинный</option></select></div>
+                    <div class="sb-field"><label for="baseFontSizeInput">Базовый размер, px</label><input class="sb-input" type="number" id="baseFontSizeInput" min="14" max="22" value="16"></div>
+                    <div class="sb-field"><label for="bodyLineHeightInput">Межстрочный интервал</label><input class="sb-input" type="number" id="bodyLineHeightInput" min="1.2" max="2.2" step="0.05" value="1.6"></div>
+                    <div class="sb-field"><label for="headingWeightInput">Насыщенность заголовков</label><select class="sb-select" id="headingWeightInput"><option value="500">500</option><option value="600">600</option><option value="700">700</option><option value="800" selected>800</option><option value="900">900</option></select></div>
+                    <div class="sb-field"><label for="radiusScaleInput">Скругление карточек, px</label><input class="sb-input" type="number" id="radiusScaleInput" min="0" max="32" value="16"></div>
+                    <div class="sb-field"><label for="buttonRadiusInput">Скругление кнопок, px</label><input class="sb-input" type="number" id="buttonRadiusInput" min="0" max="40" value="12"></div>
+                    <div class="sb-field"><label for="sectionGapInput">Расстояние между секциями, px</label><input class="sb-input" type="number" id="sectionGapInput" min="0" max="96" value="24"></div>
+                    <div class="sb-field"><label for="shadowPresetInput">Глобальная тень</label><select class="sb-select" id="shadowPresetInput"><option value="none">Без тени</option><option value="soft" selected>Мягкая</option><option value="medium">Средняя</option><option value="strong">Выразительная</option></select></div>
+                </div>
+                <div class="sb-settings-actions"><button class="sb-btn sb-btn-primary" type="button" id="saveDesignSystemBtn">Сохранить дизайн-систему</button></div>
+            </section>
+
+            <section class="sb-panel">
+                <div class="sb-settings-panel-head">
+                    <div>
                         <h2 class="sb-panel-title">Логотип</h2>
                         <p class="sb-settings-note">
                             Логотип будет отображаться в шапке публичной части сайта.
@@ -447,6 +475,20 @@ if (!$USER->IsAdmin()) {
         setValue('backgroundModeInput', appearance.backgroundMode || 'cover');
         setValue('backgroundPositionInput', appearance.backgroundPosition || 'center center');
         setValue('backgroundRepeatInput', appearance.backgroundRepeat || 'no-repeat');
+        setValue('secondaryColorInput', appearance.secondaryColor || '#0f172a');
+        setValue('textColorInput', appearance.textColor || '#0f172a');
+        setValue('mutedColorInput', appearance.mutedColor || '#64748b');
+        setValue('surfaceColorInput', appearance.surfaceColor || '#ffffff');
+        setValue('borderColorInput', appearance.borderColor || '#e2e8f0');
+        setValue('headingFontInput', appearance.headingFont || 'system');
+        setValue('bodyFontInput', appearance.bodyFont || 'system');
+        setValue('baseFontSizeInput', appearance.baseFontSize || 16);
+        setValue('bodyLineHeightInput', appearance.bodyLineHeight || 1.6);
+        setValue('headingWeightInput', appearance.headingWeight || 800);
+        setValue('radiusScaleInput', appearance.radiusScale == null ? 16 : appearance.radiusScale);
+        setValue('buttonRadiusInput', appearance.buttonRadius == null ? 12 : appearance.buttonRadius);
+        setValue('sectionGapInput', appearance.sectionGap == null ? 24 : appearance.sectionGap);
+        setValue('shadowPresetInput', appearance.shadowPreset || 'soft');
 
         renderLogoPreview();
         renderBackgroundPreview();
@@ -480,6 +522,27 @@ if (!$USER->IsAdmin()) {
         node.style.backgroundRepeat = appearance.backgroundRepeat || 'no-repeat';
     }
 
+    function previewFontStack(value) {
+        var map = {
+            system: 'Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+            arial: 'Arial,Helvetica,sans-serif',
+            georgia: 'Georgia,"Times New Roman",serif',
+            times: '"Times New Roman",Times,serif',
+            mono: 'ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace'
+        };
+        return map[String(value || '')] || map.system;
+    }
+
+    function previewShadow(value) {
+        var map = {
+            none: 'none',
+            soft: '0 12px 32px rgba(15,23,42,.08)',
+            medium: '0 18px 48px rgba(15,23,42,.14)',
+            strong: '0 24px 70px rgba(15,23,42,.22)'
+        };
+        return map[String(value || '')] || map.soft;
+    }
+
     function renderMainPreview() {
         var site = state.site || {};
         var appearance = state.appearance || {};
@@ -499,7 +562,20 @@ if (!$USER->IsAdmin()) {
         preview.style.backgroundPosition = getValue('backgroundPositionInput') || appearance.backgroundPosition || 'center center';
         preview.style.backgroundRepeat = getValue('backgroundRepeatInput') || appearance.backgroundRepeat || 'no-repeat';
         preview.style.setProperty('--preview-accent', accent);
+        preview.style.setProperty('--preview-secondary', getValue('secondaryColorInput') || appearance.secondaryColor || '#0f172a');
+        preview.style.setProperty('--preview-text', getValue('textColorInput') || appearance.textColor || '#0f172a');
+        preview.style.setProperty('--preview-muted', getValue('mutedColorInput') || appearance.mutedColor || '#64748b');
+        preview.style.setProperty('--preview-surface', getValue('surfaceColorInput') || appearance.surfaceColor || '#ffffff');
+        preview.style.setProperty('--preview-border', getValue('borderColorInput') || appearance.borderColor || '#e2e8f0');
+        preview.style.setProperty('--preview-radius', (getValue('radiusScaleInput') || appearance.radiusScale || 16) + 'px');
+        preview.style.setProperty('--preview-button-radius', (getValue('buttonRadiusInput') || appearance.buttonRadius || 12) + 'px');
         preview.style.setProperty('--preview-logo-size', (getValue('logoSizeInput') || appearance.logoSize || 42) + 'px');
+        preview.style.setProperty('--preview-heading-font', previewFontStack(getValue('headingFontInput') || appearance.headingFont || 'system'));
+        preview.style.setProperty('--preview-body-font', previewFontStack(getValue('bodyFontInput') || appearance.bodyFont || 'system'));
+        preview.style.setProperty('--preview-base-size', (getValue('baseFontSizeInput') || appearance.baseFontSize || 16) + 'px');
+        preview.style.setProperty('--preview-line-height', getValue('bodyLineHeightInput') || appearance.bodyLineHeight || 1.6);
+        preview.style.setProperty('--preview-heading-weight', getValue('headingWeightInput') || appearance.headingWeight || 800);
+        preview.style.setProperty('--preview-shadow', previewShadow(getValue('shadowPresetInput') || appearance.shadowPreset || 'soft'));
 
         previewTitle.textContent = getValue('siteNameInput') || site.name || 'Сайт';
 
@@ -583,6 +659,33 @@ if (!$USER->IsAdmin()) {
         renderAppearance();
 
         setMessage('Оформление сохранено', 'success');
+    }
+
+    async function saveDesignSystem() {
+        setMessage('Сохраняю дизайн-систему...', '');
+        var res = await api('site.appearanceUpdate', {
+            siteId: siteId,
+            expectedVersion: Number((state.site && state.site.version) || 1),
+            secondaryColor: getValue('secondaryColorInput') || '#0f172a',
+            textColor: getValue('textColorInput') || '#0f172a',
+            mutedColor: getValue('mutedColorInput') || '#64748b',
+            surfaceColor: getValue('surfaceColorInput') || '#ffffff',
+            borderColor: getValue('borderColorInput') || '#e2e8f0',
+            headingFont: getValue('headingFontInput') || 'system',
+            bodyFont: getValue('bodyFontInput') || 'system',
+            baseFontSize: getValue('baseFontSizeInput') || '16',
+            bodyLineHeight: getValue('bodyLineHeightInput') || '1.6',
+            headingWeight: getValue('headingWeightInput') || '800',
+            radiusScale: getValue('radiusScaleInput') || '16',
+            buttonRadius: getValue('buttonRadiusInput') || '12',
+            sectionGap: getValue('sectionGapInput') || '24',
+            shadowPreset: getValue('shadowPresetInput') || 'soft'
+        });
+        state.appearance = res.appearance || state.appearance;
+        if (state.site && state.appearance && state.appearance.siteVersion) state.site.version = Number(state.appearance.siteVersion);
+        renderBasic();
+        renderAppearance();
+        setMessage('Дизайн-система сохранена', 'success');
     }
 
     async function uploadLogo() {
@@ -702,6 +805,13 @@ if (!$USER->IsAdmin()) {
         });
     });
 
+    document.getElementById('saveDesignSystemBtn').addEventListener('click', function () {
+        saveDesignSystem().catch(function (e) {
+            print(e);
+            setMessage('Ошибка сохранения дизайн-системы: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
+        });
+    });
+
     document.getElementById('uploadLogoBtn').addEventListener('click', function () {
         uploadLogo().catch(function (e) {
             print(e);
@@ -738,7 +848,21 @@ if (!$USER->IsAdmin()) {
         'backgroundPositionInput',
         'backgroundRepeatInput',
         'logoSizeInput',
-        'headerLogoModeInput'
+        'headerLogoModeInput',
+        'secondaryColorInput',
+        'textColorInput',
+        'mutedColorInput',
+        'surfaceColorInput',
+        'borderColorInput',
+        'headingFontInput',
+        'bodyFontInput',
+        'baseFontSizeInput',
+        'bodyLineHeightInput',
+        'headingWeightInput',
+        'radiusScaleInput',
+        'buttonRadiusInput',
+        'sectionGapInput',
+        'shadowPresetInput'
     ].forEach(function (id) {
         var node = document.getElementById(id);
         if (node) {

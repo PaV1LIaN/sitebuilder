@@ -111,6 +111,11 @@ final class SiteDeletionService
                 WHERE site_id = :site_id
             ", $siteId);
 
+            $counts['formSubmissions'] = self::executeCount($pdo, "
+                DELETE FROM sitebuilder.form_submission
+                WHERE site_id = :site_id
+            ", $siteId);
+
             $counts['blocks'] = self::executeCount($pdo, "
                 DELETE FROM sitebuilder.block AS block_row
                 USING sitebuilder.page AS page_row

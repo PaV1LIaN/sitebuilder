@@ -62,6 +62,31 @@ if (!function_exists('sb_page_handler_is_descendant')) {
     }
 }
 
+if (!function_exists('sb_page_handler_normalize_seo')) {
+    function sb_page_handler_normalize_seo(array $seo): array
+    {
+        $safeUrl = static function ($value): string {
+            $value = trim((string)$value);
+            if ($value === '') return '';
+            if (str_starts_with($value, '/') && !str_starts_with($value, '//')) return mb_substr($value, 0, 1000);
+            if (preg_match('#^https?://#i', $value)) return mb_substr($value, 0, 1000);
+            return '';
+        };
+
+        return [
+            'title' => mb_substr(trim((string)($seo['title'] ?? '')), 0, 255),
+            'description' => mb_substr(trim((string)($seo['description'] ?? '')), 0, 500),
+            'keywords' => mb_substr(trim((string)($seo['keywords'] ?? '')), 0, 500),
+            'canonical' => $safeUrl($seo['canonical'] ?? ''),
+            'robotsIndex' => !array_key_exists('robotsIndex', $seo) || !empty($seo['robotsIndex']),
+            'robotsFollow' => !array_key_exists('robotsFollow', $seo) || !empty($seo['robotsFollow']),
+            'ogTitle' => mb_substr(trim((string)($seo['ogTitle'] ?? '')), 0, 255),
+            'ogDescription' => mb_substr(trim((string)($seo['ogDescription'] ?? '')), 0, 500),
+            'ogImage' => $safeUrl($seo['ogImage'] ?? ''),
+        ];
+    }
+}
+
 if (!function_exists('sb_page_handler_current_user_id')) {
     function sb_page_handler_current_user_id(): int
     {
@@ -562,6 +587,7 @@ if ($action === 'page.create') {
         'sort' => $maxSort > 0 ? $maxSort + 10 : 10,
         'status' => 'draft',
         'publishedAt' => null,
+        'seo' => [],
         'createdBy' => $currentUserId,
         'createdAt' => date('c'),
         'updatedBy' => $currentUserId,
@@ -605,6 +631,7 @@ if ($action === 'page.save') {
     $slug = trim((string)($_POST['slug'] ?? ''));
     $parentId = (int)($_POST['parentId'] ?? 0);
     $status = trim((string)($_POST['status'] ?? 'draft'));
+    $seoRaw = $_POST['seo'] ?? null;
     $expectedVersion = RevisionService::requireExpectedVersion(
         $_POST['expectedVersion'] ?? null
     );
@@ -671,6 +698,14 @@ if ($action === 'page.save') {
         $page['publishedAt'] = $status === 'published' ? date('c') : null;
     }
     $page['status'] = $status;
+
+    if ($seoRaw !== null) {
+        $seo = is_array($seoRaw) ? $seoRaw : json_decode((string)$seoRaw, true);
+        if (!is_array($seo)) {
+            sb_json_error('BAD_SEO_JSON', 422);
+        }
+        $page['seo'] = sb_page_handler_normalize_seo($seo);
+    }
 
     $saved = RevisionService::savePage(
         $page,
@@ -1152,6 +1187,225 @@ if ($action === 'page.move') {
 }
 
 /*
+ * Drag-and-drop перемещение страницы в дереве.
+ *
+ * position:
+ * - before — перед targetId;
+ * - after  — после targetId;
+ * - inside — последним дочерним элементом targetId.
+ *
+ * Операция атомарно меняет parentId и нормализует sort у затронутых
+ * веток. Для каждой реально изменяемой страницы требуется актуальная
+ * версия из expectedVersions.
+ */
+if ($action === 'page.reorderTree') {
+    $id = (int)($_POST['id'] ?? 0);
+    $targetId = (int)($_POST['targetId'] ?? 0);
+    $position = trim((string)($_POST['position'] ?? ''));
+
+    if ($id <= 0 || $targetId <= 0) {
+        sb_json_error('PAGE_ID_REQUIRED', 422);
+    }
+
+    if ($id === $targetId) {
+        sb_json_error('PAGE_CANNOT_TARGET_ITSELF', 422);
+    }
+
+    if (!in_array($position, ['before', 'after', 'inside'], true)) {
+        sb_json_error('INVALID_POSITION', 422);
+    }
+
+    $currentUserId = sb_page_handler_current_user_id();
+    $pages = sb_read_pages();
+    $source = sb_page_handler_find_by_id($pages, $id);
+    $target = sb_page_handler_find_by_id($pages, $targetId);
+
+    if (!$source || !$target) {
+        sb_json_error('PAGE_NOT_FOUND', 404);
+    }
+
+    $siteId = (int)($source['siteId'] ?? 0);
+    if (
+        $siteId <= 0
+        || (int)($target['siteId'] ?? 0) !== $siteId
+    ) {
+        sb_json_error('PAGE_SITE_MISMATCH', 422);
+    }
+
+    sb_page_handler_require_page_edit($siteId, $id, $currentUserId);
+    $hasGlobalEdit = sb_page_handler_has_global_edit($siteId, $currentUserId);
+
+    $oldParentId = (int)($source['parentId'] ?? 0);
+    $newParentId = $position === 'inside'
+        ? $targetId
+        : (int)($target['parentId'] ?? 0);
+
+    if (
+        $newParentId === $id
+        || sb_page_handler_is_descendant($pages, $id, $newParentId)
+    ) {
+        sb_json_error('CYCLIC_PARENT_RELATION', 422);
+    }
+
+    if (!$hasGlobalEdit) {
+        if ($newParentId <= 0) {
+            sb_json_error('MOVE_PAGE_TO_ROOT_ACCESS_DENIED', 403);
+        }
+
+        if (!PageAccessService::canEditPage(
+            $siteId,
+            $newParentId,
+            $currentUserId
+        )) {
+            sb_json_error('PARENT_PAGE_EDIT_ACCESS_DENIED', 403, [
+                'parentId' => $newParentId,
+            ]);
+        }
+    }
+
+    $sortPages = static function (array $items): array {
+        usort($items, static function (array $first, array $second): int {
+            $sortCompare = (int)($first['sort'] ?? 500) <=> (int)($second['sort'] ?? 500);
+            if ($sortCompare !== 0) {
+                return $sortCompare;
+            }
+
+            return (int)($first['id'] ?? 0) <=> (int)($second['id'] ?? 0);
+        });
+
+        return $items;
+    };
+
+    $siblingsFor = static function (array $allPages, int $currentSiteId, int $parentId, int $excludeId = 0) use ($sortPages): array {
+        $items = array_values(array_filter(
+            $allPages,
+            static function (array $page) use ($currentSiteId, $parentId, $excludeId): bool {
+                $pageId = (int)($page['id'] ?? 0);
+
+                return (int)($page['siteId'] ?? 0) === $currentSiteId
+                    && (int)($page['parentId'] ?? 0) === $parentId
+                    && ($excludeId <= 0 || $pageId !== $excludeId);
+            }
+        ));
+
+        return $sortPages($items);
+    };
+
+    if ($oldParentId === $newParentId) {
+        $destination = $siblingsFor($pages, $siteId, $newParentId, $id);
+    } else {
+        $destination = $siblingsFor($pages, $siteId, $newParentId, $id);
+    }
+
+    if ($position === 'inside') {
+        $insertAt = count($destination);
+    } else {
+        $insertAt = null;
+
+        foreach ($destination as $index => $sibling) {
+            if ((int)($sibling['id'] ?? 0) === $targetId) {
+                $insertAt = $position === 'before' ? $index : $index + 1;
+                break;
+            }
+        }
+
+        if ($insertAt === null) {
+            sb_json_error('TARGET_PAGE_NOT_FOUND_IN_SIBLINGS', 422);
+        }
+    }
+
+    $movedSource = $source;
+    $movedSource['parentId'] = $newParentId;
+    array_splice($destination, $insertAt, 0, [$movedSource]);
+
+    $desiredById = [];
+    $applySiblingOrder = static function (array $siblings, int $parentId) use (&$desiredById): void {
+        $sort = 10;
+        foreach ($siblings as $sibling) {
+            $sibling['parentId'] = $parentId;
+            $sibling['sort'] = $sort;
+            $desiredById[(int)$sibling['id']] = $sibling;
+            $sort += 10;
+        }
+    };
+
+    if ($oldParentId !== $newParentId) {
+        $oldSiblings = $siblingsFor($pages, $siteId, $oldParentId, $id);
+        $applySiblingOrder($oldSiblings, $oldParentId);
+    }
+
+    $applySiblingOrder($destination, $newParentId);
+
+    $originalById = [];
+    foreach ($pages as $page) {
+        $originalById[(int)($page['id'] ?? 0)] = $page;
+    }
+
+    $changed = [];
+    foreach ($desiredById as $pageId => $desired) {
+        $original = $originalById[$pageId] ?? null;
+        if (!$original) {
+            continue;
+        }
+
+        if (
+            (int)($original['parentId'] ?? 0) !== (int)($desired['parentId'] ?? 0)
+            || (int)($original['sort'] ?? 0) !== (int)($desired['sort'] ?? 0)
+        ) {
+            $changed[$pageId] = $desired;
+        }
+    }
+
+    if (empty($changed)) {
+        sb_json_ok(['moved' => false]);
+    }
+
+    if (!$hasGlobalEdit) {
+        foreach (array_keys($changed) as $changedPageId) {
+            if (!PageAccessService::canEditPage(
+                $siteId,
+                (int)$changedPageId,
+                $currentUserId
+            )) {
+                sb_json_error('TARGET_PAGE_EDIT_ACCESS_DENIED', 403, [
+                    'pageId' => (int)$changedPageId,
+                ]);
+            }
+        }
+    }
+
+    $versionMap = RevisionService::decodeVersionMap(
+        $_POST['expectedVersions'] ?? null
+    );
+    $savedPages = [];
+
+    foreach ($changed as $changedPageId => $desired) {
+        $saved = RevisionService::savePage(
+            $desired,
+            RevisionService::requireVersionFromMap($versionMap, (int)$changedPageId),
+            $currentUserId,
+            'tree_reorder'
+        );
+
+        $savedPages[] = sb_page_handler_add_access_info(
+            $saved,
+            $siteId,
+            $currentUserId
+        );
+    }
+
+    sb_json_ok([
+        'moved' => true,
+        'page' => sb_page_handler_add_access_info(
+            RevisionService::getPage($id, false) ?? $movedSource,
+            $siteId,
+            $currentUserId
+        ),
+        'pages' => $savedPages,
+    ]);
+}
+
+/*
  * Удаление страницы и всех подстраниц.
  */
 if ($action === 'page.delete') {
@@ -1565,6 +1819,7 @@ if ($action === 'page.duplicate') {
             : (int)($source['sort'] ?? 10) + 10,
         'status' => 'draft',
         'publishedAt' => null,
+        'seo' => [],
         'createdBy' => $currentUserId,
         'createdAt' => date('c'),
         'updatedBy' => $currentUserId,

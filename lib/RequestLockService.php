@@ -234,6 +234,7 @@ final class RequestLockService
             case 'page.updateMeta':
             case 'page.setParent':
             case 'page.move':
+            case 'page.reorderTree':
                 self::addPageTreeMutationLocks($locks, self::int($input, 'id'));
                 break;
 
@@ -251,15 +252,26 @@ final class RequestLockService
 
             case 'block.create':
                 self::addPageBlockCollectionLocks($locks, self::int($input, 'pageId'));
+                if ((string)($input['type'] ?? '') === 'global') {
+                    self::add($locks, self::NS_TEMPLATE_STORE, 1, true, 'global.block.definition');
+                }
                 break;
 
             case 'block.update':
             case 'block.delete':
-                self::addBlockEntityLocks($locks, self::int($input, 'id'));
+                $blockId = self::int($input, 'id');
+                self::addBlockEntityLocks($locks, $blockId);
+                if (self::isGlobalBlock($blockId) || (string)($input['type'] ?? '') === 'global') {
+                    self::add($locks, self::NS_TEMPLATE_STORE, 1, true, 'global.block.definition');
+                }
                 break;
 
             case 'block.duplicate':
-                self::addBlockCollectionFromBlockLocks($locks, self::int($input, 'id'));
+                $blockId = self::int($input, 'id');
+                self::addBlockCollectionFromBlockLocks($locks, $blockId);
+                if (self::isGlobalBlock($blockId)) {
+                    self::add($locks, self::NS_TEMPLATE_STORE, 1, true, 'global.block.definition');
+                }
                 break;
 
             case 'block.move':
@@ -329,11 +341,27 @@ final class RequestLockService
                 );
                 break;
 
+            case 'pageSection.createPreset':
+                $siteId = self::int($input, 'siteId');
+                $pageId = self::int($input, 'pageId');
+                self::addPageSectionCollectionLocks($locks, $siteId, $pageId, false);
+                self::addPageBlockCollectionLocks($locks, $pageId);
+                break;
+
             case 'pageSection.update':
             case 'pageSection.move':
                 self::addPageSectionFromIdLocks(
                     $locks,
                     self::firstInt($input, ['sectionId', 'id']),
+                    false
+                );
+                break;
+
+            case 'pageSection.reorder':
+                self::addPageSectionCollectionLocks(
+                    $locks,
+                    self::int($input, 'siteId'),
+                    self::int($input, 'pageId'),
                     false
                 );
                 break;
@@ -363,6 +391,17 @@ final class RequestLockService
                 self::addSectionDeleteLocks($locks, self::int($input, 'id'));
                 break;
 
+            case 'globalBlock.create':
+            case 'globalBlock.update':
+                self::addBlockEntityLocks($locks, self::int($input, 'blockId'));
+                self::add($locks, self::NS_TEMPLATE_STORE, 1, false, 'template.store');
+                break;
+
+            case 'globalBlock.rename':
+            case 'globalBlock.delete':
+                self::add($locks, self::NS_TEMPLATE_STORE, 1, false, 'template.store');
+                break;
+
             case 'template.createFromSite':
                 $siteId = self::int($input, 'siteId');
                 self::add($locks, self::NS_SITE_LIFECYCLE, $siteId, false, 'site.snapshot');
@@ -385,6 +424,7 @@ final class RequestLockService
                 $siteId = self::int($input, 'siteId');
                 self::add($locks, self::NS_SITE_LIFECYCLE, $siteId, false, 'site.snapshot');
                 self::add($locks, self::NS_BACKUP_COLLECTION, $siteId, false, 'backup.collection');
+                self::add($locks, self::NS_TEMPLATE_STORE, 1, true, 'global.block.definition');
                 break;
 
             case 'backup.import':
@@ -402,12 +442,14 @@ final class RequestLockService
                 self::add($locks, self::NS_BACKUP, self::int($input, 'backupId'), false, 'backup');
                 self::add($locks, self::NS_SITE_SECTION, 1, true, 'site.section.collection');
                 self::add($locks, self::NS_SITE_COLLECTION, 1, false, 'site.collection');
+                self::add($locks, self::NS_TEMPLATE_STORE, 1, false, 'template.store');
                 break;
 
             case 'integrity.run':
                 $siteId = self::int($input, 'siteId');
                 self::add($locks, self::NS_SITE_LIFECYCLE, $siteId, false, 'site.integrity');
                 self::add($locks, self::NS_INTEGRITY, $siteId, false, 'integrity.run');
+                self::add($locks, self::NS_TEMPLATE_STORE, 1, true, 'global.block.definition');
                 break;
 
             case 'trash.restore':
@@ -744,6 +786,22 @@ final class RequestLockService
             }
         }
         return 0;
+    }
+
+    private static function isGlobalBlock(int $blockId): bool
+    {
+        if ($blockId <= 0) {
+            return false;
+        }
+        try {
+            $row = sb_db_fetch_one(
+                'SELECT type FROM sitebuilder.block WHERE id = :id',
+                [':id' => $blockId]
+            );
+            return (string)($row['type'] ?? '') === 'global';
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     private static function add(array &$locks, int $namespace, int $resourceId, bool $shared, string $label): void

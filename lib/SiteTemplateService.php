@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/OutboxService.php';
 require_once __DIR__ . '/RevisionService.php';
+require_once __DIR__ . '/GlobalBlockService.php';
 
 class SiteTemplateService
 {
@@ -125,6 +126,7 @@ class SiteTemplateService
             'pages' => array_map([self::class, 'preparePageForSnapshot'], $pages),
             'sections' => array_map([self::class, 'prepareSectionForSnapshot'], $sections),
             'blocks' => $blocks,
+            'globalBlocks' => GlobalBlockService::exportForSite($siteId),
             'layout' => self::prepareLayoutForSnapshot($layout),
             'menus' => array_map([self::class, 'prepareMenuForSnapshot'], $menus),
         ];
@@ -269,9 +271,23 @@ class SiteTemplateService
         ];
 
         sb_write_sites([$site]);
+        $globalBlockIdMap = GlobalBlockService::importForSite(
+            $siteId,
+            is_array($payload['globalBlocks'] ?? null) ? $payload['globalBlocks'] : [],
+            $userId
+        );
+        if ($globalBlockIdMap && function_exists('sb_db_after_rollback')) {
+            sb_db_after_rollback(static function () use ($siteId): void {
+                try {
+                    GlobalBlockService::deleteForSite($siteId);
+                } catch (Throwable $e) {
+                    error_log('SiteBuilder global block rollback cleanup failed: ' . $e->getMessage());
+                }
+            });
+        }
         $pageIdMap = self::copyPages($siteId, $payload, $userId);
         $sectionIdMap = self::copySections($siteId, $pageIdMap, $payload, $userId);
-        self::copyBlocks($pageIdMap, $payload, $userId, $sectionIdMap);
+        self::copyBlocks($pageIdMap, $payload, $userId, $sectionIdMap, $globalBlockIdMap);
 
         $homeOldId = (int)($snapshotSite['homePageId'] ?? 0);
         if ($homeOldId > 0 && isset($pageIdMap[$homeOldId])) {
@@ -283,7 +299,7 @@ class SiteTemplateService
             }
         }
 
-        self::copyLayout($siteId, $payload, $userId);
+        self::copyLayout($siteId, $payload, $userId, $globalBlockIdMap);
         $menuIdMap = self::copyMenus($siteId, $pageIdMap, $payload, $userId, $snapshotSite);
         self::grantOwnerAccess($siteId, $userId, $now);
         $provisioningJobs = OutboxService::enqueueSiteProvisioning($siteId, $userId);
@@ -293,6 +309,7 @@ class SiteTemplateService
             'pageIdMap' => $pageIdMap,
             'sectionIdMap' => $sectionIdMap,
             'menuIdMap' => $menuIdMap,
+            'globalBlockIdMap' => $globalBlockIdMap,
             'provisioningQueued' => true,
             'provisioningJobs' => $provisioningJobs,
         ];
@@ -344,6 +361,7 @@ class SiteTemplateService
             'sort' => (int)($page['sort'] ?? 500),
             'status' => (string)($page['status'] ?? 'draft'),
             'publishedAt' => !empty($page['publishedAt']) ? (string)$page['publishedAt'] : null,
+            'seo' => is_array($page['seo'] ?? null) ? $page['seo'] : [],
         ];
     }
 
@@ -634,6 +652,7 @@ class SiteTemplateService
                     ? (string)$page['status']
                     : 'draft',
                 'publishedAt' => !empty($page['publishedAt']) ? (string)$page['publishedAt'] : null,
+                'seo' => is_array($page['seo'] ?? null) ? $page['seo'] : [],
                 'createdBy' => $userId,
                 'createdAt' => $now,
                 'updatedBy' => $userId,
@@ -661,7 +680,13 @@ class SiteTemplateService
         return $map;
     }
 
-    protected static function copyBlocks(array $pageIdMap, array $payload, int $userId, array $sectionIdMap = []): void
+    protected static function copyBlocks(
+        array $pageIdMap,
+        array $payload,
+        int $userId,
+        array $sectionIdMap = [],
+        array $globalBlockIdMap = []
+    ): void
     {
         $templateBlocks = is_array($payload['blocks'] ?? null)
             ? array_values(array_filter($payload['blocks'], 'is_array'))
@@ -729,12 +754,25 @@ class SiteTemplateService
                 unset($props['sectionId'], $props['column'], $props['_placement']);
             }
     
+            $blockType = (string)($block['type'] ?? 'text');
+            $content = self::sanitizeDiskData($block['content'] ?? []);
+            if (!is_array($content)) {
+                $content = [];
+            }
+            if ($blockType === 'global') {
+                $oldGlobalBlockId = (int)($content['globalBlockId'] ?? 0);
+                $content['globalBlockId'] = (int)($globalBlockIdMap[$oldGlobalBlockId] ?? 0);
+                if ($content['globalBlockId'] <= 0) {
+                    $content['missingGlobalBlockId'] = $oldGlobalBlockId;
+                }
+            }
+
             $newBlock = [
                 'id' => (int)$reservedBlockIds[$blockIndex],
                 'pageId' => (int)$pageIdMap[$oldPageId],
-                'type' => (string)($block['type'] ?? 'text'),
+                'type' => $blockType,
                 'sort' => (int)($block['sort'] ?? 500),
-                'content' => self::sanitizeDiskData($block['content'] ?? []),
+                'content' => $content,
                 'props' => $props,
                 'createdBy' => $userId,
                 'createdAt' => $now,
@@ -755,7 +793,12 @@ class SiteTemplateService
         }
     }
 
-    protected static function copyLayout(int $siteId, array $payload, int $userId): void
+    protected static function copyLayout(
+        int $siteId,
+        array $payload,
+        int $userId,
+        array $globalBlockIdMap = []
+    ): void
     {
         if (!function_exists('sb_read_layouts') || !function_exists('sb_write_layouts')) {
             return;
@@ -776,6 +819,15 @@ class SiteTemplateService
             foreach ($zoneBlocks as &$block) {
                 $block['content'] = self::sanitizeDiskData($block['content'] ?? []);
                 $block['props'] = self::sanitizeDiskData($block['props'] ?? []);
+                if ((string)($block['type'] ?? '') === 'global') {
+                    $content = is_array($block['content'] ?? null) ? $block['content'] : [];
+                    $oldGlobalBlockId = (int)($content['globalBlockId'] ?? 0);
+                    $content['globalBlockId'] = (int)($globalBlockIdMap[$oldGlobalBlockId] ?? 0);
+                    if ($content['globalBlockId'] <= 0) {
+                        $content['missingGlobalBlockId'] = $oldGlobalBlockId;
+                    }
+                    $block['content'] = $content;
+                }
                 $block['createdBy'] = $userId;
                 $block['createdAt'] = date('c');
                 $block['updatedBy'] = $userId;

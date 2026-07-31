@@ -392,6 +392,7 @@ final class AuditLogService
         if (str_starts_with($action, 'trash.')) return 'recycle_bin';
         if (str_starts_with($action, 'history.')) return 'entity_revision';
         if (str_starts_with($action, 'template.')) return 'template';
+        if (str_starts_with($action, 'globalBlock.')) return 'global_block';
         if (str_starts_with($action, 'section.')) return 'site_section';
         if (str_starts_with($action, 'maintenance.')) return 'system';
         if (str_starts_with($action, 'job.')) return 'external_job';

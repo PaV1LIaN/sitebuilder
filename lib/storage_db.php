@@ -91,6 +91,7 @@ function sb_read_pages(): array
             sort,
             status,
             published_at,
+            seo_json,
             created_by,
             created_at,
             updated_by,
@@ -114,7 +115,7 @@ function sb_write_pages(array $pages): bool
                 continue;
             }
 
-            $stmt = sb_db()->prepare("\n                INSERT INTO sitebuilder.page (\n                    id,site_id,title,slug,parent_id,sort,status,published_at,\n                    created_by,created_at,updated_by,updated_at,version\n                ) VALUES (\n                    :id,:site_id,:title,:slug,:parent_id,:sort,:status,:published_at,\n                    :created_by,:created_at,:updated_by,:updated_at,:version\n                )\n                RETURNING id,site_id,title,slug,parent_id,sort,status,published_at,\n                          created_by,created_at,updated_by,updated_at,version\n            ");
+            $stmt = sb_db()->prepare("\n                INSERT INTO sitebuilder.page (\n                    id,site_id,title,slug,parent_id,sort,status,published_at,seo_json,\n                    created_by,created_at,updated_by,updated_at,version\n                ) VALUES (\n                    :id,:site_id,:title,:slug,:parent_id,:sort,:status,:published_at,CAST(:seo_json AS jsonb),\n                    :created_by,:created_at,:updated_by,:updated_at,:version\n                )\n                RETURNING id,site_id,title,slug,parent_id,sort,status,published_at,seo_json,\n                          created_by,created_at,updated_by,updated_at,version\n            ");
             $stmt->execute([
                 ':id' => $id,
                 ':site_id' => (int)($page['siteId'] ?? 0),
@@ -124,6 +125,7 @@ function sb_write_pages(array $pages): bool
                 ':sort' => (int)($page['sort'] ?? 500),
                 ':status' => (string)($page['status'] ?? 'draft'),
                 ':published_at' => !empty($page['publishedAt']) ? (string)$page['publishedAt'] : null,
+                ':seo_json' => json_encode(is_array($page['seo'] ?? null) ? $page['seo'] : [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
                 ':created_by' => isset($page['createdBy']) ? (int)$page['createdBy'] : null,
                 ':created_at' => (string)($page['createdAt'] ?? date('c')),
                 ':updated_by' => isset($page['updatedBy']) ? (int)$page['updatedBy'] : null,
@@ -256,6 +258,7 @@ function sb_map_page_row(array $row): array
         'sort' => (int)($row['sort'] ?? 500),
         'status' => (string)($row['status'] ?? 'draft'),
         'publishedAt' => !empty($row['published_at']) ? (string)$row['published_at'] : null,
+        'seo' => sb_json_decode_assoc($row['seo_json'] ?? '{}'),
         'createdBy' => isset($row['created_by']) ? (int)$row['created_by'] : 0,
         'createdAt' => (string)($row['created_at'] ?? ''),
         'updatedBy' => isset($row['updated_by']) ? (int)$row['updated_by'] : 0,

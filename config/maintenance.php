@@ -10,6 +10,9 @@ return [
     /* Журнал действий хранится один год. */
     'audit_log_retention_days' => 365,
 
+    /* Заявки форм хранятся два года; значение можно изменить под политику организации. */
+    'form_submission_retention_days' => 730,
+
     /* Успешные внешние задания хранятся 30 дней, ошибки/отменённые — 90 дней. */
     'outbox_succeeded_retention_days' => 30,
     'outbox_terminal_retention_days' => 90,

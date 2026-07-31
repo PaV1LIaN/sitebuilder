@@ -150,7 +150,7 @@ final class RevisionService
 
     public static function getPage(int $pageId, bool $forUpdate = false): ?array
     {
-        $sql = "SELECT id,site_id,title,slug,parent_id,sort,status,published_at,created_by,created_at,updated_by,updated_at,version FROM sitebuilder.page WHERE id = :id";
+        $sql = "SELECT id,site_id,title,slug,parent_id,sort,status,published_at,seo_json,created_by,created_at,updated_by,updated_at,version FROM sitebuilder.page WHERE id = :id";
         if ($forUpdate) $sql .= ' FOR UPDATE';
         $row = sb_db_fetch_one($sql, [':id' => $pageId]);
         return $row ? sb_map_page_row($row) : null;
@@ -217,11 +217,12 @@ final class RevisionService
         $current = self::getPage($pageId, true);
         if (!$current) throw new RuntimeException('PAGE_NOT_FOUND');
         self::assertExpected($current, $expectedVersion, self::ENTITY_PAGE);
-        $stmt = sb_db()->prepare("UPDATE sitebuilder.page SET title=:title,slug=:slug,parent_id=:parent_id,sort=:sort,status=:status,published_at=:published_at,updated_by=:updated_by,updated_at=NOW(),version=version+1 WHERE id=:id AND version=:expected_version RETURNING id,site_id,title,slug,parent_id,sort,status,published_at,created_by,created_at,updated_by,updated_at,version");
+        $stmt = sb_db()->prepare("UPDATE sitebuilder.page SET title=:title,slug=:slug,parent_id=:parent_id,sort=:sort,status=:status,published_at=:published_at,seo_json=CAST(:seo_json AS jsonb),updated_by=:updated_by,updated_at=NOW(),version=version+1 WHERE id=:id AND version=:expected_version RETURNING id,site_id,title,slug,parent_id,sort,status,published_at,seo_json,created_by,created_at,updated_by,updated_at,version");
         $stmt->execute([
             ':title'=>(string)($page['title']??$current['title']), ':slug'=>(string)($page['slug']??$current['slug']),
             ':parent_id'=>!empty($page['parentId'])?(int)$page['parentId']:null, ':sort'=>(int)($page['sort']??$current['sort']),
             ':status'=>(string)($page['status']??$current['status']), ':published_at'=>!empty($page['publishedAt'])?(string)$page['publishedAt']:null,
+            ':seo_json'=>json_encode(is_array($page['seo']??null)?$page['seo']:$current['seo'],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR),
             ':updated_by'=>$userId, ':id'=>$pageId, ':expected_version'=>$expectedVersion,
         ]);
         $row=$stmt->fetch(); if(!$row) self::throwLatestConflict(self::ENTITY_PAGE,$pageId,$expectedVersion);

@@ -20,9 +20,16 @@ if ($action === 'file.list') {
                 continue;
             }
 
+            $name = (string)$child->getName();
+            $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+            $imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'];
+            $isImage = in_array($extension, $imageExtensions, true);
+
             $files[] = [
                 'id' => (int)$child->getId(),
-                'name' => (string)$child->getName(),
+                'name' => $name,
+                'extension' => $extension,
+                'isImage' => $isImage,
                 'size' => (int)$child->getSize(),
                 'createTime' => method_exists($child, 'getCreateTime') && $child->getCreateTime()
                     ? $child->getCreateTime()->format('c')
@@ -31,6 +38,9 @@ if ($action === 'file.list') {
                     ? $child->getUpdateTime()->format('c')
                     : '',
                 'downloadUrl' => sb_disk_file_download_url($child),
+                'previewUrl' => $isImage
+                    ? '/local/sitebuilder/media_preview.php?siteId=' . $siteId . '&fileId=' . (int)$child->getId()
+                    : '',
             ];
         }
 
@@ -90,12 +100,25 @@ if ($action === 'file.upload') {
             });
         }
 
+        $uploadedName = (string)$file->getName();
+        $uploadedExtension = strtolower(pathinfo($uploadedName, PATHINFO_EXTENSION));
+        $uploadedIsImage = in_array(
+            $uploadedExtension,
+            ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'],
+            true
+        );
+
         sb_json_ok([
             'file' => [
                 'id' => (int)$file->getId(),
-                'name' => (string)$file->getName(),
+                'name' => $uploadedName,
+                'extension' => $uploadedExtension,
+                'isImage' => $uploadedIsImage,
                 'size' => (int)$file->getSize(),
                 'downloadUrl' => sb_disk_file_download_url($file),
+                'previewUrl' => $uploadedIsImage
+                    ? '/local/sitebuilder/media_preview.php?siteId=' . $siteId . '&fileId=' . (int)$file->getId()
+                    : '',
             ],
             'folderId' => (int)$folder->getId(),
         ]);

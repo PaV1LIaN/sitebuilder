@@ -140,12 +140,17 @@ if (!function_exists('sb_public_sanitize_rich_html_fallback')) {
 
         $html = strip_tags(
             $html,
-            '<p><br><strong><b><em><i><u><s><span><ul><ol><li><a><blockquote><code>'
+            '<p><br><h2><h3><h4><h5><h6><strong><b><em><i><u><s><span><ul><ol><li><a><blockquote><code><pre>'
         );
 
         $allowed = [
             'p' => true,
             'br' => true,
+            'h2' => true,
+            'h3' => true,
+            'h4' => true,
+            'h5' => true,
+            'h6' => true,
             'strong' => true,
             'b' => true,
             'em' => true,
@@ -159,6 +164,7 @@ if (!function_exists('sb_public_sanitize_rich_html_fallback')) {
             'a' => true,
             'blockquote' => true,
             'code' => true,
+            'pre' => true,
         ];
 
         return preg_replace_callback(
@@ -252,6 +258,11 @@ if (!function_exists('sb_public_sanitize_rich_html')) {
         $allowedTags = [
             'p' => true,
             'br' => true,
+            'h2' => true,
+            'h3' => true,
+            'h4' => true,
+            'h5' => true,
+            'h6' => true,
             'strong' => true,
             'b' => true,
             'em' => true,
@@ -265,6 +276,7 @@ if (!function_exists('sb_public_sanitize_rich_html')) {
             'a' => true,
             'blockquote' => true,
             'code' => true,
+            'pre' => true,
         ];
         $dropWithContent = [
             'script' => true,
@@ -824,6 +836,8 @@ if (!function_exists('sb_public_render_page_sections')) {
                 'cover'
             );
             $shadow = !empty($props['shadow']);
+            $sectionDesign = sb_public_to_array($props['_design'] ?? []);
+            [$sectionAnimation, $sectionDelay, $sectionDuration] = sb_public_design_animation($sectionDesign);
 
             $sectionBlocks = $blocksBySection[$sectionId] ?? [];
             $columnBlocks = sb_public_group_blocks_by_column($sectionBlocks, $columns);
@@ -838,6 +852,8 @@ if (!function_exists('sb_public_render_page_sections')) {
                 '--sb-section-padding-bottom:' . $paddingBottom . 'px',
                 '--sb-section-padding-x:' . $paddingX . 'px',
                 '--sb-section-radius:' . $radius . 'px',
+                '--sb-motion-delay:' . $sectionDelay . 'ms',
+                '--sb-motion-duration:' . $sectionDuration . 'ms',
             ];
 
             if ($minHeight > 0) {
@@ -864,11 +880,18 @@ if (!function_exists('sb_public_render_page_sections')) {
                 $sectionStyles[] = 'box-shadow:0 18px 50px rgba(15,23,42,.10)';
             }
 
-            $classes = [
+            $classes = array_merge([
                 'sb-page-section',
                 'sb-page-section--columns-' . $columns,
                 'sb-page-section--container-' . $container,
-            ];
+            ], sb_public_design_classes($sectionDesign));
+
+            $sectionAttributes = '';
+            if ($sectionAnimation !== 'none') {
+                $classes[] = 'sb-motion';
+                $classes[] = 'sb-motion--' . $sectionAnimation;
+                $sectionAttributes = ' data-sb-animate="' . sb_public_h($sectionAnimation) . '"';
+            }
 
             if ($backgroundImage !== '') {
                 $classes[] = 'sb-page-section--has-image';
@@ -878,7 +901,7 @@ if (!function_exists('sb_public_render_page_sections')) {
                 $classes[] = 'sb-page-section--decorated';
             }
 
-            $html .= '<section class="' . sb_public_h(implode(' ', $classes)) . '" style="' . sb_public_h(implode(';', $sectionStyles)) . '">';
+            $html .= '<section class="' . sb_public_h(implode(' ', $classes)) . '" style="' . sb_public_h(implode(';', $sectionStyles)) . '"' . $sectionAttributes . '>';
             $html .= '<div class="sb-page-section__inner">';
             $html .= '<div class="sb-page-section__grid">';
 
@@ -1034,20 +1057,85 @@ if (!function_exists('sb_public_component_render_file')) {
     }
 }
 
+if (!function_exists('sb_public_design_classes')) {
+    function sb_public_design_classes(array $design): array
+    {
+        $classes = [];
+        if (array_key_exists('desktop', $design) && !$design['desktop']) $classes[] = 'sb-hide-desktop';
+        if (array_key_exists('tablet', $design) && !$design['tablet']) $classes[] = 'sb-hide-tablet';
+        if (array_key_exists('mobile', $design) && !$design['mobile']) $classes[] = 'sb-hide-mobile';
+        return $classes;
+    }
+}
+
+if (!function_exists('sb_public_design_animation')) {
+    function sb_public_design_animation(array $design): array
+    {
+        $animation = sb_public_safe_choice(
+            $design['animation'] ?? 'none',
+            ['none', 'fade', 'fade-up', 'zoom', 'slide-left', 'slide-right'],
+            'none'
+        );
+        $delay = sb_public_clamp_int($design['animationDelay'] ?? 0, 0, 3000);
+        $duration = sb_public_clamp_int($design['animationDuration'] ?? 600, 150, 3000);
+        return [$animation, $delay, $duration];
+    }
+}
+
 if (!function_exists('sb_public_render_block')) {
     function sb_public_render_block(array $block, array $context = []): string
     {
         $block = sb_normalize_block_record($block);
 
         $type = (string)($block['type'] ?? 'text');
-        $template = sb_public_component_render_file($type);
-
         $content = (array)($block['content'] ?? []);
         $props = (array)($block['props'] ?? []);
+        $contentHtml = '';
 
-        ob_start();
-        include $template;
-        return (string)ob_get_clean();
+        if ($type === 'global') {
+            $depth = (int)($context['_globalDepth'] ?? 0);
+            $globalBlockId = (int)($content['globalBlockId'] ?? 0);
+            $siteId = (int)($context['siteId'] ?? 0);
+
+            if ($depth < 5 && $globalBlockId > 0 && $siteId > 0) {
+                $serviceFile = __DIR__ . '/GlobalBlockService.php';
+                if (is_file($serviceFile)) require_once $serviceFile;
+                if (class_exists('GlobalBlockService')) {
+                    $record = GlobalBlockService::get($globalBlockId, $siteId);
+                    $savedBlock = is_array($record['payload']['block'] ?? null) ? $record['payload']['block'] : [];
+                    if ($savedBlock) {
+                        $savedBlock['id'] = 0;
+                        $savedBlock['pageId'] = (int)($block['pageId'] ?? 0);
+                        $nestedContext = $context;
+                        $nestedContext['_globalDepth'] = $depth + 1;
+                        $contentHtml = sb_public_render_block($savedBlock, $nestedContext);
+                    }
+                }
+            }
+        } else {
+            $template = sb_public_component_render_file($type);
+            ob_start();
+            include $template;
+            $contentHtml = (string)ob_get_clean();
+        }
+
+        $design = sb_public_to_array($props['_design'] ?? []);
+        $classes = array_merge(['sb-content-block'], sb_public_design_classes($design));
+        [$animation, $delay, $duration] = sb_public_design_animation($design);
+        $styles = [
+            '--sb-block-margin-top:' . sb_public_clamp_int($design['marginTop'] ?? 0, 0, 240) . 'px',
+            '--sb-block-margin-bottom:' . sb_public_clamp_int($design['marginBottom'] ?? 0, 0, 240) . 'px',
+            '--sb-motion-delay:' . $delay . 'ms',
+            '--sb-motion-duration:' . $duration . 'ms',
+        ];
+        $attributes = '';
+        if ($animation !== 'none') {
+            $classes[] = 'sb-motion';
+            $classes[] = 'sb-motion--' . $animation;
+            $attributes .= ' data-sb-animate="' . sb_public_h($animation) . '"';
+        }
+
+        return '<div class="' . sb_public_h(implode(' ', $classes)) . '" style="' . sb_public_h(implode(';', $styles)) . '"' . $attributes . '>' . $contentHtml . '</div>';
     }
 }
 
