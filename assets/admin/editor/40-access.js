@@ -13,7 +13,8 @@ function setManagementPanelsVisible(canManage) {
     }
 
     if (apiPanel) {
-        apiPanel.hidden = !canManage;
+        /* Raw API responses belong to browser developer tools, not the editor UI. */
+        apiPanel.hidden = true;
     }
 
     if (deleteSiteBtn) {

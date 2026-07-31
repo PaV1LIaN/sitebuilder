@@ -389,6 +389,7 @@ final class BackupService
         $blocks = is_array($payload['blocks'] ?? null) ? $payload['blocks'] : [];
         $sections = is_array($payload['sections'] ?? null) ? $payload['sections'] : [];
         $menus = is_array($payload['menus'] ?? null) ? $payload['menus'] : [];
+        $globalBlocks = is_array($payload['globalBlocks'] ?? null) ? $payload['globalBlocks'] : [];
 
         $package = [
             'format' => self::FORMAT,
@@ -405,6 +406,7 @@ final class BackupService
                     'blocks' => count($blocks),
                     'sections' => count($sections),
                     'menus' => count($menus),
+                    'globalBlocks' => count($globalBlocks),
                 ],
                 'includeAccess' => $includeAccess,
                 'diskFilesIncluded' => false,
@@ -539,7 +541,7 @@ final class BackupService
             throw new RuntimeException('BACKUP_PAYLOAD_INVALID');
         }
 
-        foreach (['pages', 'blocks', 'sections', 'menus'] as $key) {
+        foreach (['pages', 'blocks', 'sections', 'menus', 'globalBlocks'] as $key) {
             if (isset($package['payload'][$key]) && !is_array($package['payload'][$key])) {
                 throw new RuntimeException('BACKUP_PAYLOAD_INVALID');
             }

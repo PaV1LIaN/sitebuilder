@@ -108,7 +108,15 @@
             spacer: ['↕', 'Отступ'],
             table: ['▤', 'Таблица'],
             disk: ['◫', 'Диск'],
-            html: ['</>', 'HTML']
+            html: ['</>', 'HTML'],
+            global: ['∞', 'Глобальный блок'],
+            faq: ['?', 'Частые вопросы'],
+            video: ['▶', 'Видео'],
+            pricing: ['₽', 'Тарифы'],
+            form: ['✉', 'Форма'],
+            gallery: ['▦', 'Галерея'],
+            navigation: ['☰', 'Навигация'],
+            footer: ['▰', 'Подвал']
         };
 
         return map[type] || ['◇', type || 'Блок'];
@@ -119,9 +127,9 @@
         var template = document.createElement('template');
         template.innerHTML = html;
         var allowed = {
-            P: true, DIV: true, BR: true, B: true, STRONG: true,
+            P: true, DIV: true, BR: true, H2: true, H3: true, H4: true, H5: true, H6: true, B: true, STRONG: true,
             I: true, EM: true, U: true, S: true, UL: true, OL: true,
-            LI: true, A: true, BLOCKQUOTE: true, CODE: true, SPAN: true
+            LI: true, A: true, BLOCKQUOTE: true, CODE: true, PRE: true, SPAN: true
         };
 
         Array.prototype.slice.call(template.content.querySelectorAll('*')).forEach(function (node) {
@@ -752,6 +760,17 @@
         return Object.assign({}, block, {content: draft.content, props: draft.props});
     }
 
+    function vbInlineAttrs(block, field, rich) {
+        var id = Number((block && block.id) || 0);
+        if (id <= 0) return '';
+
+        return ' contenteditable="true" spellcheck="true" draggable="false"'
+            + ' data-inline-block-id="' + id + '"'
+            + ' data-inline-field="' + escapeHtml(field) + '"'
+            + (rich ? ' data-inline-rich="true"' : ' data-inline-rich="false"')
+            + ' role="textbox" tabindex="0"';
+    }
+
     function vbHeadingHtml(block) {
         var c = block.content || {};
         var p = block.props || {};
@@ -763,7 +782,7 @@
             + ';--vb-size:' + (size || defaultSize) + 'px;'
             + (maxWidth ? 'max-width:' + maxWidth + 'px;' : '');
         if ((p.align || c.align) === 'center') style += 'margin-left:auto;margin-right:auto;';
-        return '<h2 class="sb-vb-heading" style="' + escapeHtml(style) + '">' + escapeHtml(c.text || 'Пустой заголовок') + '</h2>';
+        return '<h2 class="sb-vb-heading" style="' + escapeHtml(style) + '"' + vbInlineAttrs(block, 'heading.text', false) + '>' + escapeHtml(c.text || 'Пустой заголовок') + '</h2>';
     }
 
     function vbTextHtml(block) {
@@ -777,7 +796,7 @@
             + ';--vb-line-height:' + vbNumber(p.lineHeight || c.lineHeight, 1, 2.4, 1.65)
             + ';--vb-max-width:' + (maxWidth ? maxWidth + 'px' : 'none') + ';';
         if (align === 'center') style += 'margin-left:auto;margin-right:auto;';
-        return '<div class="sb-vb-text" style="' + escapeHtml(style) + '">' + (vbSanitizePreviewHtml(c.text || c.html || '') || '<p>Пустой текст</p>') + '</div>';
+        return '<div class="sb-vb-text" style="' + escapeHtml(style) + '"' + vbInlineAttrs(block, 'text.html', true) + '>' + (vbSanitizePreviewHtml(c.text || c.html || '') || '<p>Пустой текст</p>') + '</div>';
     }
 
     function vbButtonHtml(block) {
@@ -788,7 +807,7 @@
         var classes = ['sb-vb-button', 'is-' + style, 'is-' + size];
         if (p.fullWidth) classes.push('is-full');
         return '<div class="sb-vb-button-wrap" style="--vb-align:' + escapeHtml(vbChoice(p.align, ['left', 'center', 'right'], 'left')) + '">'
-            + '<span class="' + classes.join(' ') + '">' + escapeHtml(c.label || c.text || 'Кнопка') + '</span></div>';
+            + '<span class="' + classes.join(' ') + '"' + vbInlineAttrs(block, 'button.label', false) + '>' + escapeHtml(c.label || c.text || 'Кнопка') + '</span></div>';
     }
 
     function vbImageHtml(block) {
@@ -828,9 +847,9 @@
         }
         return '<section class="' + classes.join(' ') + '" style="' + style + '">'
             + '<div class="sb-vb-hero__content">'
-            + (c.eyebrow ? '<div class="sb-vb-hero__eyebrow">' + escapeHtml(c.eyebrow) + '</div>' : '')
-            + '<h2 class="sb-vb-hero__title">' + escapeHtml(c.title || 'Первый экран') + '</h2>'
-            + (c.text ? '<div class="sb-vb-hero__text">' + escapeHtml(c.text) + '</div>' : '')
+            + (c.eyebrow ? '<div class="sb-vb-hero__eyebrow"' + vbInlineAttrs(block, 'hero.eyebrow', false) + '>' + escapeHtml(c.eyebrow) + '</div>' : '<div class="sb-vb-hero__eyebrow is-inline-placeholder"' + vbInlineAttrs(block, 'hero.eyebrow', false) + '>Надзаголовок</div>')
+            + '<h2 class="sb-vb-hero__title"' + vbInlineAttrs(block, 'hero.title', false) + '>' + escapeHtml(c.title || 'Первый экран') + '</h2>'
+            + '<div class="sb-vb-hero__text' + (c.text ? '' : ' is-inline-placeholder') + '"' + vbInlineAttrs(block, 'hero.text', false) + '>' + escapeHtml(c.text || 'Добавьте короткое описание') + '</div>'
             + ((c.primaryLabel || c.secondaryLabel) ? '<div class="sb-vb-hero__actions">'
                 + (c.primaryLabel ? '<span class="sb-vb-button">' + escapeHtml(c.primaryLabel) + '</span>' : '')
                 + (c.secondaryLabel ? '<span class="sb-vb-button is-outline">' + escapeHtml(c.secondaryLabel) + '</span>' : '')
@@ -864,8 +883,8 @@
         var p = block.props || {};
         var classes = ['sb-vb-quote', 'is-' + vbChoice(p.style, ['accent', 'soft', 'minimal', 'dark'], 'accent')];
         return '<figure class="' + classes.join(' ') + '" style="--vb-align:' + escapeHtml(vbChoice(p.align, ['left', 'center'], 'left')) + ';--vb-quote-accent:' + escapeHtml(vbColor(p.accentColor, '#2563eb')) + '">'
-            + '<blockquote class="sb-vb-quote__text">' + escapeHtml(c.text || 'Цитата') + '</blockquote>'
-            + ((c.author || c.role) ? '<figcaption class="sb-vb-quote__author">' + escapeHtml([c.author, c.role].filter(Boolean).join(' · ')) + '</figcaption>' : '')
+            + '<blockquote class="sb-vb-quote__text"' + vbInlineAttrs(block, 'quote.text', false) + '>' + escapeHtml(c.text || 'Цитата') + '</blockquote>'
+            + '<figcaption class="sb-vb-quote__author' + ((c.author || c.role) ? '' : ' is-inline-placeholder') + '"' + vbInlineAttrs(block, 'quote.author', false) + '>' + escapeHtml([c.author, c.role].filter(Boolean).join(' · ') || 'Автор · должность') + '</figcaption>'
             + '</figure>';
     }
 
@@ -924,6 +943,16 @@
         if (type === 'html') {
             return '<div class="sb-vb-code"><strong>HTML</strong><br>' + escapeHtml(vbTextPreview((block.content || {}).html, 180) || 'Пустой HTML-блок') + '</div>';
         }
+        if (type === 'global') {
+            var globalId = Number((block.content || {}).globalBlockId || 0);
+            var record = (state.globalBlocks || []).find(function (item) {
+                return Number(item.id || 0) === globalId;
+            });
+            if (!record || !record.block || String(record.block.type || '') === 'global') {
+                return '<div class="sb-global-block-reference"><div class="sb-global-block-reference__head"><span>Глобальный блок</span><span>#' + globalId + '</span></div><div class="sb-vb-code">Связанный блок не найден</div></div>';
+            }
+            return '<div class="sb-global-block-reference"><div class="sb-global-block-reference__head"><span>' + escapeHtml(record.name || 'Глобальный блок') + '</span><span>связан</span></div>' + vbBlockPreviewHtml(record.block) + '</div>';
+        }
         return '<div class="sb-vb-code">' + escapeHtml(blockPreviewText(block)) + '</div>';
     }
 
@@ -933,14 +962,15 @@
         var active = id === Number(state.currentBlockId || 0) ? ' is-active' : '';
         var meta = vbBlockMeta(String(block.type || ''));
         return ''
-            + '<div class="sb-editor-block' + active + '" draggable="true" data-block-id="' + id + '">'
+            + '<div class="sb-editor-block' + active + '" draggable="false" data-block-id="' + id + '" data-block-type="' + escapeHtml(String(block.type || '')) + '">'
             + '  <div class="sb-editor-block-head">'
-            + '    <span class="sb-editor-block-label"><span>' + escapeHtml(meta[0]) + '</span>' + escapeHtml(meta[1]) + ' #' + id + '</span>'
+            + '    <span class="sb-editor-block-label"><span>' + escapeHtml(meta[0]) + '</span>' + escapeHtml(meta[1]) + '</span>'
             + '    <span class="sb-editor-block-actions">'
-            + '      <button type="button" data-vb-action="up" data-block-id="' + id + '" title="Выше">↑</button>'
-            + '      <button type="button" data-vb-action="down" data-block-id="' + id + '" title="Ниже">↓</button>'
-            + '      <button type="button" data-vb-action="duplicate" data-block-id="' + id + '" title="Дублировать">⧉</button>'
-            + '      <button type="button" data-vb-action="delete" data-block-id="' + id + '" title="Удалить">×</button>'
+            + '      <span class="sb-editor-block-drag" draggable="true" data-block-drag-handle="' + id + '" title="Перетащить блок" aria-label="Перетащить блок">⋮⋮</span>'
+            + '      <button type="button" data-vb-action="up" data-block-id="' + id + '" title="Выше" aria-label="Переместить выше">↑</button>'
+            + '      <button type="button" data-vb-action="down" data-block-id="' + id + '" title="Ниже" aria-label="Переместить ниже">↓</button>'
+            + '      <button type="button" data-vb-action="duplicate" data-block-id="' + id + '" title="Дублировать" aria-label="Дублировать">⧉</button>'
+            + '      <button type="button" data-vb-action="delete" data-block-id="' + id + '" title="Удалить" aria-label="Удалить">×</button>'
             + '    </span>'
             + '  </div>'
             + '  <div class="sb-editor-block-preview">' + vbBlockPreviewHtml(block) + '</div>'
@@ -1202,6 +1232,30 @@
             if (typeof setInspectorTab === 'function') window.setTimeout(function () { setInspectorTab('section'); }, 0);
         }
     });
+
+    window.SBVisualBuilder = {
+        blockPreviewHtml: vbBlockPreviewHtml,
+        blockCard: vbBlockCard,
+        sectionStyle: vbSectionStyle,
+        draftBlock: vbDraftBlock,
+        sanitizePreviewHtml: vbSanitizePreviewHtml,
+        setDraft: function (blockId, draft) {
+            blockId = Number(blockId || 0);
+            if (blockId > 0 && draft && typeof draft === 'object') {
+                visualDrafts[blockId] = {
+                    content: draft.content || {},
+                    props: draft.props || {}
+                };
+            }
+        },
+        clearDraft: function (blockId) {
+            delete visualDrafts[Number(blockId || 0)];
+        },
+        collectCurrent: function () {
+            var block = getCurrentBlock();
+            return block ? window.collectVisualBlockData(block) : null;
+        }
+    };
 
     vbInstallTextToolbar();
 })();

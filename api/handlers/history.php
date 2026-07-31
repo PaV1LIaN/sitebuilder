@@ -169,7 +169,7 @@ if($action==='history.restore'){
         $parentId=(int)($snapshot['parentId']??0);if($parentId===(int)$current['id'])sb_json_error('PAGE_CANNOT_BE_OWN_PARENT',422);
         if($parentId>0){$parent=RevisionService::getPage($parentId);if(!$parent||(int)$parent['siteId']!==(int)$current['siteId'])sb_json_error('PARENT_PAGE_NOT_FOUND',404);if(!sb_history_can_edit_site((int)$current['siteId'],$userId)&&!PageAccessService::canEditPage((int)$current['siteId'],$parentId,$userId))sb_json_error('PARENT_PAGE_EDIT_ACCESS_DENIED',403);if(sb_page_is_descendant((int)$current['siteId'],$parentId,(int)$current['id']))sb_json_error('CYCLIC_PARENT_RELATION',422);}
         elseif((int)($current['parentId']??0)>0&&!sb_history_can_edit_site((int)$current['siteId'],$userId)){sb_json_error('ROOT_PAGE_MOVE_ACCESS_DENIED',403);}
-        $restored=$current;foreach(['title','sort','status','publishedAt'] as $field)if(array_key_exists($field,$snapshot))$restored[$field]=$snapshot[$field];$restored['parentId']=$parentId;
+        $restored=$current;foreach(['title','sort','status','publishedAt','seo'] as $field)if(array_key_exists($field,$snapshot))$restored[$field]=$snapshot[$field];$restored['parentId']=$parentId;
         $restored['slug']=sb_history_unique_page_slug(
             (int)$current['siteId'],
             (string)($snapshot['slug']??$current['slug']),

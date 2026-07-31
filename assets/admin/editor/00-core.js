@@ -25,7 +25,8 @@ var state = {
     historyEntityId: 0,
     inspectorTab: 'page',
     previewDevice: 'desktop',
-    pageSearch: ''
+    pageSearch: '',
+    globalBlocks: []
 };
 
 var output = document.getElementById('output') || document.getElementById('outputFallback');

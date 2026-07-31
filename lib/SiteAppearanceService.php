@@ -58,6 +58,51 @@ class SiteAppearanceService
             $settings['logoSize'] = self::normalizeLogoSize((int)$data['logoSize']);
         }
 
+        foreach (['secondaryColor', 'textColor', 'mutedColor', 'surfaceColor', 'borderColor'] as $colorKey) {
+            if (array_key_exists($colorKey, $data)) {
+                $settings[$colorKey] = self::normalizeColor(
+                    (string)$data[$colorKey],
+                    (string)($settings[$colorKey] ?? self::defaultDesignTokens()[$colorKey])
+                );
+            }
+        }
+
+        if (array_key_exists('headingFont', $data)) {
+            $settings['headingFont'] = self::normalizeFontFamily((string)$data['headingFont']);
+        }
+
+        if (array_key_exists('bodyFont', $data)) {
+            $settings['bodyFont'] = self::normalizeFontFamily((string)$data['bodyFont']);
+        }
+
+        if (array_key_exists('baseFontSize', $data)) {
+            $settings['baseFontSize'] = self::normalizeRangeInt((int)$data['baseFontSize'], 14, 22, 16);
+        }
+
+        if (array_key_exists('bodyLineHeight', $data)) {
+            $settings['bodyLineHeight'] = self::normalizeRangeFloat((float)$data['bodyLineHeight'], 1.2, 2.2, 1.6);
+        }
+
+        if (array_key_exists('headingWeight', $data)) {
+            $settings['headingWeight'] = self::normalizeHeadingWeight((int)$data['headingWeight']);
+        }
+
+        if (array_key_exists('radiusScale', $data)) {
+            $settings['radiusScale'] = self::normalizeRangeInt((int)$data['radiusScale'], 0, 32, 16);
+        }
+
+        if (array_key_exists('buttonRadius', $data)) {
+            $settings['buttonRadius'] = self::normalizeRangeInt((int)$data['buttonRadius'], 0, 40, 12);
+        }
+
+        if (array_key_exists('sectionGap', $data)) {
+            $settings['sectionGap'] = self::normalizeRangeInt((int)$data['sectionGap'], 0, 96, 24);
+        }
+
+        if (array_key_exists('shadowPreset', $data)) {
+            $settings['shadowPreset'] = self::normalizeShadowPreset((string)$data['shadowPreset']);
+        }
+
         $savedSite = self::saveSiteSettings($siteId, $settings, $currentUserId, $expectedVersion, 'appearance_update');
         $settings['siteVersion'] = (int)$savedSite['version'];
         return self::withUrls($settings);
@@ -197,8 +242,24 @@ class SiteAppearanceService
 
     protected static function normalizeAppearanceSettings(array $settings): array
     {
+        $tokens = self::defaultDesignTokens();
+
         return [
-            'accent' => (string)($settings['accent'] ?? '#2563eb'),
+            'accent' => self::normalizeColor((string)($settings['accent'] ?? '#2563eb'), '#2563eb'),
+            'secondaryColor' => self::normalizeColor((string)($settings['secondaryColor'] ?? $tokens['secondaryColor']), $tokens['secondaryColor']),
+            'textColor' => self::normalizeColor((string)($settings['textColor'] ?? $tokens['textColor']), $tokens['textColor']),
+            'mutedColor' => self::normalizeColor((string)($settings['mutedColor'] ?? $tokens['mutedColor']), $tokens['mutedColor']),
+            'surfaceColor' => self::normalizeColor((string)($settings['surfaceColor'] ?? $tokens['surfaceColor']), $tokens['surfaceColor']),
+            'borderColor' => self::normalizeColor((string)($settings['borderColor'] ?? $tokens['borderColor']), $tokens['borderColor']),
+            'headingFont' => self::normalizeFontFamily((string)($settings['headingFont'] ?? $tokens['headingFont'])),
+            'bodyFont' => self::normalizeFontFamily((string)($settings['bodyFont'] ?? $tokens['bodyFont'])),
+            'baseFontSize' => self::normalizeRangeInt((int)($settings['baseFontSize'] ?? $tokens['baseFontSize']), 14, 22, 16),
+            'bodyLineHeight' => self::normalizeRangeFloat((float)($settings['bodyLineHeight'] ?? $tokens['bodyLineHeight']), 1.2, 2.2, 1.6),
+            'headingWeight' => self::normalizeHeadingWeight((int)($settings['headingWeight'] ?? $tokens['headingWeight'])),
+            'radiusScale' => self::normalizeRangeInt((int)($settings['radiusScale'] ?? $tokens['radiusScale']), 0, 32, 16),
+            'buttonRadius' => self::normalizeRangeInt((int)($settings['buttonRadius'] ?? $tokens['buttonRadius']), 0, 40, 12),
+            'sectionGap' => self::normalizeRangeInt((int)($settings['sectionGap'] ?? $tokens['sectionGap']), 0, 96, 24),
+            'shadowPreset' => self::normalizeShadowPreset((string)($settings['shadowPreset'] ?? $tokens['shadowPreset'])),
 
             'logoFileId' => (int)($settings['logoFileId'] ?? 0),
             'backgroundFileId' => (int)($settings['backgroundFileId'] ?? 0),
@@ -282,6 +343,62 @@ class SiteAppearanceService
         if ($mime !== '' && !in_array($mime, self::ALLOWED_MIME_TYPES, true)) {
             throw new RuntimeException('BAD_FILE_MIME_TYPE');
         }
+    }
+
+    protected static function defaultDesignTokens(): array
+    {
+        return [
+            'secondaryColor' => '#0f172a',
+            'textColor' => '#0f172a',
+            'mutedColor' => '#64748b',
+            'surfaceColor' => '#ffffff',
+            'borderColor' => '#e2e8f0',
+            'headingFont' => 'system',
+            'bodyFont' => 'system',
+            'baseFontSize' => 16,
+            'bodyLineHeight' => 1.6,
+            'headingWeight' => 800,
+            'radiusScale' => 16,
+            'buttonRadius' => 12,
+            'sectionGap' => 24,
+            'shadowPreset' => 'soft',
+        ];
+    }
+
+    protected static function normalizeFontFamily(string $font): string
+    {
+        $font = trim(strtolower($font));
+        $allowed = ['system', 'arial', 'georgia', 'times', 'mono'];
+        return in_array($font, $allowed, true) ? $font : 'system';
+    }
+
+    protected static function normalizeShadowPreset(string $preset): string
+    {
+        $preset = trim(strtolower($preset));
+        $allowed = ['none', 'soft', 'medium', 'strong'];
+        return in_array($preset, $allowed, true) ? $preset : 'soft';
+    }
+
+    protected static function normalizeHeadingWeight(int $weight): int
+    {
+        $allowed = [500, 600, 700, 800, 900];
+        return in_array($weight, $allowed, true) ? $weight : 800;
+    }
+
+    protected static function normalizeRangeInt(int $value, int $min, int $max, int $fallback): int
+    {
+        if ($value < $min || $value > $max) {
+            return $fallback;
+        }
+        return $value;
+    }
+
+    protected static function normalizeRangeFloat(float $value, float $min, float $max, float $fallback): float
+    {
+        if (!is_finite($value) || $value < $min || $value > $max) {
+            return $fallback;
+        }
+        return round($value, 2);
     }
 
     protected static function normalizeAssetType(string $type): string

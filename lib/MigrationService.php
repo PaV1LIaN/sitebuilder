@@ -157,6 +157,20 @@ final class MigrationService
                     ],
                 ],
             ],
+            [
+                'key' => '20260730_009_forms_and_seo',
+                'stage' => 20,
+                'title' => 'Формы, заявки и SEO страниц',
+                'file' => $root . '/migrations/20260730_009_forms_and_seo.sql',
+                'fingerprint' => [
+                    'relations' => [
+                        'sitebuilder.form_submission',
+                    ],
+                    'columns' => [
+                        'sitebuilder.page.seo_json',
+                    ],
+                ],
+            ],
         ];
     }
 

@@ -22,6 +22,7 @@ final class MaintenanceService
             'revision_retention_days' => 180,
             'recycle_bin_retention_days' => 30,
             'audit_log_retention_days' => 365,
+            'form_submission_retention_days' => 730,
             'outbox_succeeded_retention_days' => 30,
             'outbox_terminal_retention_days' => 90,
             'queue_worker_run_retention_days' => 90,
@@ -39,6 +40,7 @@ final class MaintenanceService
             'revision_retention_days',
             'recycle_bin_retention_days',
             'audit_log_retention_days',
+            'form_submission_retention_days',
             'outbox_succeeded_retention_days',
             'outbox_terminal_retention_days',
             'queue_worker_run_retention_days',
@@ -151,6 +153,13 @@ final class MaintenanceService
                     'sitebuilder.audit_log',
                     'created_at',
                     (int)$config['audit_log_retention_days'],
+                    $config
+                ),
+                'formSubmissions' => self::cleanupOptionalTable(
+                    'form_submission',
+                    'created_at',
+                    'TRUE',
+                    (int)$config['form_submission_retention_days'],
                     $config
                 ),
                 'externalJobs' => self::cleanupExternalJobs($config),

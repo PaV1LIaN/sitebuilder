@@ -2,12 +2,30 @@
 
 require_once $_SERVER['DOCUMENT_ROOT']
     . '/local/sitebuilder/lib/PageAccessService.php';
+require_once $_SERVER['DOCUMENT_ROOT']
+    . '/local/sitebuilder/lib/GlobalBlockService.php';
 
 global $USER;
 
 /*
  * Локальные функции обработчика блоков.
  */
+
+if (!function_exists('sb_block_handler_validate_global_reference')) {
+    function sb_block_handler_validate_global_reference(string $type, array $content, int $siteId): void
+    {
+        if ($type !== 'global') {
+            return;
+        }
+        $globalBlockId = (int)($content['globalBlockId'] ?? 0);
+        if ($globalBlockId <= 0) {
+            sb_json_error('GLOBAL_BLOCK_ID_REQUIRED', 422);
+        }
+        if (!GlobalBlockService::get($globalBlockId, $siteId)) {
+            sb_json_error('GLOBAL_BLOCK_NOT_FOUND', 404);
+        }
+    }
+}
 
 if (!function_exists('sb_block_handler_current_user_id')) {
     function sb_block_handler_current_user_id(): int
@@ -193,6 +211,8 @@ if ($action === 'block.create') {
         $currentUserId
     );
 
+    sb_block_handler_validate_global_reference($type, $content, (int)$pageContext['siteId']);
+
     $blocks = sb_read_blocks();
 
     $block = [
@@ -321,6 +341,12 @@ if ($action === 'block.update') {
     if ($newProps !== null) {
         $updated['props'] = $newProps;
     }
+
+    sb_block_handler_validate_global_reference(
+        (string)($updated['type'] ?? ''),
+        is_array($updated['content'] ?? null) ? $updated['content'] : [],
+        (int)$pageContext['siteId']
+    );
 
     $expectedVersion = RevisionService::requireExpectedVersion(
         $_POST['expectedVersion'] ?? null

@@ -137,13 +137,13 @@ final class RecycleBinService
                 $version = max(1, (int)($page['version'] ?? 1) + 1);
                 $stmt = sb_db()->prepare("
                     INSERT INTO sitebuilder.page (
-                        id,site_id,title,slug,parent_id,sort,status,published_at,
+                        id,site_id,title,slug,parent_id,sort,status,published_at,seo_json,
                         created_by,created_at,updated_by,updated_at,version
                     ) VALUES (
-                        :id,:site_id,:title,:slug,:parent_id,:sort,:status,:published_at,
+                        :id,:site_id,:title,:slug,:parent_id,:sort,:status,:published_at,CAST(:seo_json AS jsonb),
                         :created_by,:created_at,:updated_by,NOW(),:version
                     )
-                    RETURNING id,site_id,title,slug,parent_id,sort,status,published_at,
+                    RETURNING id,site_id,title,slug,parent_id,sort,status,published_at,seo_json,
                               created_by,created_at,updated_by,updated_at,version
                 ");
                 $stmt->execute([
@@ -157,6 +157,7 @@ final class RecycleBinService
                     ':published_at' => !empty($page['publishedAt'])
                         ? (string)$page['publishedAt']
                         : null,
+                    ':seo_json' => json_encode(is_array($page['seo'] ?? null) ? $page['seo'] : [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
                     ':created_by' => !empty($page['createdBy'])
                         ? (int)$page['createdBy']
                         : $userId,

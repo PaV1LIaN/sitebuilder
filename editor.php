@@ -41,7 +41,11 @@ if ($siteId <= 0) {
         <?php $APPLICATION->ShowHead(); ?>
         <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
         <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=16">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v2.css?v=16">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v2.css?v=17">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v3.css?v=17">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v4.css?v=18">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v5.css?v=19">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v6.css?v=20">
     </head>
     <body class="sb-admin-body">
     <div class="sb-page">
@@ -169,36 +173,54 @@ if (!$canOpenEditor) {
     <?php $APPLICATION->ShowHead(); ?>
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=16">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v2.css?v=16">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v2.css?v=17">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v3.css?v=17">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v4.css?v=18">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v5.css?v=19">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">
-    <header class="sb-editor-appbar">
+    <header class="sb-editor-appbar" id="editorAppbar">
         <div class="sb-editor-appbar__brand">
             <a class="sb-editor-appbar__back" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/index.php" aria-label="К списку сайтов">←</a>
-            <div>
+            <button class="sb-editor-toptool" type="button" id="togglePagesPanelBtn" title="Свернуть дерево страниц" aria-label="Свернуть дерево страниц" aria-pressed="false">☰</button>
+            <div class="sb-editor-appbar__brand-copy">
                 <div class="sb-editor-appbar__eyebrow">SiteBuilder · сайт #<?= (int)$siteId ?></div>
                 <h1 class="sb-editor-appbar__title">Визуальный редактор</h1>
             </div>
         </div>
 
-        <div class="sb-editor-status" id="editorSaveStatus" data-state="ready">
-            <span class="sb-editor-status__dot"></span>
-            <span class="sb-editor-status__text">Готово</span>
+        <div class="sb-editor-appbar__center">
+            <div class="sb-editor-history-tools" role="group" aria-label="История действий">
+                <button class="sb-editor-toptool" type="button" id="undoEditorBtn" title="Отменить (Ctrl+Z)" aria-label="Отменить" disabled>↶</button>
+                <button class="sb-editor-toptool" type="button" id="redoEditorBtn" title="Повторить (Ctrl+Shift+Z)" aria-label="Повторить" disabled>↷</button>
+            </div>
+
+            <div class="sb-editor-status" id="editorSaveStatus" data-state="ready">
+                <span class="sb-editor-status__dot"></span>
+                <span class="sb-editor-status__text">Готово</span>
+            </div>
+
+            <div class="sb-editor-contextbar__devices" role="group" aria-label="Размер предпросмотра">
+                <button class="sb-preview-device is-active" type="button" data-preview-device="desktop" title="Компьютер" aria-label="Компьютер">▣</button>
+                <button class="sb-preview-device" type="button" data-preview-device="tablet" title="Планшет" aria-label="Планшет">▯</button>
+                <button class="sb-preview-device" type="button" data-preview-device="mobile" title="Телефон" aria-label="Телефон">▯</button>
+            </div>
         </div>
 
         <div class="sb-editor-appbar__actions">
-            <a class="sb-btn sb-btn-light sb-btn-small" id="openPublicPageLink" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/public.php?siteId=<?= (int)$siteId ?>" target="_blank">
-                Открыть страницу ↗
+            <button class="sb-editor-toptool" type="button" id="toggleInspectorPanelBtn" title="Свернуть инспектор" aria-label="Свернуть инспектор" aria-pressed="false">⚙</button>
+            <button class="sb-editor-toptool" type="button" id="toggleFocusModeBtn" title="Фокус на холсте" aria-label="Фокус на холсте" aria-pressed="false">⛶</button>
+            <button class="sb-editor-toptool" type="button" id="toggleEditorThemeBtn" title="Сменить тему" aria-label="Сменить тему" aria-pressed="false">◐</button>
+
+            <a class="sb-btn sb-btn-light sb-btn-small" id="openPublicPageLink" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/public.php?siteId=<?= (int)$siteId ?>" target="_blank" rel="noopener">
+                Предпросмотр ↗
             </a>
 
-            <a class="sb-btn sb-btn-light sb-btn-small" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/settings.php?siteId=<?= (int)$siteId ?>">
-                Настройки
-            </a>
-
-            <details class="sb-editor-more">
+            <details class="sb-editor-more" id="editorMoreMenu">
                 <summary class="sb-btn sb-btn-light sb-btn-small">Ещё</summary>
                 <div class="sb-editor-more__menu">
+                    <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/settings.php?siteId=<?= (int)$siteId ?>">Настройки сайта</a>
                     <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/layout.php?siteId=<?= (int)$siteId ?>">Layout сайта</a>
                     <?php if ($USER->IsAdmin() || (int)($globalRoleRank ?? 0) >= 3): ?>
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/trash.php?siteId=<?= (int)$siteId ?>">Корзина</a>
@@ -208,35 +230,29 @@ if (!$canOpenEditor) {
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/alerts.php?siteId=<?= (int)$siteId ?>">Оповещения</a>
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/external_resources.php?siteId=<?= (int)$siteId ?>">Внешние ресурсы</a>
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/backups.php?siteId=<?= (int)$siteId ?>">Резервные копии</a>
+                        <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/forms.php?siteId=<?= (int)$siteId ?>">Заявки форм</a>
                     <?php endif; ?>
+                    <?php if ($USER->IsAdmin()): ?>
+                        <button type="button" id="saveAsTemplateBtn">Сохранить в шаблоны</button>
+                    <?php endif; ?>
+                    <button class="sb-editor-more__danger sb-hidden" type="button" id="deleteSiteBtn">Удалить сайт</button>
                 </div>
             </details>
-
-            <?php if ($USER->IsAdmin()): ?>
-                <button class="sb-btn sb-btn-primary sb-btn-small" type="button" id="saveAsTemplateBtn">
-                    В шаблоны
-                </button>
-            <?php endif; ?>
-
-            <button class="sb-btn sb-btn-danger sb-btn-small sb-hidden" type="button" id="deleteSiteBtn">
-                Удалить сайт
-            </button>
         </div>
     </header>
 
     <div class="sb-editor-contextbar">
         <div class="sb-editor-contextbar__hint">
-            <strong>Совет:</strong> выберите секцию и колонку, затем добавляйте блоки. <kbd>Ctrl</kbd>+<kbd>S</kbd> сохраняет текущий объект, <kbd>Ctrl</kbd>+<kbd>K</kbd> открывает библиотеку.
+            <strong>Совет:</strong> перетаскивайте страницы, секции и блоки прямо на холсте. <kbd>Ctrl</kbd>+<kbd>S</kbd> — сохранить, <kbd>Ctrl</kbd>+<kbd>Z</kbd> — отменить локальное изменение, <kbd>Ctrl</kbd>+<kbd>K</kbd> — библиотека.
         </div>
-        <div class="sb-editor-contextbar__devices" role="group" aria-label="Размер предпросмотра">
-            <button class="sb-preview-device is-active" type="button" data-preview-device="desktop" title="Компьютер">▣</button>
-            <button class="sb-preview-device" type="button" data-preview-device="tablet" title="Планшет">▯</button>
-            <button class="sb-preview-device" type="button" data-preview-device="mobile" title="Телефон">▯</button>
+        <div class="sb-editor-contextbar__selection" id="editorContextSelection">
+            <span class="sb-editor-contextbar__selection-dot"></span>
+            <span>Выберите страницу</span>
         </div>
     </div>
 
-    <div class="sb-editor-shell">
-        <div class="sb-editor-col">
+    <div class="sb-editor-shell" id="editorShell">
+        <aside class="sb-editor-col sb-editor-col--pages" id="pagesPanel" aria-label="Страницы сайта">
             <div class="sb-editor-sticky">
                 <div class="sb-panel">
                     <div class="sb-editor-section-head">
@@ -248,7 +264,9 @@ if (!$canOpenEditor) {
                         <input type="search" id="pageSearchInput" placeholder="Найти страницу по названию или slug" autocomplete="off">
                     </div>
 
-                    <div class="sb-editor-create">
+                    <details class="sb-editor-create-drawer" id="createPageDrawer">
+                        <summary><span>＋ Новая страница</span><small>Добавить в дерево</small></summary>
+                        <div class="sb-editor-create">
                         <div class="sb-form-row align-end">
                             <div class="sb-field">
                                 <label for="newPageTitle">Название страницы</label>
@@ -273,16 +291,19 @@ if (!$canOpenEditor) {
                         <div class="sb-form-row" style="margin-top:12px;">
                             <button class="sb-btn sb-btn-primary" type="button" id="createPageBtn">Создать страницу</button>
                         </div>
-                    </div>
+                        </div>
+                    </details>
 
                     <div id="pagesList" class="sb-editor-pages">
                         <div class="sb-empty">Загрузка страниц...</div>
                     </div>
                 </div>
             </div>
-        </div>
+        </aside>
 
-        <div class="sb-editor-col">
+        <div class="sb-editor-resizer sb-editor-resizer--left" data-panel-resizer="left" role="separator" aria-orientation="vertical" aria-label="Изменить ширину дерева страниц" tabindex="0"></div>
+
+        <main class="sb-editor-col sb-editor-col--canvas" id="canvasPanel">
             <div class="sb-editor-canvas">
                 <div class="sb-editor-canvas-head">
                     <div>
@@ -298,6 +319,16 @@ if (!$canOpenEditor) {
                 </div>
 
                 <div class="sb-editor-canvas-body" id="editorCanvasBody">
+                    <div class="sb-draft-recovery" id="draftRecoveryBanner" hidden>
+                        <div>
+                            <strong>Найдены локальные изменения</strong>
+                            <span id="draftRecoveryText">Можно восстановить несохранённую работу.</span>
+                        </div>
+                        <div class="sb-draft-recovery__actions">
+                            <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="discardDraftBtn">Удалить</button>
+                            <button class="sb-btn sb-btn-primary sb-btn-small" type="button" id="restoreDraftBtn">Восстановить</button>
+                        </div>
+                    </div>
                     <div class="sb-editor-viewport is-desktop" id="editorViewport">
                     <div class="sb-editor-page">
                         <h2 class="sb-editor-page-heading" id="pagePreviewHeading">Выберите страницу</h2>
@@ -339,16 +370,18 @@ if (!$canOpenEditor) {
                     </div>
                 </div>
             </div>
-        </div>
+        </main>
 
-        <div class="sb-editor-col sb-editor-col--right">
+        <div class="sb-editor-resizer sb-editor-resizer--right" data-panel-resizer="right" role="separator" aria-orientation="vertical" aria-label="Изменить ширину инспектора" tabindex="0"></div>
+
+        <aside class="sb-editor-col sb-editor-col--right" id="inspectorPanel" aria-label="Инспектор настроек">
             <div class="sb-editor-sticky">
                 <div class="sb-inspector-tabs" role="tablist" aria-label="Панель настроек">
-                    <button class="sb-inspector-tab is-active" type="button" data-inspector-tab="page">Страница</button>
-                    <button class="sb-inspector-tab" type="button" data-inspector-tab="section">Секция</button>
-                    <button class="sb-inspector-tab" type="button" data-inspector-tab="block">Блок</button>
-                    <button class="sb-inspector-tab" type="button" data-inspector-tab="history">История</button>
-                    <button class="sb-inspector-tab" type="button" data-inspector-tab="access" id="inspectorAccessTab" hidden>Доступ</button>
+                    <button class="sb-inspector-tab is-active" type="button" data-inspector-tab="page"><span>▤</span><em>Страница</em></button>
+                    <button class="sb-inspector-tab" type="button" data-inspector-tab="section"><span>▦</span><em>Секция</em></button>
+                    <button class="sb-inspector-tab" type="button" data-inspector-tab="block"><span>◆</span><em>Блок</em></button>
+                    <button class="sb-inspector-tab" type="button" data-inspector-tab="history"><span>↶</span><em>История</em></button>
+                    <button class="sb-inspector-tab" type="button" data-inspector-tab="access" id="inspectorAccessTab" hidden><span>♙</span><em>Доступ</em></button>
                 </div>
 
                 <div class="sb-panel sb-inspector-panel is-active" data-inspector-panel="page">
@@ -379,6 +412,24 @@ if (!$canOpenEditor) {
                             <option value="0">Без родителя</option>
                         </select>
                     </div>
+
+                    <details class="sb-seo-panel" style="margin-top:14px;">
+                        <summary>SEO и соцсети</summary>
+                        <div class="sb-seo-panel__body">
+                            <div class="sb-field"><label for="pageSeoTitleInput">Meta title</label><input class="sb-input" id="pageSeoTitleInput" maxlength="255" placeholder="По умолчанию — название страницы"><small id="pageSeoTitleCounter">0/60</small></div>
+                            <div class="sb-field"><label for="pageSeoDescriptionInput">Meta description</label><textarea class="sb-textarea" id="pageSeoDescriptionInput" maxlength="500" rows="4"></textarea><small id="pageSeoDescriptionCounter">0/160</small></div>
+                            <div class="sb-field"><label for="pageSeoKeywordsInput">Ключевые слова</label><input class="sb-input" id="pageSeoKeywordsInput" maxlength="500"></div>
+                            <div class="sb-field"><label for="pageSeoCanonicalInput">Canonical URL</label><input class="sb-input" id="pageSeoCanonicalInput" placeholder="https://... или /path"></div>
+                            <div class="sb-form-grid sb-form-grid--2">
+                                <label class="sb-checkbox"><input type="checkbox" id="pageSeoIndexInput" checked><span>Разрешить индексацию</span></label>
+                                <label class="sb-checkbox"><input type="checkbox" id="pageSeoFollowInput" checked><span>Переходить по ссылкам</span></label>
+                            </div>
+                            <div class="sb-field"><label for="pageSeoOgTitleInput">OG title</label><input class="sb-input" id="pageSeoOgTitleInput" maxlength="255"></div>
+                            <div class="sb-field"><label for="pageSeoOgDescriptionInput">OG description</label><textarea class="sb-textarea" id="pageSeoOgDescriptionInput" maxlength="500" rows="3"></textarea></div>
+                            <div class="sb-field"><label for="pageSeoOgImageInput">OG image</label><div class="sb-input-with-action"><input class="sb-input" id="pageSeoOgImageInput" placeholder="URL изображения"><button class="sb-btn sb-btn-light sb-btn-small" type="button" data-open-media data-media-target="pageSeoOgImageInput">Медиатека</button></div></div>
+                            <a class="sb-btn sb-btn-light sb-btn-small" id="pageSitemapLink" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/sitemap.php?siteId=<?= (int)$siteId ?>" target="_blank" rel="noopener">Открыть sitemap.xml ↗</a>
+                        </div>
+                    </details>
 
                     <div class="sb-editor-inspector-actions">
                         <button class="sb-btn sb-btn-primary" type="button" id="savePageBtn">Сохранить страницу</button>
@@ -436,6 +487,33 @@ if (!$canOpenEditor) {
                             </div>
                         </div>
 
+                        <details class="sb-block-design-panel" id="blockDesignPanel" style="margin-top:12px;">
+                            <summary>Адаптивность и анимация</summary>
+                            <div class="sb-block-design-panel__body">
+                                <div class="sb-form-row sb-block-visibility-row">
+                                    <label><input type="checkbox" id="blockVisibleDesktopInput" checked> Компьютер</label>
+                                    <label><input type="checkbox" id="blockVisibleTabletInput" checked> Планшет</label>
+                                    <label><input type="checkbox" id="blockVisibleMobileInput" checked> Телефон</label>
+                                </div>
+                                <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;">
+                                    <div class="sb-field"><label for="blockAnimationInput">Появление</label><select class="sb-select" id="blockAnimationInput"><option value="none">Без анимации</option><option value="fade">Проявление</option><option value="fade-up">Снизу вверх</option><option value="zoom">Масштаб</option><option value="slide-left">Слева</option><option value="slide-right">Справа</option></select></div>
+                                    <div class="sb-field"><label for="blockAnimationDelayInput">Задержка, мс</label><input class="sb-input" type="number" id="blockAnimationDelayInput" min="0" max="3000" step="50" value="0"></div>
+                                    <div class="sb-field"><label for="blockAnimationDurationInput">Длительность, мс</label><input class="sb-input" type="number" id="blockAnimationDurationInput" min="150" max="3000" step="50" value="600"></div>
+                                </div>
+                                <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                                    <div class="sb-field"><label for="blockMarginTopInput">Отступ сверху, px</label><input class="sb-input" type="number" id="blockMarginTopInput" min="0" max="240" value="0"></div>
+                                    <div class="sb-field"><label for="blockMarginBottomInput">Отступ снизу, px</label><input class="sb-input" type="number" id="blockMarginBottomInput" min="0" max="240" value="0"></div>
+                                </div>
+                                <div class="sb-editor-inspector-actions" style="margin-top:12px;">
+                                    <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="copyBlockStyleBtn">Копировать стиль</button>
+                                    <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="pasteBlockStyleBtn">Вставить стиль</button>
+                                </div>
+                                <div class="sb-editor-inspector-actions sb-global-block-actions" style="margin-top:8px;">
+                                    <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="saveGlobalBlockBtn">Сохранить как глобальный</button>
+                                    <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="openGlobalBlocksBtn">Глобальные блоки</button>
+                                </div>
+                            </div>
+                        </details>
 
                         <div id="headingBlockForm" class="sb-block-type-form" style="margin-top:12px;">
                             <div class="sb-field">
@@ -456,8 +534,29 @@ if (!$canOpenEditor) {
                         <div id="textBlockForm" class="sb-block-type-form" style="margin-top:12px;">
                             <div class="sb-field">
                                 <label for="textTextInput">Текст блока</label>
-                                <textarea class="sb-textarea" id="textTextInput" placeholder="Введите текст"></textarea>
-                                <p class="sb-block-form-note">Поддерживаются переносы строк и базовые HTML-теги: p, strong, em, ul, ol, li, a.</p>
+                                <div class="sb-rich-editor" id="textRichEditorWrap">
+                                    <div class="sb-rich-editor__toolbar" id="textRichToolbar" role="toolbar" aria-label="Форматирование текста">
+                                        <select class="sb-rich-editor__select" data-rich-command="formatBlock" aria-label="Стиль абзаца">
+                                            <option value="p">Обычный текст</option>
+                                            <option value="h2">Заголовок H2</option>
+                                            <option value="h3">Заголовок H3</option>
+                                            <option value="h4">Заголовок H4</option>
+                                            <option value="blockquote">Цитата</option>
+                                        </select>
+                                        <button type="button" data-rich-command="bold" title="Полужирный"><strong>B</strong></button>
+                                        <button type="button" data-rich-command="italic" title="Курсив"><em>I</em></button>
+                                        <button type="button" data-rich-command="underline" title="Подчёркивание"><u>U</u></button>
+                                        <span class="sb-rich-editor__separator"></span>
+                                        <button type="button" data-rich-command="insertUnorderedList" title="Маркированный список">•≡</button>
+                                        <button type="button" data-rich-command="insertOrderedList" title="Нумерованный список">1≡</button>
+                                        <button type="button" data-rich-command="createLink" title="Добавить ссылку">↗</button>
+                                        <button type="button" data-rich-command="unlink" title="Удалить ссылку">×↗</button>
+                                        <button type="button" data-rich-command="removeFormat" title="Очистить форматирование">Tx</button>
+                                    </div>
+                                    <div class="sb-rich-editor__surface" id="textRichEditor" contenteditable="true" data-placeholder="Введите текст"></div>
+                                </div>
+                                <textarea class="sb-textarea sb-rich-editor__source" id="textTextInput" placeholder="Введите текст" aria-hidden="true" tabindex="-1"></textarea>
+                                <p class="sb-block-form-note">Редактируй текст визуально. HTML очищается перед публикацией.</p>
                             </div>
                             <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;">
                                 <div class="sb-field"><label for="textAlignInput">Выравнивание</label><select class="sb-select" id="textAlignInput"><option value="left">Слева</option><option value="center">По центру</option><option value="right">Справа</option><option value="justify">По ширине</option></select></div>
@@ -485,7 +584,7 @@ if (!$canOpenEditor) {
                         </div>
 
                         <div id="imageBlockForm" class="sb-block-type-form" style="margin-top:12px;">
-                            <div class="sb-field"><label for="imageSrcInput">URL изображения</label><input class="sb-input" type="text" id="imageSrcInput" placeholder="https://... или /upload/..."></div>
+                            <div class="sb-field"><label for="imageSrcInput">Изображение</label><div class="sb-media-field"><input class="sb-input" type="text" id="imageSrcInput" placeholder="https://... или выберите из медиатеки"><button class="sb-btn sb-btn-light sb-btn-small" type="button" data-open-media data-media-target="imageSrcInput">Медиатека</button></div></div>
                             <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
                                 <div class="sb-field"><label for="imageAltInput">Alt-текст</label><input class="sb-input" type="text" id="imageAltInput"></div>
                                 <div class="sb-field"><label for="imageHrefInput">Ссылка при клике</label><input class="sb-input" type="text" id="imageHrefInput"></div>
@@ -516,7 +615,7 @@ if (!$canOpenEditor) {
                                 <div class="sb-field"><label for="heroSecondaryHrefInput">Ссылка</label><input class="sb-input" type="text" id="heroSecondaryHrefInput"></div>
                             </div>
                             <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
-                                <div class="sb-field"><label for="heroImageSrcInput">URL изображения</label><input class="sb-input" type="text" id="heroImageSrcInput"></div>
+                                <div class="sb-field"><label for="heroImageSrcInput">Изображение</label><div class="sb-media-field"><input class="sb-input" type="text" id="heroImageSrcInput"><button class="sb-btn sb-btn-light sb-btn-small" type="button" data-open-media data-media-target="heroImageSrcInput">Медиатека</button></div></div>
                                 <div class="sb-field"><label for="heroImageAltInput">Alt-текст</label><input class="sb-input" type="text" id="heroImageAltInput"></div>
                             </div>
                             <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;">
@@ -792,7 +891,7 @@ if (!$canOpenEditor) {
 
                 <div id="outputFallback" style="display:none;"></div>
             </div>
-        </div>
+        </aside>
     </div>
 </div>
 
@@ -849,7 +948,12 @@ if (!$canOpenEditor) {
             </div>
             <button class="sb-template-modal__close" type="button" data-close-block-library>×</button>
         </div>
-        <div class="sb-block-library__tools">
+        <div class="sb-library-mode-tabs" role="tablist" aria-label="Режим библиотеки">
+            <button class="is-active" type="button" data-library-view="blocks">Компоненты</button>
+            <button type="button" data-library-view="presets">Готовые секции</button>
+            <button type="button" data-open-global-blocks-library>Глобальные</button>
+        </div>
+        <div class="sb-block-library__tools" data-library-block-tools>
             <input class="sb-input" type="search" id="blockLibrarySearch" placeholder="Найти блок...">
             <div class="sb-block-library__categories">
                 <button class="is-active" type="button" data-library-category="all">Все</button>
@@ -860,7 +964,7 @@ if (!$canOpenEditor) {
                 <button type="button" data-library-category="advanced">Служебные</button>
             </div>
         </div>
-        <div class="sb-block-library__grid" id="blockLibraryGrid">
+        <div class="sb-block-library__grid" id="blockLibraryGrid" data-library-pane="blocks">
             <?php
             $libraryBlocks = [
                 ['heading', 'H', 'Заголовок', 'Заголовки H1–H6 с настройкой размера и цвета', 'basic'],
@@ -880,12 +984,77 @@ if (!$canOpenEditor) {
             foreach ($libraryBlocks as [$type, $icon, $title, $description, $category]):
             ?>
                 <button class="sb-library-card" type="button" data-library-block="<?= htmlspecialchars($type, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" data-category="<?= htmlspecialchars($category, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" data-search="<?= htmlspecialchars(mb_strtolower($title . ' ' . $description), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
-                    <span class="sb-library-card__icon"><?= htmlspecialchars($icon, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                    <span class="sb-library-card__preview" aria-hidden="true">
+                        <span class="sb-library-card__icon"><?= htmlspecialchars($icon, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                        <span class="sb-library-card__wire"><i></i><i></i><i></i></span>
+                    </span>
                     <span class="sb-library-card__body"><strong><?= htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></strong><small><?= htmlspecialchars($description, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></small></span>
                 </button>
             <?php endforeach; ?>
         </div>
+        <div class="sb-section-preset-grid" data-library-pane="presets" hidden>
+            <button class="sb-section-preset-card" type="button" data-section-preset="hero_split"><span class="sb-section-preset-card__preview is-hero"><i></i><i></i></span><strong>Первый экран</strong><small>Заголовок, описание, кнопки и изображение</small></button>
+            <button class="sb-section-preset-card" type="button" data-section-preset="benefits_cards"><span class="sb-section-preset-card__preview is-cards"><i></i><i></i><i></i></span><strong>Преимущества</strong><small>Заголовок, пояснение и три карточки</small></button>
+            <button class="sb-section-preset-card" type="button" data-section-preset="image_text"><span class="sb-section-preset-card__preview is-split"><i></i><i></i></span><strong>Изображение + текст</strong><small>Адаптивный двухколоночный смысловой блок</small></button>
+            <button class="sb-section-preset-card" type="button" data-section-preset="stats_band"><span class="sb-section-preset-card__preview is-stats"><i></i><i></i><i></i><i></i></span><strong>Показатели</strong><small>Контрастная полоса с ключевыми цифрами</small></button>
+            <button class="sb-section-preset-card" type="button" data-section-preset="call_to_action"><span class="sb-section-preset-card__preview is-cta"><i></i><b></b></span><strong>Призыв к действию</strong><small>Акцентный заголовок, текст и кнопка</small></button>
+            <button class="sb-section-preset-card" type="button" data-section-preset="quote_story"><span class="sb-section-preset-card__preview is-quote"><i>“</i><b></b></span><strong>Цитата</strong><small>Отзыв, обращение или история сотрудника</small></button>
+        </div>
     </div>
+</div>
+
+<div class="sb-media-library" id="mediaLibraryModal" hidden>
+    <div class="sb-media-library__backdrop" data-close-media-library></div>
+    <div class="sb-media-library__dialog" role="dialog" aria-modal="true" aria-labelledby="mediaLibraryTitle">
+        <div class="sb-media-library__head">
+            <div><div class="sb-block-library__eyebrow">Битрикс.Диск сайта</div><h2 id="mediaLibraryTitle">Медиатека</h2></div>
+            <button class="sb-template-modal__close" type="button" data-close-media-library>×</button>
+        </div>
+        <div class="sb-media-library__toolbar">
+            <input class="sb-input" type="search" id="mediaLibrarySearch" placeholder="Поиск изображений">
+            <label class="sb-btn sb-btn-primary sb-btn-small sb-media-upload-label"><input type="file" id="mediaLibraryUpload" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" hidden>Загрузить изображение</label>
+            <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="mediaLibraryRefresh">Обновить</button>
+        </div>
+        <div class="sb-media-library__status" id="mediaLibraryStatus">Загрузка…</div>
+        <div class="sb-media-library__grid" id="mediaLibraryGrid"></div>
+    </div>
+</div>
+
+
+<div class="sb-global-block-library" id="globalBlocksModal" hidden>
+    <div class="sb-global-block-library__backdrop" data-close-global-blocks></div>
+    <div class="sb-global-block-library__dialog" role="dialog" aria-modal="true" aria-labelledby="globalBlocksTitle">
+        <div class="sb-global-block-library__head">
+            <div>
+                <div class="sb-block-library__eyebrow">Повторно используемый контент</div>
+                <h2 id="globalBlocksTitle">Глобальные блоки</h2>
+                <p>Изменение глобального блока автоматически обновляет все связанные экземпляры на сайте.</p>
+            </div>
+            <button class="sb-template-modal__close" type="button" data-close-global-blocks>×</button>
+        </div>
+        <div class="sb-global-block-library__toolbar">
+            <input class="sb-input" type="search" id="globalBlocksSearch" placeholder="Найти глобальный блок">
+            <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="globalBlocksRefresh">Обновить</button>
+        </div>
+        <div class="sb-global-block-library__status" id="globalBlocksStatus">Загрузка…</div>
+        <div class="sb-global-block-library__list" id="globalBlocksList"></div>
+    </div>
+</div>
+
+<nav class="sb-editor-mobile-dock" id="editorMobileDock" aria-label="Инструменты редактора">
+    <button type="button" data-mobile-editor-action="pages"><span>☰</span><em>Страницы</em></button>
+    <button type="button" data-mobile-editor-action="add"><span>＋</span><em>Добавить</em></button>
+    <button type="button" data-mobile-editor-action="preview"><span>▣</span><em>Вид</em></button>
+    <button type="button" data-mobile-editor-action="inspector"><span>⚙</span><em>Настройки</em></button>
+</nav>
+
+<div class="sb-inline-toolbar" id="inlineTextToolbar" hidden role="toolbar" aria-label="Форматирование текста">
+    <button type="button" data-inline-command="bold" title="Полужирный"><strong>B</strong></button>
+    <button type="button" data-inline-command="italic" title="Курсив"><em>I</em></button>
+    <button type="button" data-inline-command="underline" title="Подчёркнутый"><u>U</u></button>
+    <span></span>
+    <button type="button" data-inline-command="createLink" title="Ссылка">↗</button>
+    <button type="button" data-inline-command="unlink" title="Удалить ссылку">×↗</button>
 </div>
 
 <div class="sb-toast-stack" id="editorToastStack" aria-live="polite"></div>
@@ -901,16 +1070,21 @@ window.SB_EDITOR_CONFIG = {
 </script>
 
 <script src="/bitrix/js/main/core/core.js"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=16"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=16"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=16"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=16"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=16"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=16"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/35-history.js?v=16"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=16"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=16"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=16"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=20"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=20"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/34-editor-ux.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/36-content-tools.js?v=18"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/38-design-tools.js?v=19"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/39-global-blocks.js?v=19"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/41-business-blocks.js?v=20"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/35-history.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=17"></script>
 
 </body>
 </html>

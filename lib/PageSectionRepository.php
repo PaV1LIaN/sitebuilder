@@ -418,6 +418,108 @@ final class PageSectionRepository
         }
     }
 
+    /**
+     * Полностью задаёт порядок секций страницы.
+     * Используется visual drag-and-drop редактора. Отсутствующие в order
+     * секции сохраняются в конце, а чужие ID отклоняются.
+     */
+    public static function reorder(
+        int $siteId,
+        int $pageId,
+        array $order,
+        int $userId,
+        array $versionMap
+    ): array {
+        if ($siteId <= 0 || $pageId <= 0) {
+            throw new InvalidArgumentException('PAGE_SECTION_CONTEXT_REQUIRED');
+        }
+
+        $startedHere = sb_db_transaction_scope_begin();
+
+        try {
+            self::lockPage($pageId);
+            $siblings = self::listForPageForUpdate($siteId, $pageId);
+
+            $byId = [];
+            foreach ($siblings as $section) {
+                $byId[(int)$section['id']] = $section;
+            }
+
+            $orderIds = [];
+            $seen = [];
+            foreach ($order as $item) {
+                $sectionId = (int)$item;
+                if ($sectionId <= 0 || isset($seen[$sectionId])) {
+                    continue;
+                }
+                if (!isset($byId[$sectionId])) {
+                    throw new InvalidArgumentException('PAGE_SECTION_NOT_IN_PAGE');
+                }
+                $seen[$sectionId] = true;
+                $orderIds[] = $sectionId;
+            }
+
+            foreach ($siblings as $section) {
+                $sectionId = (int)$section['id'];
+                if (!isset($seen[$sectionId])) {
+                    $seen[$sectionId] = true;
+                    $orderIds[] = $sectionId;
+                }
+            }
+
+            $sortMap = [];
+            $sort = 10;
+            foreach ($orderIds as $sectionId) {
+                $sortMap[$sectionId] = $sort;
+                $sort += 10;
+            }
+
+            $stmt = sb_db()->prepare("
+                UPDATE sitebuilder.page_section
+                SET sort=:sort,updated_by=:updated_by,updated_at=NOW(),version=version+1
+                WHERE id=:id AND version=:expected_version
+            ");
+
+            foreach ($siblings as $section) {
+                $sectionId = (int)$section['id'];
+                $newSort = (int)$sortMap[$sectionId];
+
+                if ((int)$section['sort'] === $newSort) {
+                    continue;
+                }
+
+                $expectedVersion = RevisionService::requireVersionFromMap(
+                    $versionMap,
+                    $sectionId
+                );
+                self::assertVersion($section, $expectedVersion);
+
+                $stmt->execute([
+                    ':id' => $sectionId,
+                    ':sort' => $newSort,
+                    ':updated_by' => $userId > 0 ? $userId : null,
+                    ':expected_version' => $expectedVersion,
+                ]);
+
+                if ($stmt->rowCount() !== 1) {
+                    $fresh = self::getById($sectionId, false);
+                    throw new SiteBuilderVersionConflictException(
+                        'page_section',
+                        $sectionId,
+                        $expectedVersion,
+                        max(1, (int)($fresh['version'] ?? 1))
+                    );
+                }
+            }
+
+            sb_db_transaction_scope_commit($startedHere);
+            return self::listForPage($siteId, $pageId);
+        } catch (Throwable $e) {
+            sb_db_transaction_scope_rollback($startedHere);
+            throw $e;
+        }
+    }
+
     public static function delete(int $sectionId, int $userId, int $expectedVersion): void
     {
         $startedHere = sb_db_transaction_scope_begin();
