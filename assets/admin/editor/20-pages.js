@@ -113,31 +113,75 @@ function renderPages() {
         return;
     }
 
+    var query = String(state.pageSearch || '').trim().toLowerCase();
+    var visibleIds = {};
+    var matchedIds = {};
+
+    if (query) {
+        var byId = {};
+        state.pages.forEach(function (page) {
+            byId[Number(page.id || 0)] = page;
+        });
+
+        state.pages.forEach(function (page) {
+            var id = Number(page.id || 0);
+            var haystack = [page.title, page.slug, page.status, id].join(' ').toLowerCase();
+
+            if (haystack.indexOf(query) === -1) {
+                return;
+            }
+
+            matchedIds[id] = true;
+            visibleIds[id] = true;
+
+            var parentId = Number(page.parentId || 0);
+            var guard = 0;
+
+            while (parentId > 0 && byId[parentId] && guard < 100) {
+                visibleIds[parentId] = true;
+                parentId = Number(byId[parentId].parentId || 0);
+                guard++;
+            }
+        });
+    }
+
     var tree = buildPageTree(state.pages, 0, 0, []);
+
+    if (query) {
+        tree = tree.filter(function (item) {
+            return !!visibleIds[Number(item.page.id || 0)];
+        });
+    }
+
+    if (!tree.length) {
+        pagesList.innerHTML = '<div class="sb-empty">По запросу ничего не найдено</div>';
+        return;
+    }
 
     pagesList.innerHTML = tree.map(function (item) {
         var page = item.page;
         var depth = item.depth;
-        var active = Number(page.id || 0) === state.currentPageId ? ' is-active' : '';
+        var pageId = Number(page.id || 0);
+        var active = pageId === state.currentPageId ? ' is-active' : '';
+        var matched = query && matchedIds[pageId] ? ' is-search-match' : '';
         var hasChildren = pageHasChildren(page.id);
         var status = String(page.status || 'draft');
 
         return ''
-            + '<div class="sb-editor-page-item' + active + '" data-page-id="' + Number(page.id || 0) + '" style="margin-left:' + (depth * 18) + 'px;">'
+            + '<div class="sb-editor-page-item' + active + matched + '" data-page-id="' + pageId + '" data-page-search="' + escapeHtml([page.title, page.slug].join(' ').toLowerCase()) + '" style="margin-left:' + (depth * 18) + 'px;">'
             + '  <div class="sb-editor-page-top">'
             + '      <div>'
             + '          <h3 class="sb-editor-page-title">' + escapeHtml(page.title || '') + '</h3>'
             + '          <div class="sb-editor-page-meta">'
             +               '<span class="sb-editor-chip">' + escapeHtml(page.slug || '') + '</span>'
             +               '<span class="sb-editor-chip ' + (status === 'published' ? 'sb-editor-chip--green' : 'sb-editor-chip--yellow') + '">' + escapeHtml(status) + '</span>'
-            +               (hasChildren ? '<span class="sb-editor-chip sb-editor-chip--blue">section</span>' : '')
+            +               (hasChildren ? '<span class="sb-editor-chip sb-editor-chip--blue">раздел</span>' : '')
             + '          </div>'
             + '      </div>'
             + '  </div>'
             + '</div>';
     }).join('');
 }
-
 function updateCanvasHeader() {
     var page = getCurrentPage();
     var pageTitle = document.getElementById('canvasPageTitle');
@@ -157,6 +201,10 @@ function updateCanvasHeader() {
             previewHeading.textContent = 'Выберите страницу';
         }
 
+        if (typeof updatePublicPageLink === 'function') {
+            updatePublicPageLink();
+        }
+
         return;
     }
 
@@ -170,6 +218,10 @@ function updateCanvasHeader() {
 
     if (previewHeading) {
         previewHeading.textContent = page.title || 'Страница';
+    }
+
+    if (typeof updatePublicPageLink === 'function') {
+        updatePublicPageLink();
     }
 }
 
@@ -241,6 +293,10 @@ async function createPage() {
 
     await loadPages();
     await loadBlocks();
+
+    if (typeof showEditorToast === 'function') {
+        showEditorToast('Страница создана', 'success');
+    }
 }
 
 async function savePage() {

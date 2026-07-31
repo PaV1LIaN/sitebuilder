@@ -152,6 +152,11 @@ async function loadPageSections() {
     }
 }
 
+function normalizeEditorColor(value, fallback) {
+    value = String(value || '').trim();
+    return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+}
+
 function renderPageSectionsPanel() {
     var list = document.getElementById('pageSectionsList');
 
@@ -175,55 +180,110 @@ function renderPageSectionsPanel() {
         var layout = section.layout || {};
         var props = section.props || {};
         var columns = Number(layout.columns || 1);
+        var tabletColumns = Math.max(1, Math.min(columns, Number(layout.tabletColumns || Math.min(columns, 2))));
+        var mobileColumns = Math.max(1, Math.min(tabletColumns, Number(layout.mobileColumns || 1)));
         var container = String(layout.container || 'default');
-        var paddingTop = Number(props.paddingTop || 0);
-        var paddingBottom = Number(props.paddingBottom || 0);
+        var gap = Number(layout.gap || 24);
+        var verticalAlign = String(layout.verticalAlign || 'start');
+        var paddingTop = Number(props.paddingTop == null ? 32 : props.paddingTop);
+        var paddingBottom = Number(props.paddingBottom == null ? 32 : props.paddingBottom);
+        var paddingX = Number(props.paddingX == null ? 24 : props.paddingX);
+        var minHeight = Number(props.minHeight || 0);
+        var borderRadius = Number(props.borderRadius || 0);
+        var backgroundColor = normalizeEditorColor(props.backgroundColor, '#ffffff');
+        var textColor = normalizeEditorColor(props.textColor, '#111827');
+        var backgroundImage = String(props.backgroundImage || '');
+        var backgroundPosition = String(props.backgroundPosition || 'center');
+        var backgroundSize = String(props.backgroundSize || 'cover');
+        var shadow = !!props.shadow;
         var active = Number(state.currentSectionId || 0) === id ? ' is-active' : '';
+        var isDecorated = !!(props.backgroundColor || props.backgroundImage || borderRadius || shadow);
 
         return ''
             + '<div class="sb-page-section-card' + active + '" data-page-section-id="' + id + '">'
             + '  <div class="sb-page-section-card__top" data-page-section-select="' + id + '">'
             + '      <div class="sb-page-section-card__index">' + (index + 1) + '</div>'
             + '      <div class="sb-page-section-card__main">'
-            + '          <input class="sb-page-section-card__title-input" '
-            + '                 type="text" '
-            + '                 value="' + escapeHtml(title) + '" '
-            + '                 data-section-field="title" '
-            + '                 data-section-id="' + id + '">'
+            + '          <input class="sb-page-section-card__title-input" type="text" value="' + escapeHtml(title) + '" data-section-field="title" data-section-id="' + id + '">'
             + '          <div class="sb-page-section-card__meta">'
-            + '              <span>' + columns + ' кол.</span>'
+            + '              <span>' + columns + ' / ' + tabletColumns + ' / ' + mobileColumns + ' кол.</span>'
             + '              <span>' + escapeHtml(container) + '</span>'
-            + '              <span>' + paddingTop + '/' + paddingBottom + 'px</span>'
+            + '              <span>' + gap + 'px</span>'
+            + '              ' + (isDecorated ? '<span class="sb-section-style-dot" style="background:' + escapeHtml(backgroundColor) + '"></span>' : '')
             + '          </div>'
             + '      </div>'
             + '  </div>'
-
-            + '  <div class="sb-page-section-card__settings">'
-            + '      <label>'
-            + '          Колонки'
-            + '          <select data-section-field="columns" data-section-id="' + id + '">'
-            + '              <option value="1"' + (columns === 1 ? ' selected' : '') + '>1</option>'
-            + '              <option value="2"' + (columns === 2 ? ' selected' : '') + '>2</option>'
-            + '              <option value="3"' + (columns === 3 ? ' selected' : '') + '>3</option>'
-            + '              <option value="4"' + (columns === 4 ? ' selected' : '') + '>4</option>'
-            + '          </select>'
-            + '      </label>'
-
-            + '      <label>'
-            + '          Ширина'
-            + '          <select data-section-field="container" data-section-id="' + id + '">'
-            + '              <option value="default"' + (container === 'default' ? ' selected' : '') + '>Обычная</option>'
-            + '              <option value="wide"' + (container === 'wide' ? ' selected' : '') + '>Широкая</option>'
-            + '              <option value="full"' + (container === 'full' ? ' selected' : '') + '>На всю ширину</option>'
-            + '          </select>'
-            + '      </label>'
-            + '  </div>'
-
+            + '  <details class="sb-section-appearance">'
+            + '      <summary>Сетка и оформление</summary>'
+            + '      <div class="sb-section-appearance__body">'
+            + '          <div class="sb-section-fields sb-section-fields--3">'
+            + '              <label>Компьютер<select data-section-field="columns" data-section-id="' + id + '">'
+            + '                  <option value="1"' + (columns === 1 ? ' selected' : '') + '>1 колонка</option>'
+            + '                  <option value="2"' + (columns === 2 ? ' selected' : '') + '>2 колонки</option>'
+            + '                  <option value="3"' + (columns === 3 ? ' selected' : '') + '>3 колонки</option>'
+            + '                  <option value="4"' + (columns === 4 ? ' selected' : '') + '>4 колонки</option>'
+            + '              </select></label>'
+            + '              <label>Планшет<select data-section-field="tabletColumns" data-section-id="' + id + '">'
+            + '                  <option value="1"' + (tabletColumns === 1 ? ' selected' : '') + '>1 колонка</option>'
+            + '                  <option value="2"' + (tabletColumns === 2 ? ' selected' : '') + '>2 колонки</option>'
+            + '                  <option value="3"' + (tabletColumns === 3 ? ' selected' : '') + '>3 колонки</option>'
+            + '                  <option value="4"' + (tabletColumns === 4 ? ' selected' : '') + '>4 колонки</option>'
+            + '              </select></label>'
+            + '              <label>Телефон<select data-section-field="mobileColumns" data-section-id="' + id + '">'
+            + '                  <option value="1"' + (mobileColumns === 1 ? ' selected' : '') + '>1 колонка</option>'
+            + '                  <option value="2"' + (mobileColumns === 2 ? ' selected' : '') + '>2 колонки</option>'
+            + '              </select></label>'
+            + '          </div>'
+            + '          <div class="sb-section-fields sb-section-fields--3">'
+            + '              <label>Ширина<select data-section-field="container" data-section-id="' + id + '">'
+            + '                  <option value="default"' + (container === 'default' ? ' selected' : '') + '>Обычная</option>'
+            + '                  <option value="wide"' + (container === 'wide' ? ' selected' : '') + '>Широкая</option>'
+            + '                  <option value="full"' + (container === 'full' ? ' selected' : '') + '>Полная</option>'
+            + '              </select></label>'
+            + '              <label>Промежуток<input type="number" min="0" max="120" value="' + gap + '" data-section-field="gap" data-section-id="' + id + '"></label>'
+            + '              <label>По вертикали<select data-section-field="verticalAlign" data-section-id="' + id + '">'
+            + '                  <option value="start"' + (verticalAlign === 'start' ? ' selected' : '') + '>Сверху</option>'
+            + '                  <option value="center"' + (verticalAlign === 'center' ? ' selected' : '') + '>По центру</option>'
+            + '                  <option value="end"' + (verticalAlign === 'end' ? ' selected' : '') + '>Снизу</option>'
+            + '                  <option value="stretch"' + (verticalAlign === 'stretch' ? ' selected' : '') + '>Растянуть</option>'
+            + '              </select></label>'
+            + '          </div>'
+            + '          <div class="sb-section-fields sb-section-fields--2">'
+            + '              <label>Цвет фона<input type="color" value="' + escapeHtml(backgroundColor) + '" data-section-field="backgroundColor" data-section-id="' + id + '"></label>'
+            + '              <label>Цвет текста<input type="color" value="' + escapeHtml(textColor) + '" data-section-field="textColor" data-section-id="' + id + '"></label>'
+            + '          </div>'
+            + '          <div class="sb-section-fields sb-section-fields--3">'
+            + '              <label>Сверху<input type="number" min="0" max="240" value="' + paddingTop + '" data-section-field="paddingTop" data-section-id="' + id + '"></label>'
+            + '              <label>Снизу<input type="number" min="0" max="240" value="' + paddingBottom + '" data-section-field="paddingBottom" data-section-id="' + id + '"></label>'
+            + '              <label>По бокам<input type="number" min="0" max="160" value="' + paddingX + '" data-section-field="paddingX" data-section-id="' + id + '"></label>'
+            + '          </div>'
+            + '          <div class="sb-section-fields sb-section-fields--3">'
+            + '              <label>Скругление<input type="number" min="0" max="80" value="' + borderRadius + '" data-section-field="borderRadius" data-section-id="' + id + '"></label>'
+            + '              <label>Мин. высота<input type="number" min="0" max="1200" value="' + minHeight + '" data-section-field="minHeight" data-section-id="' + id + '"></label>'
+            + '              <label class="sb-section-check"><input type="checkbox"' + (shadow ? ' checked' : '') + ' data-section-field="shadow" data-section-id="' + id + '"> Тень</label>'
+            + '          </div>'
+            + '          <label class="sb-section-wide-field">Фоновое изображение<input type="text" value="' + escapeHtml(backgroundImage) + '" placeholder="https://... или /upload/..." data-section-field="backgroundImage" data-section-id="' + id + '"></label>'
+            + '          <div class="sb-section-fields sb-section-fields--2">'
+            + '              <label>Размер фона<select data-section-field="backgroundSize" data-section-id="' + id + '">'
+            + '                  <option value="cover"' + (backgroundSize === 'cover' ? ' selected' : '') + '>Заполнить</option>'
+            + '                  <option value="contain"' + (backgroundSize === 'contain' ? ' selected' : '') + '>Вместить</option>'
+            + '                  <option value="auto"' + (backgroundSize === 'auto' ? ' selected' : '') + '>Оригинал</option>'
+            + '              </select></label>'
+            + '              <label>Позиция<select data-section-field="backgroundPosition" data-section-id="' + id + '">'
+            + '                  <option value="center"' + (backgroundPosition === 'center' ? ' selected' : '') + '>По центру</option>'
+            + '                  <option value="top"' + (backgroundPosition === 'top' ? ' selected' : '') + '>Сверху</option>'
+            + '                  <option value="bottom"' + (backgroundPosition === 'bottom' ? ' selected' : '') + '>Снизу</option>'
+            + '                  <option value="left"' + (backgroundPosition === 'left' ? ' selected' : '') + '>Слева</option>'
+            + '                  <option value="right"' + (backgroundPosition === 'right' ? ' selected' : '') + '>Справа</option>'
+            + '              </select></label>'
+            + '          </div>'
+            + '      </div>'
+            + '  </details>'
             + '  <div class="sb-page-section-card__actions">'
-            + '      <button class="sb-btn sb-btn-light sb-btn-small" type="button" data-section-action="move-up" data-section-id="' + id + '">↑</button>'
-            + '      <button class="sb-btn sb-btn-light sb-btn-small" type="button" data-section-action="move-down" data-section-id="' + id + '">↓</button>'
-            + '      <button class="sb-btn sb-btn-light sb-btn-small" type="button" data-section-action="save" data-section-id="' + id + '">Сохранить</button>'
-            + '      <button class="sb-btn sb-btn-danger sb-btn-small" type="button" data-section-action="delete" data-section-id="' + id + '">Удалить</button>'
+            + '      <button class="sb-icon-btn" type="button" data-section-action="move-up" data-section-id="' + id + '" title="Выше">↑</button>'
+            + '      <button class="sb-icon-btn" type="button" data-section-action="move-down" data-section-id="' + id + '" title="Ниже">↓</button>'
+            + '      <button class="sb-btn sb-btn-primary sb-btn-small" type="button" data-section-action="save" data-section-id="' + id + '">Сохранить</button>'
+            + '      <button class="sb-icon-btn sb-icon-btn--danger" type="button" data-section-action="delete" data-section-id="' + id + '" title="Удалить">×</button>'
             + '  </div>'
             + '</div>';
     }).join('');
@@ -441,14 +501,23 @@ async function createPageSection() {
             layout: JSON.stringify({
                 container: 'default',
                 columns: 1,
-                gap: 24
+                tabletColumns: 1,
+                mobileColumns: 1,
+                gap: 24,
+                verticalAlign: 'start'
             }),
             props: JSON.stringify({
                 backgroundColor: '',
+                textColor: '',
                 backgroundImage: '',
+                backgroundPosition: 'center',
+                backgroundSize: 'cover',
                 paddingTop: 40,
                 paddingBottom: 40,
-                minHeight: 0
+                paddingX: 24,
+                minHeight: 0,
+                borderRadius: 0,
+                shadow: false
             })
         });
 
@@ -484,17 +553,63 @@ async function savePageSection(sectionId) {
         return;
     }
 
-    var titleInput = card.querySelector('[data-section-field="title"]');
-    var columnsSelect = card.querySelector('[data-section-field="columns"]');
-    var containerSelect = card.querySelector('[data-section-field="container"]');
+    function field(name) {
+        return card.querySelector('[data-section-field="' + name + '"]');
+    }
+
+    var titleInput = field('title');
+    var columnsSelect = field('columns');
+    var tabletColumnsSelect = field('tabletColumns');
+    var mobileColumnsSelect = field('mobileColumns');
+    var containerSelect = field('container');
+    var gapInput = field('gap');
+    var verticalAlignInput = field('verticalAlign');
 
     var title = titleInput ? String(titleInput.value || '').trim() : section.title;
     var columns = columnsSelect ? Number(columnsSelect.value || 1) : Number((section.layout || {}).columns || 1);
+    var tabletColumns = tabletColumnsSelect ? Number(tabletColumnsSelect.value || 1) : Number((section.layout || {}).tabletColumns || Math.min(columns, 2));
+    var mobileColumns = mobileColumnsSelect ? Number(mobileColumnsSelect.value || 1) : Number((section.layout || {}).mobileColumns || 1);
     var container = containerSelect ? String(containerSelect.value || 'default') : String((section.layout || {}).container || 'default');
+    var gap = gapInput ? Number(gapInput.value || 0) : Number((section.layout || {}).gap || 24);
+    var verticalAlign = verticalAlignInput ? String(verticalAlignInput.value || 'start') : String((section.layout || {}).verticalAlign || 'start');
+
+    var normalizedColumns = Math.max(1, Math.min(4, columns));
+    var normalizedTabletColumns = Math.max(1, Math.min(normalizedColumns, tabletColumns));
+    var normalizedMobileColumns = Math.max(1, Math.min(Math.min(normalizedTabletColumns, 2), mobileColumns));
 
     var layout = Object.assign({}, section.layout || {}, {
-        columns: columns,
-        container: container
+        columns: normalizedColumns,
+        tabletColumns: normalizedTabletColumns,
+        mobileColumns: normalizedMobileColumns,
+        container: container,
+        gap: Math.max(0, Math.min(120, gap)),
+        verticalAlign: verticalAlign
+    });
+
+    var backgroundColorInput = field('backgroundColor');
+    var textColorInput = field('textColor');
+    var backgroundImageInput = field('backgroundImage');
+    var backgroundPositionInput = field('backgroundPosition');
+    var backgroundSizeInput = field('backgroundSize');
+    var paddingTopInput = field('paddingTop');
+    var paddingBottomInput = field('paddingBottom');
+    var paddingXInput = field('paddingX');
+    var minHeightInput = field('minHeight');
+    var borderRadiusInput = field('borderRadius');
+    var shadowInput = field('shadow');
+
+    var props = Object.assign({}, section.props || {}, {
+        backgroundColor: backgroundColorInput ? String(backgroundColorInput.value || '') : '',
+        textColor: textColorInput ? String(textColorInput.value || '') : '',
+        backgroundImage: backgroundImageInput ? String(backgroundImageInput.value || '').trim() : '',
+        backgroundPosition: backgroundPositionInput ? String(backgroundPositionInput.value || 'center') : 'center',
+        backgroundSize: backgroundSizeInput ? String(backgroundSizeInput.value || 'cover') : 'cover',
+        paddingTop: paddingTopInput ? Math.max(0, Math.min(240, Number(paddingTopInput.value || 0))) : 32,
+        paddingBottom: paddingBottomInput ? Math.max(0, Math.min(240, Number(paddingBottomInput.value || 0))) : 32,
+        paddingX: paddingXInput ? Math.max(0, Math.min(160, Number(paddingXInput.value || 0))) : 24,
+        minHeight: minHeightInput ? Math.max(0, Math.min(1200, Number(minHeightInput.value || 0))) : 0,
+        borderRadius: borderRadiusInput ? Math.max(0, Math.min(80, Number(borderRadiusInput.value || 0))) : 0,
+        shadow: !!(shadowInput && shadowInput.checked)
     });
 
     setPageSectionsMessage('Сохраняю секцию...', 'info');
@@ -504,6 +619,7 @@ async function savePageSection(sectionId) {
             sectionId: sectionId,
             title: title,
             layout: JSON.stringify(layout),
+            props: JSON.stringify(props),
             expectedVersion: Number(section.version || 1)
         });
 

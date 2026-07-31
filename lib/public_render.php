@@ -46,6 +46,370 @@ if (!function_exists('sb_public_clamp_int')) {
     }
 }
 
+
+if (!function_exists('sb_public_safe_color')) {
+    function sb_public_safe_color($value, string $fallback = ''): string
+    {
+        $value = trim((string)$value);
+
+        if ($value === '') {
+            return $fallback;
+        }
+
+        if (
+            preg_match('/^#[0-9a-fA-F]{3}$/', $value)
+            || preg_match('/^#[0-9a-fA-F]{6}$/', $value)
+            || preg_match('/^#[0-9a-fA-F]{8}$/', $value)
+        ) {
+            return strtolower($value);
+        }
+
+        if ($value === 'transparent') {
+            return $value;
+        }
+
+        return $fallback;
+    }
+}
+
+if (!function_exists('sb_public_safe_url')) {
+    function sb_public_safe_url($value, bool $imageOnly = false): string
+    {
+        $value = trim((string)$value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        /*
+         * URL затем может попасть не только в href/src, но и в inline CSS.
+         * Запрещаем управляющие символы, обратный слеш и символы, которыми
+         * можно преждевременно закрыть url(...) или HTML-атрибут.
+         */
+        if (
+            preg_match('/[\x00-\x20\x7f]/u', $value)
+            || str_contains($value, '\\')
+            || str_contains($value, '"')
+            || str_contains($value, "'")
+            || str_contains($value, '(')
+            || str_contains($value, ')')
+            || str_contains($value, '<')
+            || str_contains($value, '>')
+            || str_starts_with($value, '//')
+        ) {
+            return '';
+        }
+
+        $parts = parse_url($value);
+
+        if ($parts === false) {
+            return '';
+        }
+
+        $scheme = strtolower((string)($parts['scheme'] ?? ''));
+
+        /* Относительные URL, якоря и query-string. */
+        if ($scheme === '') {
+            if (
+                isset($parts['host'])
+                || isset($parts['user'])
+                || isset($parts['pass'])
+            ) {
+                return '';
+            }
+
+            return $value;
+        }
+
+        $allowed = $imageOnly
+            ? ['http', 'https']
+            : ['http', 'https', 'mailto', 'tel'];
+
+        return in_array($scheme, $allowed, true) ? $value : '';
+    }
+}
+
+if (!function_exists('sb_public_sanitize_rich_html_fallback')) {
+    function sb_public_sanitize_rich_html_fallback(string $html): string
+    {
+        $html = preg_replace(
+            '#<(script|style|iframe|object|embed|svg|math|template)\b[^>]*>.*?</\1\s*>#is',
+            '',
+            $html
+        ) ?? '';
+
+        $html = strip_tags(
+            $html,
+            '<p><br><strong><b><em><i><u><s><span><ul><ol><li><a><blockquote><code>'
+        );
+
+        $allowed = [
+            'p' => true,
+            'br' => true,
+            'strong' => true,
+            'b' => true,
+            'em' => true,
+            'i' => true,
+            'u' => true,
+            's' => true,
+            'span' => true,
+            'ul' => true,
+            'ol' => true,
+            'li' => true,
+            'a' => true,
+            'blockquote' => true,
+            'code' => true,
+        ];
+
+        return preg_replace_callback(
+            '#<\s*(/?)\s*([a-z0-9]+)\b([^>]*)>#i',
+            static function (array $match) use ($allowed): string {
+                $closing = ($match[1] ?? '') === '/';
+                $tag = strtolower((string)($match[2] ?? ''));
+                $attributes = (string)($match[3] ?? '');
+
+                if (!isset($allowed[$tag])) {
+                    return '';
+                }
+
+                if ($closing) {
+                    return $tag === 'br' ? '' : '</' . $tag . '>';
+                }
+
+                if ($tag === 'br') {
+                    return '<br>';
+                }
+
+                if ($tag !== 'a') {
+                    return '<' . $tag . '>';
+                }
+
+                $href = '';
+                $target = '_self';
+
+                if (preg_match(
+                    '/\bhref\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'>]+))/i',
+                    $attributes,
+                    $hrefMatch
+                )) {
+                    $href = html_entity_decode(
+                        (string)($hrefMatch[1] ?? $hrefMatch[2] ?? $hrefMatch[3] ?? ''),
+                        ENT_QUOTES | ENT_HTML5,
+                        'UTF-8'
+                    );
+                    $href = sb_public_safe_url($href);
+                }
+
+                if (preg_match(
+                    '/\btarget\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'>]+))/i',
+                    $attributes,
+                    $targetMatch
+                )) {
+                    $target = sb_public_safe_target(
+                        (string)($targetMatch[1] ?? $targetMatch[2] ?? $targetMatch[3] ?? '')
+                    );
+                }
+
+                if ($href === '') {
+                    $target = '_self';
+                }
+
+                $result = '<a';
+                if ($href !== '') {
+                    $result .= ' href="' . sb_public_h($href) . '"';
+                }
+                if ($target === '_blank') {
+                    $result .= ' target="_blank" rel="noopener noreferrer"';
+                }
+                return $result . '>';
+            },
+            $html
+        ) ?? '';
+    }
+}
+
+if (!function_exists('sb_public_sanitize_rich_html')) {
+    function sb_public_sanitize_rich_html($value): string
+    {
+        $html = trim((string)$value);
+
+        if ($html === '') {
+            return '';
+        }
+
+        if (!preg_match('/<\/?[a-z][^>]*>/i', $html)) {
+            return nl2br(sb_public_h($html));
+        }
+
+        /*
+         * DOMDocument доступен в большинстве коробочных установок Битрикс.
+         * Если расширение отключено, безопасно показываем текст без HTML.
+         */
+        if (!class_exists('DOMDocument')) {
+            return sb_public_sanitize_rich_html_fallback($html);
+        }
+
+        $allowedTags = [
+            'p' => true,
+            'br' => true,
+            'strong' => true,
+            'b' => true,
+            'em' => true,
+            'i' => true,
+            'u' => true,
+            's' => true,
+            'span' => true,
+            'ul' => true,
+            'ol' => true,
+            'li' => true,
+            'a' => true,
+            'blockquote' => true,
+            'code' => true,
+        ];
+        $dropWithContent = [
+            'script' => true,
+            'style' => true,
+            'iframe' => true,
+            'object' => true,
+            'embed' => true,
+            'svg' => true,
+            'math' => true,
+            'template' => true,
+        ];
+
+        $document = new DOMDocument('1.0', 'UTF-8');
+        $previous = libxml_use_internal_errors(true);
+
+        try {
+            $wrapped = '<!doctype html><html><body><div id="sb-rich-root">'
+                . $html
+                . '</div></body></html>';
+
+            $flags = 0;
+            if (defined('LIBXML_HTML_NOIMPLIED')) {
+                $flags |= LIBXML_HTML_NOIMPLIED;
+            }
+            if (defined('LIBXML_HTML_NODEFDTD')) {
+                $flags |= LIBXML_HTML_NODEFDTD;
+            }
+
+            if (!$document->loadHTML('<?xml encoding="UTF-8">' . $wrapped, $flags)) {
+                return sb_public_sanitize_rich_html_fallback($html);
+            }
+
+            $root = $document->getElementById('sb-rich-root');
+            if (!$root instanceof DOMElement) {
+                return sb_public_sanitize_rich_html_fallback($html);
+            }
+
+            $sanitizeNode = static function (DOMNode $node) use (&$sanitizeNode, $allowedTags, $dropWithContent): void {
+                $children = [];
+                foreach ($node->childNodes as $child) {
+                    $children[] = $child;
+                }
+
+                foreach ($children as $child) {
+                    if ($child instanceof DOMComment) {
+                        $child->parentNode?->removeChild($child);
+                        continue;
+                    }
+
+                    if (!$child instanceof DOMElement) {
+                        continue;
+                    }
+
+                    $tag = strtolower($child->tagName);
+
+                    if (!isset($allowedTags[$tag])) {
+                        if (isset($dropWithContent[$tag])) {
+                            $child->parentNode?->removeChild($child);
+                            continue;
+                        }
+
+                        $sanitizeNode($child);
+                        $parent = $child->parentNode;
+
+                        if ($parent !== null) {
+                            while ($child->firstChild !== null) {
+                                $parent->insertBefore($child->firstChild, $child);
+                            }
+                            $parent->removeChild($child);
+                        }
+                        continue;
+                    }
+
+                    $attributeNames = [];
+                    if ($child->hasAttributes()) {
+                        foreach ($child->attributes as $attribute) {
+                            $attributeNames[] = $attribute->name;
+                        }
+                    }
+
+                    foreach ($attributeNames as $attributeName) {
+                        $keep = $tag === 'a'
+                            && in_array(strtolower($attributeName), ['href', 'target', 'rel'], true);
+
+                        if (!$keep) {
+                            $child->removeAttribute($attributeName);
+                        }
+                    }
+
+                    if ($tag === 'a') {
+                        $href = sb_public_safe_url($child->getAttribute('href'));
+
+                        if ($href === '') {
+                            $child->removeAttribute('href');
+                        } else {
+                            $child->setAttribute('href', $href);
+                        }
+
+                        $target = sb_public_safe_target($child->getAttribute('target'));
+                        if ($target === '_blank') {
+                            $child->setAttribute('target', '_blank');
+                            $child->setAttribute('rel', 'noopener noreferrer');
+                        } else {
+                            $child->removeAttribute('target');
+                            $child->removeAttribute('rel');
+                        }
+                    }
+
+                    $sanitizeNode($child);
+                }
+            };
+
+            $sanitizeNode($root);
+
+            $result = '';
+            foreach ($root->childNodes as $child) {
+                $result .= $document->saveHTML($child);
+            }
+
+            return $result;
+        } catch (Throwable $e) {
+            error_log('SiteBuilder rich text sanitize failed: ' . $e->getMessage());
+            return sb_public_sanitize_rich_html_fallback($html);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+    }
+}
+
+if (!function_exists('sb_public_safe_target')) {
+    function sb_public_safe_target($value): string
+    {
+        return (string)$value === '_blank' ? '_blank' : '_self';
+    }
+}
+
+if (!function_exists('sb_public_safe_choice')) {
+    function sb_public_safe_choice($value, array $allowed, string $fallback): string
+    {
+        $value = (string)$value;
+        return in_array($value, $allowed, true) ? $value : $fallback;
+    }
+}
+
 if (!function_exists('sb_public_find_site')) {
     function sb_public_find_site(int $siteId): ?array
     {
@@ -218,6 +582,8 @@ if (!function_exists('sb_public_normalize_page_section')) {
         $props = sb_public_to_array($section['props'] ?? $section['props_json'] ?? []);
 
         $columns = sb_public_clamp_int($layout['columns'] ?? 1, 1, 4);
+        $tabletColumns = sb_public_clamp_int($layout['tabletColumns'] ?? min($columns, 2), 1, $columns);
+        $mobileColumns = sb_public_clamp_int($layout['mobileColumns'] ?? 1, 1, min($tabletColumns, 2));
         $gap = sb_public_clamp_int($layout['gap'] ?? 24, 0, 120);
 
         $container = (string)($layout['container'] ?? 'default');
@@ -226,6 +592,8 @@ if (!function_exists('sb_public_normalize_page_section')) {
         }
 
         $layout['columns'] = $columns;
+        $layout['tabletColumns'] = $tabletColumns;
+        $layout['mobileColumns'] = $mobileColumns;
         $layout['gap'] = $gap;
         $layout['container'] = $container;
 
@@ -412,38 +780,115 @@ if (!function_exists('sb_public_render_page_sections')) {
             }
 
             $layout = sb_public_to_array($section['layout'] ?? []);
+            $props = sb_public_to_array($section['props'] ?? []);
+
             $columns = sb_public_clamp_int($layout['columns'] ?? 1, 1, 4);
+            $tabletColumns = sb_public_clamp_int(
+                $layout['tabletColumns'] ?? min($columns, 2),
+                1,
+                $columns
+            );
+            $mobileColumns = sb_public_clamp_int(
+                $layout['mobileColumns'] ?? 1,
+                1,
+                min($tabletColumns, 2)
+            );
             $gap = sb_public_clamp_int($layout['gap'] ?? 24, 0, 120);
+            $container = sb_public_safe_choice(
+                $layout['container'] ?? 'default',
+                ['default', 'wide', 'full'],
+                'default'
+            );
+            $verticalAlign = sb_public_safe_choice(
+                $layout['verticalAlign'] ?? 'start',
+                ['start', 'center', 'end', 'stretch'],
+                'start'
+            );
+
+            $paddingTop = sb_public_clamp_int($props['paddingTop'] ?? 32, 0, 240);
+            $paddingBottom = sb_public_clamp_int($props['paddingBottom'] ?? 32, 0, 240);
+            $paddingX = sb_public_clamp_int($props['paddingX'] ?? 24, 0, 160);
+            $minHeight = sb_public_clamp_int($props['minHeight'] ?? 0, 0, 1200);
+            $radius = sb_public_clamp_int($props['borderRadius'] ?? 0, 0, 80);
+            $backgroundColor = sb_public_safe_color($props['backgroundColor'] ?? '', '');
+            $textColor = sb_public_safe_color($props['textColor'] ?? '', '');
+            $backgroundImage = sb_public_safe_url($props['backgroundImage'] ?? '', true);
+            $backgroundPosition = sb_public_safe_choice(
+                $props['backgroundPosition'] ?? 'center',
+                ['center', 'top', 'bottom', 'left', 'right'],
+                'center'
+            );
+            $backgroundSize = sb_public_safe_choice(
+                $props['backgroundSize'] ?? 'cover',
+                ['cover', 'contain', 'auto'],
+                'cover'
+            );
+            $shadow = !empty($props['shadow']);
 
             $sectionBlocks = $blocksBySection[$sectionId] ?? [];
             $columnBlocks = sb_public_group_blocks_by_column($sectionBlocks, $columns);
 
-            $gridStyle = implode('', [
-                '--sb-section-columns:' . $columns . ';',
-                '--sb-section-gap:' . $gap . 'px;',
-                'display:grid !important;',
-                'grid-template-columns:repeat(' . $columns . ',minmax(0,1fr)) !important;',
-                'gap:' . $gap . 'px !important;',
-                'width:100% !important;',
-                'min-width:0 !important;',
-                'align-items:start !important;',
-                'box-sizing:border-box !important;',
-            ]);
+            $sectionStyles = [
+                '--sb-section-columns:' . $columns,
+                '--sb-section-tablet-columns:' . $tabletColumns,
+                '--sb-section-mobile-columns:' . $mobileColumns,
+                '--sb-section-gap:' . $gap . 'px',
+                '--sb-section-align:' . $verticalAlign,
+                '--sb-section-padding-top:' . $paddingTop . 'px',
+                '--sb-section-padding-bottom:' . $paddingBottom . 'px',
+                '--sb-section-padding-x:' . $paddingX . 'px',
+                '--sb-section-radius:' . $radius . 'px',
+            ];
 
-            $html .= '<section class="sb-page-section sb-page-section--columns-' . $columns . '">';
-            $html .= '<div class="sb-page-section__grid" style="' . sb_public_h($gridStyle) . '">';
+            if ($minHeight > 0) {
+                $sectionStyles[] = 'min-height:' . $minHeight . 'px';
+            }
+
+            if ($backgroundColor !== '') {
+                $sectionStyles[] = 'background-color:' . $backgroundColor;
+            }
+
+            if ($textColor !== '') {
+                $sectionStyles[] = 'color:' . $textColor;
+                $sectionStyles[] = '--sb-section-text-color:' . $textColor;
+            }
+
+            if ($backgroundImage !== '') {
+                $sectionStyles[] = 'background-image:url("' . $backgroundImage . '")';
+                $sectionStyles[] = 'background-position:' . $backgroundPosition;
+                $sectionStyles[] = 'background-size:' . $backgroundSize;
+                $sectionStyles[] = 'background-repeat:no-repeat';
+            }
+
+            if ($shadow) {
+                $sectionStyles[] = 'box-shadow:0 18px 50px rgba(15,23,42,.10)';
+            }
+
+            $classes = [
+                'sb-page-section',
+                'sb-page-section--columns-' . $columns,
+                'sb-page-section--container-' . $container,
+            ];
+
+            if ($backgroundImage !== '') {
+                $classes[] = 'sb-page-section--has-image';
+            }
+
+            if ($backgroundColor !== '' || $backgroundImage !== '' || $radius > 0 || $shadow) {
+                $classes[] = 'sb-page-section--decorated';
+            }
+
+            $html .= '<section class="' . sb_public_h(implode(' ', $classes)) . '" style="' . sb_public_h(implode(';', $sectionStyles)) . '">';
+            $html .= '<div class="sb-page-section__inner">';
+            $html .= '<div class="sb-page-section__grid">';
 
             for ($column = 1; $column <= $columns; $column++) {
-                $columnStyle = implode('', [
-                    'min-width:0 !important;',
-                    'box-sizing:border-box !important;',
-                ]);
-
-                $html .= '<div class="sb-page-section__column sb-page-section__column--' . $column . '" style="' . sb_public_h($columnStyle) . '">';
+                $html .= '<div class="sb-page-section__column sb-page-section__column--' . $column . '">';
                 $html .= sb_public_render_blocks($columnBlocks[$column] ?? [], $context);
                 $html .= '</div>';
             }
 
+            $html .= '</div>';
             $html .= '</div>';
             $html .= '</section>';
         }
@@ -632,8 +1077,10 @@ if (!function_exists('sb_public_render_menu')) {
         foreach ($menu['items'] as $item) {
             $title = sb_public_h((string)($item['title'] ?? 'Пункт'));
             $url = sb_public_h(sb_public_menu_item_url($item, $basePath, $siteId));
-            $target = sb_public_h((string)($item['target'] ?? '_self'));
-            $html .= '<a class="sb-public-menu__link" href="' . $url . '" target="' . $target . '">' . $title . '</a>';
+            $targetRaw = sb_public_safe_target($item['target'] ?? '_self');
+            $target = sb_public_h($targetRaw);
+            $rel = $targetRaw === '_blank' ? ' rel="noopener noreferrer"' : '';
+            $html .= '<a class="sb-public-menu__link" href="' . $url . '" target="' . $target . '"' . $rel . '>' . $title . '</a>';
         }
         $html .= '</nav>';
 
