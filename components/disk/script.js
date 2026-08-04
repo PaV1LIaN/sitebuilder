@@ -28,6 +28,9 @@
       selectedIds: [],
       searchQuery: '',
       viewMode: (parsed.settings && parsed.settings.viewMode) || 'table',
+      folderAccessItems: [],
+      folderAccessUsers: [],
+      selectedFolderAccessUser: null,
       loading: false,
       error: null
     };
@@ -59,6 +62,7 @@
       this.state.viewMode = (this.state.settings && this.state.settings.viewMode) || 'table';
 
       this.prepareModernUi();
+      this.applyPermissions();
       this.applyInitialViewMode();
 
       if (!this.state.permissions.canView) {
@@ -109,6 +113,20 @@
     }
 
     this.renameTypeColumnToAddedBy();
+  };
+
+  DiskComponent.prototype.applyPermissions = function () {
+    var permissions = this.state.permissions || {};
+
+    this.root.querySelectorAll('[data-permission]').forEach(function (node) {
+      var key = node.getAttribute('data-permission') || '';
+      node.hidden = !permissions[key];
+    });
+
+    var accessButton = this.root.querySelector('[data-action="folder-access"]');
+    if (accessButton) {
+      accessButton.hidden = !permissions.canManageAccess;
+    }
   };
 
   DiskComponent.prototype.renameTypeColumnToAddedBy = function () {
@@ -308,8 +326,10 @@
       this.state.currentFolderId = folderId;
       this.state.items = Array.isArray(res.data.items) ? res.data.items : [];
       this.state.breadcrumbs = Array.isArray(res.data.breadcrumbs) ? res.data.breadcrumbs : [];
+      this.state.permissions = res.data.permissions || this.state.permissions || {};
       this.state.selectedIds = [];
 
+      this.applyPermissions();
       this.renderAll();
 
       if (res.meta && res.meta.noRoot) {
@@ -1859,6 +1879,43 @@
       });
     }
 
+    var folderAccessBtn = this.root.querySelector('[data-action="folder-access"]');
+    if (folderAccessBtn) {
+      folderAccessBtn.addEventListener('click', async function () {
+        await self.openFolderAccessModal();
+      });
+    }
+
+    this.root.querySelectorAll('[data-action="close-folder-access"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        self.closeFolderAccessModal();
+      });
+    });
+
+    var folderAccessSearchBtn = this.root.querySelector('[data-action="search-folder-access-user"]');
+    if (folderAccessSearchBtn) {
+      folderAccessSearchBtn.addEventListener('click', async function () {
+        await self.searchFolderAccessUsers();
+      });
+    }
+
+    var folderAccessQuery = this.root.querySelector('[data-role="folder-access-query"]');
+    if (folderAccessQuery) {
+      folderAccessQuery.addEventListener('keydown', async function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          await self.searchFolderAccessUsers();
+        }
+      });
+    }
+
+    var folderAccessSaveBtn = this.root.querySelector('[data-action="save-folder-access"]');
+    if (folderAccessSaveBtn) {
+      folderAccessSaveBtn.addEventListener('click', async function () {
+        await self.saveFolderAccess();
+      });
+    }
+
     var initSiteRootBtn = this.root.querySelector('[data-action="init-site-root"]');
     if (initSiteRootBtn) {
       initSiteRootBtn.addEventListener('click', async function () {
@@ -2350,6 +2407,7 @@
         var iconHtml = renderItemIcon(item);
         var openControl = renderOpenControl(item);
         var historyControl = self.renderHistoryControl(item);
+        var permissions = self.state.permissions || {};
 
         return '' +
         '<tr class="sb-disk__row ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
@@ -2378,14 +2436,14 @@
                 '<div class="sb-disk__actions">' +
                 openControl +
                 historyControl +
-                (item.entityType === 'file'
+                (item.entityType === 'file' && permissions.canDownload
                     ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
                     : '') +
-                (isArchiveItem(item)
+                (isArchiveItem(item) && permissions.canUpload
                     ? '<button type="button" class="sb-disk__row-btn" data-row-action="unpack">Распаковать</button>'
                     : '') +
-                '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' +
-                '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' +
+                (permissions.canRename ? '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' : '') +
+                (permissions.canDelete ? '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' : '') +
                 '</div>' +
             '</td>' +
         '</tr>';
@@ -2408,6 +2466,7 @@
             var sizeText = item.entityType === 'folder' ? 'Папка' : (item.size ? formatBytes(item.size) : '—');
             var openControl = renderOpenControl(item);
             var historyControl = self.renderHistoryControl(item);
+            var permissions = self.state.permissions || {};
 
             return '' +
             '<div class="sb-disk__card ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
@@ -2439,14 +2498,14 @@
                 '<div class="sb-disk__card-actions">' +
                     openControl +
                     historyControl +
-                    (item.entityType === 'file'
+                    (item.entityType === 'file' && permissions.canDownload
                     ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
                     : '') +
-                    (isArchiveItem(item)
+                    (isArchiveItem(item) && permissions.canUpload
                     ? '<button type="button" class="sb-disk__row-btn" data-row-action="unpack">Распаковать</button>'
                     : '') +
-                    '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' +
-                    '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' +
+                    (permissions.canRename ? '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' : '') +
+                    (permissions.canDelete ? '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' : '') +
                 '</div>' +
             '</div>';
         }).join('');
@@ -2488,6 +2547,252 @@
     var node = this.root.querySelector('[data-state="' + stateName + '"]');
     if (node) {
       node.hidden = false;
+    }
+  };
+
+  /* =========================================================
+     FOLDER ACCESS
+     ========================================================= */
+
+  DiskComponent.prototype.openFolderAccessModal = async function () {
+    var modal = this.root.querySelector('[data-role="folder-access-modal"]');
+    if (!modal || !this.state.permissions.canManageAccess || !this.state.currentFolderId) {
+      return;
+    }
+
+    modal.hidden = false;
+    this.state.selectedFolderAccessUser = null;
+
+    var editor = this.root.querySelector('[data-role="folder-access-editor"]');
+    if (editor) {
+      editor.hidden = true;
+    }
+
+    var warning = this.root.querySelector('[data-role="folder-access-warning"]');
+    if (warning) {
+      warning.hidden = (this.state.settings.permissionMode || 'inherit_site') === 'custom';
+    }
+
+    var currentCrumb = this.state.breadcrumbs.length
+      ? this.state.breadcrumbs[this.state.breadcrumbs.length - 1]
+      : null;
+    var folderNode = this.root.querySelector('[data-role="folder-access-folder"]');
+    if (folderNode) {
+      folderNode.textContent = (currentCrumb && currentCrumb.name ? currentCrumb.name + ' · ' : '')
+        + 'ID ' + Number(this.state.currentFolderId || 0);
+    }
+
+    await this.loadFolderAccess();
+  };
+
+  DiskComponent.prototype.closeFolderAccessModal = function () {
+    var modal = this.root.querySelector('[data-role="folder-access-modal"]');
+    if (modal) {
+      modal.hidden = true;
+    }
+  };
+
+  DiskComponent.prototype.setFolderAccessMessage = function (message) {
+    var node = this.root.querySelector('[data-role="folder-access-message"]');
+    if (node) {
+      node.textContent = message || '';
+    }
+  };
+
+  DiskComponent.prototype.loadFolderAccess = async function () {
+    try {
+      this.setFolderAccessMessage('Загрузка прав...');
+      var payload = this.getBasePayload();
+      payload.folderId = Number(this.state.currentFolderId || 0);
+      payload.sessid = this.getSessid();
+
+      var res = await this.api('folderAccessList', payload);
+      if (!res || !res.ok) {
+        throw new Error((res && (res.message || res.error)) || 'FOLDER_ACCESS_LIST_ERROR');
+      }
+
+      this.state.folderAccessItems = Array.isArray(res.data.items) ? res.data.items : [];
+      this.renderFolderAccessList();
+      this.setFolderAccessMessage('');
+    } catch (e) {
+      console.error(e);
+      this.setFolderAccessMessage('Не удалось загрузить права папки.');
+    }
+  };
+
+  DiskComponent.prototype.renderFolderAccessList = function () {
+    var container = this.root.querySelector('[data-role="folder-access-list"]');
+    if (!container) {
+      return;
+    }
+
+    var self = this;
+    var roleLabels = {
+      VIEWER: 'Просмотр',
+      EDITOR: 'Редактирование',
+      DENY: 'Нет доступа'
+    };
+
+    if (!this.state.folderAccessItems.length) {
+      container.innerHTML = '<div class="sb-disk-folder-access__empty">Для этой папки нет собственных правил — используются права родительской папки или сайта.</div>';
+      return;
+    }
+
+    container.innerHTML = this.state.folderAccessItems.map(function (item) {
+      return '<div class="sb-disk-folder-access__item" data-folder-access-user-id="' + escapeHtml(item.userId) + '">' +
+        '<div><strong>' + escapeHtml(item.userName || ('ID ' + item.userId)) + '</strong>' +
+        '<span>' + escapeHtml(roleLabels[item.role] || item.role) + '</span></div>' +
+        '<div class="sb-disk-folder-access__actions">' +
+        '<button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="edit-folder-access">Изменить</button>' +
+        '<button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="delete-folder-access">Наследовать</button>' +
+        '</div></div>';
+    }).join('');
+
+    container.querySelectorAll('[data-action="edit-folder-access"]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var row = button.closest('[data-folder-access-user-id]');
+        var userId = Number(row ? row.getAttribute('data-folder-access-user-id') : 0);
+        var item = self.state.folderAccessItems.find(function (current) {
+          return Number(current.userId || 0) === userId;
+        });
+        if (item) {
+          self.selectFolderAccessUser({id: item.userId, name: item.userName}, item.role);
+        }
+      });
+    });
+
+    container.querySelectorAll('[data-action="delete-folder-access"]').forEach(function (button) {
+      button.addEventListener('click', async function () {
+        var row = button.closest('[data-folder-access-user-id]');
+        var userId = Number(row ? row.getAttribute('data-folder-access-user-id') : 0);
+        if (userId > 0) {
+          await self.deleteFolderAccess(userId);
+        }
+      });
+    });
+  };
+
+  DiskComponent.prototype.searchFolderAccessUsers = async function () {
+    var queryNode = this.root.querySelector('[data-role="folder-access-query"]');
+    var query = queryNode ? String(queryNode.value || '').trim() : '';
+
+    if (!query || (!/^\d+$/.test(query) && query.length < 2)) {
+      this.setFolderAccessMessage('Введите не менее двух символов.');
+      return;
+    }
+
+    try {
+      this.setFolderAccessMessage('Поиск...');
+      var payload = this.getBasePayload();
+      payload.folderId = Number(this.state.currentFolderId || 0);
+      payload.query = query;
+      payload.sessid = this.getSessid();
+
+      var res = await this.api('userSearch', payload);
+      if (!res || !res.ok) {
+        throw new Error((res && (res.message || res.error)) || 'USER_SEARCH_ERROR');
+      }
+
+      this.state.folderAccessUsers = Array.isArray(res.data.users) ? res.data.users : [];
+      this.renderFolderAccessSearchResults();
+      this.setFolderAccessMessage(this.state.folderAccessUsers.length ? '' : 'Пользователи не найдены.');
+    } catch (e) {
+      console.error(e);
+      this.setFolderAccessMessage('Не удалось выполнить поиск.');
+    }
+  };
+
+  DiskComponent.prototype.renderFolderAccessSearchResults = function () {
+    var container = this.root.querySelector('[data-role="folder-access-results"]');
+    if (!container) {
+      return;
+    }
+
+    var self = this;
+    container.innerHTML = this.state.folderAccessUsers.map(function (user) {
+      var meta = [user.login, user.email].filter(Boolean).join(' · ');
+      return '<button type="button" class="sb-disk-folder-access__user" data-user-id="' + escapeHtml(user.id) + '">' +
+        '<strong>' + escapeHtml(user.name || ('ID ' + user.id)) + '</strong>' +
+        (meta ? '<span>' + escapeHtml(meta) + '</span>' : '') +
+        '</button>';
+    }).join('');
+
+    container.querySelectorAll('[data-user-id]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var userId = Number(button.getAttribute('data-user-id') || 0);
+        var user = self.state.folderAccessUsers.find(function (current) {
+          return Number(current.id || 0) === userId;
+        });
+        if (user) {
+          self.selectFolderAccessUser(user, 'VIEWER');
+        }
+      });
+    });
+  };
+
+  DiskComponent.prototype.selectFolderAccessUser = function (user, role) {
+    this.state.selectedFolderAccessUser = user || null;
+    var editor = this.root.querySelector('[data-role="folder-access-editor"]');
+    var label = this.root.querySelector('[data-role="folder-access-selected-user"]');
+    var select = this.root.querySelector('[data-role="folder-access-role"]');
+
+    if (editor) {
+      editor.hidden = !user;
+    }
+    if (label) {
+      label.textContent = user ? (user.name || ('ID ' + user.id)) : '';
+    }
+    if (select) {
+      select.value = role || 'VIEWER';
+    }
+  };
+
+  DiskComponent.prototype.saveFolderAccess = async function () {
+    var user = this.state.selectedFolderAccessUser;
+    var roleNode = this.root.querySelector('[data-role="folder-access-role"]');
+    if (!user || !roleNode) {
+      return;
+    }
+
+    try {
+      this.setFolderAccessMessage('Сохранение...');
+      var payload = this.getBasePayload();
+      payload.folderId = Number(this.state.currentFolderId || 0);
+      payload.userId = Number(user.id || 0);
+      payload.role = String(roleNode.value || 'VIEWER');
+      payload.sessid = this.getSessid();
+
+      var res = await this.api('folderAccessSet', payload);
+      if (!res || !res.ok) {
+        throw new Error((res && (res.message || res.error)) || 'FOLDER_ACCESS_SAVE_ERROR');
+      }
+
+      this.selectFolderAccessUser(null, 'VIEWER');
+      await this.loadFolderAccess();
+      this.setFolderAccessMessage('Права сохранены.');
+    } catch (e) {
+      console.error(e);
+      this.setFolderAccessMessage('Не удалось сохранить права.');
+    }
+  };
+
+  DiskComponent.prototype.deleteFolderAccess = async function (userId) {
+    try {
+      var payload = this.getBasePayload();
+      payload.folderId = Number(this.state.currentFolderId || 0);
+      payload.userId = Number(userId || 0);
+      payload.sessid = this.getSessid();
+
+      var res = await this.api('folderAccessDelete', payload);
+      if (!res || !res.ok) {
+        throw new Error((res && (res.message || res.error)) || 'FOLDER_ACCESS_DELETE_ERROR');
+      }
+
+      await this.loadFolderAccess();
+      this.setFolderAccessMessage('Собственное правило удалено; снова действует наследование.');
+    } catch (e) {
+      console.error(e);
+      this.setFolderAccessMessage('Не удалось удалить правило.');
     }
   };
 

@@ -24,6 +24,10 @@ async function loadPages() {
 }
 
 async function loadBlocks() {
+    if (typeof loadPageAccessList === 'function') {
+        loadPageAccessList();
+    }
+
     if (!state.currentPageId) {
         state.blocks = [];
         state.currentBlockId = 0;

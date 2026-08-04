@@ -1765,3 +1765,177 @@
 .sb-disk-unpack-status-modal.is-error .sb-disk-upload-progress__bar {
     background: linear-gradient(90deg, #dc2626, #fb7185);
 }
+
+/* =========================================================
+   Folder access modal
+   ========================================================= */
+
+.sb-disk-modal[data-role="folder-access-modal"] {
+    position: fixed;
+    inset: 0;
+    z-index: 10020;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.sb-disk-modal[data-role="folder-access-modal"][hidden] {
+    display: none;
+}
+
+.sb-disk-modal[data-role="folder-access-modal"] .sb-disk-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, .58);
+    backdrop-filter: blur(3px);
+}
+
+.sb-disk-folder-access {
+    position: relative;
+    width: min(760px, 100%);
+    max-height: min(760px, calc(100vh - 48px));
+    overflow: auto;
+    border: 1px solid #dbe4ef;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 28px 80px rgba(15, 23, 42, .28);
+}
+
+.sb-disk-folder-access .sb-disk-modal__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 20px 22px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.sb-disk-folder-access .sb-disk-modal__title {
+    margin: 0 0 4px;
+    color: #0f172a;
+    font-size: 20px;
+}
+
+.sb-disk-folder-access .sb-disk-modal__close {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 10px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 22px;
+    cursor: pointer;
+}
+
+.sb-disk-folder-access .sb-disk-modal__body {
+    display: grid;
+    gap: 16px;
+    padding: 22px;
+}
+
+.sb-disk-folder-access__warning {
+    padding: 12px 14px;
+    border: 1px solid #fcd34d;
+    border-radius: 12px;
+    background: #fffbeb;
+    color: #92400e;
+    font-size: 13px;
+}
+
+.sb-disk-folder-access__search,
+.sb-disk-folder-access__editor {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.sb-disk-folder-access__editor {
+    grid-template-columns: minmax(160px, 1fr) minmax(190px, 1fr) auto;
+    padding: 14px;
+    border: 1px solid #bfdbfe;
+    border-radius: 12px;
+    background: #eff6ff;
+}
+
+.sb-disk-folder-access .sb-disk-form__input,
+.sb-disk-folder-access .sb-disk-form__select {
+    width: 100%;
+    min-height: 40px;
+    box-sizing: border-box;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    padding: 8px 11px;
+    color: #0f172a;
+}
+
+.sb-disk-folder-access__results {
+    display: grid;
+    gap: 6px;
+}
+
+.sb-disk-folder-access__user {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+    color: #0f172a;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sb-disk-folder-access__user:hover {
+    border-color: #93c5fd;
+    background: #f8fbff;
+}
+
+.sb-disk-folder-access__user span,
+.sb-disk-folder-access__item span,
+.sb-disk-folder-access__empty {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.sb-disk-folder-access__list {
+    display: grid;
+    gap: 8px;
+}
+
+.sb-disk-folder-access__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+}
+
+.sb-disk-folder-access__item > div:first-child {
+    display: grid;
+    gap: 3px;
+}
+
+.sb-disk-folder-access__actions {
+    display: flex;
+    gap: 6px;
+}
+
+@media (max-width: 680px) {
+    .sb-disk-folder-access__search,
+    .sb-disk-folder-access__editor {
+        grid-template-columns: 1fr;
+    }
+
+    .sb-disk-folder-access__item {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}

@@ -481,6 +481,19 @@ if (reloadAccessBtn) {
     reloadAccessBtn.addEventListener('click', loadAccessList);
 }
 
+var savePageAccessBtn = document.getElementById('savePageAccessBtn');
+if (savePageAccessBtn) {
+    savePageAccessBtn.addEventListener('click', savePageAccess);
+}
+
+var reloadPageAccessBtn = document.getElementById('reloadPageAccessBtn');
+if (reloadPageAccessBtn) {
+    reloadPageAccessBtn.addEventListener('click', function () {
+        state.pageAccessLoadedPageId = 0;
+        loadPageAccessList(true);
+    });
+}
+
 var accessUserSearchInput = document.getElementById('accessUserSearchInput');
 if (accessUserSearchInput) {
     accessUserSearchInput.addEventListener('input', function () {
@@ -502,7 +515,74 @@ if (accessUserSearchInput) {
     });
 }
 
+var pageAccessUserSearchInput = document.getElementById('pageAccessUserSearchInput');
+if (pageAccessUserSearchInput) {
+    pageAccessUserSearchInput.addEventListener('input', function () {
+        clearTimeout(state.pageAccessUserSearchTimer);
+
+        state.pageAccessUserSearchTimer = setTimeout(function () {
+            searchPageAccessUsers();
+        }, 300);
+    });
+
+    pageAccessUserSearchInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+
+            if (state.pageAccessUserSearchResults.length) {
+                selectPageAccessUser(state.pageAccessUserSearchResults[0]);
+            }
+        }
+    });
+}
+
+[
+    'pageAccessCanView',
+    'pageAccessCanEdit',
+    'pageAccessCanDiskView',
+    'pageAccessCanDiskEdit'
+].forEach(function (id) {
+    var input = document.getElementById(id);
+    if (input) {
+        input.addEventListener('change', function () {
+            syncPageAccessPermissionInputs(id);
+        });
+    }
+});
+
 document.addEventListener('click', function (e) {
+    var selectPageAccessBtn = e.target.closest('[data-select-page-access-user]');
+    if (selectPageAccessBtn) {
+        var pageAccessUserId = Number(selectPageAccessBtn.getAttribute('data-select-page-access-user') || 0);
+        var pageAccessUser = (state.pageAccessUserSearchResults || []).find(function (item) {
+            return Number(item.id || 0) === pageAccessUserId;
+        });
+
+        if (pageAccessUser) {
+            selectPageAccessUser(pageAccessUser);
+        }
+
+        return;
+    }
+
+    var clearPageAccessBtn = e.target.closest('[data-clear-page-access-user]');
+    if (clearPageAccessBtn) {
+        clearSelectedPageAccessUser();
+        return;
+    }
+
+    var editPageAccessBtn = e.target.closest('[data-page-access-edit-id]');
+    if (editPageAccessBtn) {
+        editPageAccessItem(Number(editPageAccessBtn.getAttribute('data-page-access-edit-id') || 0));
+        return;
+    }
+
+    var deletePageAccessBtn = e.target.closest('[data-page-access-delete-id]');
+    if (deletePageAccessBtn) {
+        deletePageAccessItem(Number(deletePageAccessBtn.getAttribute('data-page-access-delete-id') || 0));
+        return;
+    }
+
     var selectBtn = e.target.closest('[data-select-access-user]');
     if (selectBtn) {
         var userId = Number(selectBtn.getAttribute('data-select-access-user') || 0);
@@ -531,9 +611,12 @@ document.addEventListener('click', function (e) {
 });
 
 document.addEventListener('mousedown', function (e) {
-    var wrap = e.target.closest('.sb-access-search-wrap');
-    if (!wrap) {
+    if (!e.target.closest('#siteAccessPanel .sb-access-search-wrap')) {
         renderAccessUserSearchResults([]);
+    }
+
+    if (!e.target.closest('#pageAccessPanel .sb-access-search-wrap')) {
+        renderPageAccessUserSearchResults([]);
     }
 });
 

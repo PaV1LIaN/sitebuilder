@@ -26,10 +26,15 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 );
 
 $rootFolderId = DiskRootResolver::resolve($context, $settings);
-$permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId);
-
-DiskValidator::assertCan($permissions, 'canDownload');
 DiskValidator::assertFileInsideRoot($fileId, $rootFolderId, $context);
+DiskValidator::assertCanForItemParent(
+    $context,
+    $settings,
+    'file',
+    $fileId,
+    (int)$rootFolderId,
+    'canDownload'
+);
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 $url = $adapter->getDownloadUrl($context, $fileId);

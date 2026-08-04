@@ -26,10 +26,6 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 );
 
 $rootFolderId = DiskRootResolver::resolve($context, $settings);
-$permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId);
-
-DiskValidator::assertCan($permissions, 'canView');
-DiskValidator::assertCan($permissions, 'canUpload');
 
 if ($rootFolderId === null || $rootFolderId <= 0) {
     throw new RuntimeException('ROOT_FOLDER_NOT_RESOLVED');
@@ -48,6 +44,14 @@ if (!$file instanceof File) {
 
 $sourceParentId = (int)$file->getParentId();
 DiskValidator::assertFolderInsideRoot($sourceParentId, $rootFolderId, $context);
+$permissions = DiskValidator::assertCanForFolder(
+    $context,
+    $settings,
+    $sourceParentId,
+    (int)$rootFolderId,
+    'canUpload'
+);
+DiskValidator::assertCan($permissions, 'canView');
 
 $extension = mb_strtolower((string)$file->getExtension());
 

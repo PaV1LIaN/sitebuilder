@@ -149,6 +149,141 @@ class DiskValidator
         }
     }
 
+    public static function permissionsForFolder(
+        DiskContext $context,
+        array $settings,
+        int $folderId,
+        int $rootFolderId
+    ): array {
+        self::assertFolderInsideRoot($folderId, $rootFolderId, $context);
+
+        return DiskPermissionService::resolve(
+            $context,
+            $settings,
+            $folderId,
+            $rootFolderId
+        );
+    }
+
+    public static function assertCanForFolder(
+        DiskContext $context,
+        array $settings,
+        int $folderId,
+        int $rootFolderId,
+        string $permissionKey
+    ): array {
+        $permissions = self::permissionsForFolder(
+            $context,
+            $settings,
+            $folderId,
+            $rootFolderId
+        );
+
+        self::assertCan($permissions, $permissionKey);
+        return $permissions;
+    }
+
+    public static function itemParentFolderId(string $entityType, int $entityId): int
+    {
+        if ($entityType === 'file') {
+            $item = \Bitrix\Disk\File::loadById($entityId);
+        } elseif ($entityType === 'folder') {
+            $item = \Bitrix\Disk\Folder::loadById($entityId);
+        } else {
+            throw new RuntimeException('INVALID_ENTITY_TYPE');
+        }
+
+        if (!$item) {
+            throw new RuntimeException('DISK_ITEM_NOT_FOUND');
+        }
+
+        $parentId = (int)$item->getParentId();
+        if ($parentId <= 0) {
+            throw new RuntimeException('ITEM_PARENT_FOLDER_NOT_FOUND');
+        }
+
+        return $parentId;
+    }
+
+    public static function assertCanForItemParent(
+        DiskContext $context,
+        array $settings,
+        string $entityType,
+        int $entityId,
+        int $rootFolderId,
+        string $permissionKey
+    ): void {
+        self::assertItemInsideRoot($entityType, $entityId, $rootFolderId, $context);
+        $parentId = self::itemParentFolderId($entityType, $entityId);
+        self::assertCanForFolder(
+            $context,
+            $settings,
+            $parentId,
+            $rootFolderId,
+            $permissionKey
+        );
+    }
+
+    public static function assertCanForItemParents(
+        DiskContext $context,
+        array $settings,
+        array $items,
+        int $rootFolderId,
+        string $permissionKey
+    ): void {
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException('INVALID_ITEM');
+            }
+
+            self::assertCanForItemParent(
+                $context,
+                $settings,
+                trim((string)($item['entityType'] ?? '')),
+                (int)($item['id'] ?? 0),
+                $rootFolderId,
+                $permissionKey
+            );
+        }
+    }
+
+    public static function filterVisibleItems(
+        DiskContext $context,
+        array $settings,
+        array $items,
+        int $currentFolderId,
+        int $rootFolderId
+    ): array {
+        $result = [];
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $folderId = (string)($item['entityType'] ?? '') === 'folder'
+                ? (int)($item['id'] ?? 0)
+                : $currentFolderId;
+
+            if ($folderId <= 0) {
+                continue;
+            }
+
+            $permissions = self::permissionsForFolder(
+                $context,
+                $settings,
+                $folderId,
+                $rootFolderId
+            );
+
+            if (!empty($permissions['canView'])) {
+                $result[] = $item;
+            }
+        }
+
+        return $result;
+    }
+
     public static function assertNonEmptyString(string $value, string $errorCode): void
     {
         if (trim($value) === '') {

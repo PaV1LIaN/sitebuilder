@@ -129,6 +129,63 @@ if (!function_exists('sb_page_access_bool')) {
     }
 }
 
+if (!function_exists('sb_page_access_enrich_items')) {
+    /**
+     * Добавляет к U123-получателям отображаемые данные пользователя.
+     * Сами права по-прежнему хранятся только через стабильный access_code.
+     */
+    function sb_page_access_enrich_items(array $items): array
+    {
+        foreach ($items as &$item) {
+            $accessCode = (string)($item['accessCode'] ?? '');
+
+            if (!preg_match('/^U([1-9]\d*)$/i', $accessCode, $match)) {
+                continue;
+            }
+
+            $userId = (int)$match[1];
+            $item['userId'] = $userId;
+
+            if (!class_exists('CUser')) {
+                continue;
+            }
+
+            $result = CUser::GetByID($userId);
+            $user = $result ? $result->Fetch() : null;
+
+            if (!$user) {
+                continue;
+            }
+
+            $name = trim(
+                (string)($user['LAST_NAME'] ?? '') . ' ' .
+                (string)($user['NAME'] ?? '') . ' ' .
+                (string)($user['SECOND_NAME'] ?? '')
+            );
+            $login = (string)($user['LOGIN'] ?? '');
+            $email = (string)($user['EMAIL'] ?? '');
+            $title = $name !== ''
+                ? $name
+                : ($login !== '' ? $login : ('Пользователь #' . $userId));
+            $avatarUrl = '';
+            $photoId = (int)($user['PERSONAL_PHOTO'] ?? 0);
+
+            if ($photoId > 0 && class_exists('CFile')) {
+                $avatarUrl = (string)CFile::GetPath($photoId);
+            }
+
+            $item['userName'] = $title;
+            $item['title'] = $title;
+            $item['login'] = $login;
+            $item['email'] = $email;
+            $item['avatarUrl'] = $avatarUrl;
+        }
+        unset($item);
+
+        return $items;
+    }
+}
+
 if (!function_exists(
     'sb_page_access_current_user_id'
 )) {
@@ -272,11 +329,12 @@ try {
             );
         }
 
-        $items =
+        $items = sb_page_access_enrich_items(
             PageAccessRepository::listByPage(
                 $siteId,
                 $pageId
-            );
+            )
+        );
 
         sb_page_access_json_success([
             'items' => $items,
@@ -418,8 +476,10 @@ try {
             $canDiskEdit
         );
 
+        $enrichedItems = sb_page_access_enrich_items([$item]);
+
         sb_page_access_json_success([
-            'item' => $item,
+            'item' => $enrichedItems[0] ?? $item,
         ]);
     }
 

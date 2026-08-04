@@ -22,16 +22,19 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 );
 
 $rootFolderId = DiskRootResolver::resolve($context, $settings);
-$permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId);
-
-DiskValidator::assertCan($permissions, 'canDelete');
-
 $items = $data['items'] ?? [];
 if (!is_array($items) || empty($items)) {
     throw new RuntimeException('EMPTY_ITEMS');
 }
 
 DiskValidator::assertItemsInsideRoot($items, $rootFolderId, $context);
+DiskValidator::assertCanForItemParents(
+    $context,
+    $settings,
+    $items,
+    (int)$rootFolderId,
+    'canDelete'
+);
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 $result = $adapter->delete($context, $items);

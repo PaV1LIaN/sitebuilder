@@ -246,6 +246,22 @@ try {
             require __DIR__ . '/actions/get_permissions.php';
             break;
 
+        case 'folderAccessList':
+            require __DIR__ . '/actions/folder_access_list.php';
+            break;
+
+        case 'folderAccessSet':
+            require __DIR__ . '/actions/folder_access_set.php';
+            break;
+
+        case 'folderAccessDelete':
+            require __DIR__ . '/actions/folder_access_delete.php';
+            break;
+
+        case 'userSearch':
+            require __DIR__ . '/actions/user_search.php';
+            break;
+
         case 'getRootOptions':
             require __DIR__ . '/actions/get_root_options.php';
             break;

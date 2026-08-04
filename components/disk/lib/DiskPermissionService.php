@@ -2,9 +2,42 @@
 
 class DiskPermissionService
 {
-    public static function resolve(DiskContext $context, array $settings, ?int $rootFolderId = null): array
+    public static function resolve(
+        DiskContext $context,
+        array $settings,
+        ?int $folderId = null,
+        ?int $rootFolderId = null
+    ): array
     {
         $rolePermissions = self::resolveRolePermissions($context);
+        $rootFolderId = $rootFolderId ?: $folderId;
+        $folderRule = null;
+
+        if (
+            ($settings['permissionMode'] ?? 'inherit_site') === 'custom'
+            && $rolePermissions['role'] !== ''
+            && $rolePermissions['role'] !== 'bitrix_admin'
+            && $rolePermissions['role'] !== 'site_admin'
+            && $folderId !== null
+            && $folderId > 0
+            && $rootFolderId !== null
+            && $rootFolderId > 0
+        ) {
+            $folderRule = FolderAccessRepository::resolveEffectiveRole(
+                $context->blockId,
+                $folderId,
+                $rootFolderId,
+                $context->currentUserId
+            );
+
+            if ($folderRule !== null) {
+                $rolePermissions = self::permissionsForFolderRole(
+                    (string)$folderRule['role'],
+                    $rolePermissions
+                );
+            }
+        }
+
         $blockRestrictions = self::resolveBlockRestrictions($settings);
 
         return [
@@ -19,6 +52,9 @@ class DiskPermissionService
             'canEditSettings' => $rolePermissions['canEditSettings'],
 
             'role' => $rolePermissions['role'],
+            'folderRole' => $folderRule['role'] ?? null,
+            'folderRuleId' => isset($folderRule['folderId']) ? (int)$folderRule['folderId'] : null,
+            'folderRuleInherited' => !empty($folderRule['inherited']),
         ];
     }
 
@@ -121,5 +157,47 @@ class DiskPermissionService
             'canDelete' => !empty($settings['allowDelete']),
             'canDownload' => !empty($settings['allowDownload']),
         ];
+    }
+
+    protected static function permissionsForFolderRole(string $role, array $base): array
+    {
+        $management = [
+            'canManageAccess' => !empty($base['canManageAccess']),
+            'canEditSettings' => !empty($base['canEditSettings']),
+        ];
+
+        if ($role === FolderAccessRepository::ROLE_EDITOR) {
+            return array_merge([
+                'role' => 'folder_editor',
+                'canView' => true,
+                'canUpload' => true,
+                'canCreateFolder' => true,
+                'canRename' => true,
+                'canDelete' => true,
+                'canDownload' => true,
+            ], $management);
+        }
+
+        if ($role === FolderAccessRepository::ROLE_VIEWER) {
+            return array_merge([
+                'role' => 'folder_viewer',
+                'canView' => true,
+                'canUpload' => false,
+                'canCreateFolder' => false,
+                'canRename' => false,
+                'canDelete' => false,
+                'canDownload' => true,
+            ], $management);
+        }
+
+        return array_merge([
+            'role' => 'folder_denied',
+            'canView' => false,
+            'canUpload' => false,
+            'canCreateFolder' => false,
+            'canRename' => false,
+            'canDelete' => false,
+            'canDownload' => false,
+        ], $management);
     }
 }

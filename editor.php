@@ -40,7 +40,7 @@ if ($siteId <= 0) {
         <title>SiteBuilder / Editor</title>
         <?php $APPLICATION->ShowHead(); ?>
         <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=16">
+        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=21">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v2.css?v=17">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v3.css?v=17">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v4.css?v=18">
@@ -172,7 +172,7 @@ if (!$canOpenEditor) {
     <title>SiteBuilder / Editor</title>
     <?php $APPLICATION->ShowHead(); ?>
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=16">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=21">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v2.css?v=17">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v3.css?v=17">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v4.css?v=18">
@@ -745,7 +745,7 @@ if (!$canOpenEditor) {
                                 <label for="diskPermissionModeInput">Режим прав</label>
                                 <select class="sb-select" id="diskPermissionModeInput">
                                     <option value="inherit_site">Наследовать права сайта</option>
-                                    <option value="custom">Собственные ограничения блока</option>
+                                    <option value="custom">Индивидуальные права папок</option>
                                 </select>
                             </div>
 
@@ -828,6 +828,43 @@ if (!$canOpenEditor) {
                     <div id="historyList" class="sb-history-list"></div>
                 </div>
 
+                <div class="sb-panel sb-inspector-panel" data-inspector-panel="access" id="pageAccessPanel" hidden>
+                    <h2 class="sb-panel-title">Права выбранной страницы</h2>
+                    <p class="sb-access-help">
+                        <strong id="pageAccessPageTitle">Страница не выбрана</strong><br>
+                        Выдайте пользователю просмотр или редактирование только этой страницы. Право можно распространить на дочерние страницы.
+                    </p>
+
+                    <div class="sb-access-form">
+                        <div class="sb-field sb-access-search-wrap">
+                            <label for="pageAccessUserSearchInput">Пользователь</label>
+                            <input class="sb-input" type="text" id="pageAccessUserSearchInput" autocomplete="off" placeholder="ФИО, логин, email или ID">
+
+                            <div id="pageAccessUserSearchResults" class="sb-access-search-results sb-hidden"></div>
+                            <div id="pageAccessSelectedUser" class="sb-access-selected sb-hidden"></div>
+                        </div>
+
+                        <div class="sb-page-access-permissions" aria-label="Права страницы">
+                            <label class="sb-switch"><input type="checkbox" id="pageAccessCanView" checked><span>Просмотр страницы</span></label>
+                            <label class="sb-switch"><input type="checkbox" id="pageAccessCanEdit"><span>Редактирование страницы</span></label>
+                            <label class="sb-switch"><input type="checkbox" id="pageAccessCanDiskView"><span>Просмотр файлов страницы</span></label>
+                            <label class="sb-switch"><input type="checkbox" id="pageAccessCanDiskEdit"><span>Изменение файлов страницы</span></label>
+                            <label class="sb-switch"><input type="checkbox" id="pageAccessIncludeChildren"><span>Также для дочерних страниц</span></label>
+                        </div>
+                    </div>
+
+                    <div class="sb-editor-inspector-actions">
+                        <button class="sb-btn sb-btn-primary" type="button" id="savePageAccessBtn">Сохранить права</button>
+                        <button class="sb-btn sb-btn-light" type="button" id="reloadPageAccessBtn">Обновить</button>
+                    </div>
+
+                    <div id="pageAccessMessage" class="sb-empty sb-hidden" style="margin-top:12px;"></div>
+
+                    <div id="pageAccessList" class="sb-access-list">
+                        <div class="sb-empty">Выберите страницу</div>
+                    </div>
+                </div>
+
                 <div class="sb-panel sb-inspector-panel" data-inspector-panel="access" id="siteGroupPanel" hidden>
                     <h2 class="sb-panel-title">Группа Битрикс24 и права</h2>
                     <p class="sb-editor-note">
@@ -847,7 +884,7 @@ if (!$canOpenEditor) {
                 </div>
 
                 <div class="sb-panel sb-inspector-panel" data-inspector-panel="access" id="siteAccessPanel" hidden>
-                    <h2 class="sb-panel-title">Права пользователей</h2>
+                    <h2 class="sb-panel-title">Права на весь сайт</h2>
                     <p class="sb-access-help">
                         OWNER управляет сайтом и правами. ADMIN редактирует структуру сайта. EDITOR работает с файлами диска. VIEWER только смотрит.
                     </p>
@@ -1070,10 +1107,10 @@ window.SB_EDITOR_CONFIG = {
 </script>
 
 <script src="/bitrix/js/main/core/core.js"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=20.1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=21"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=20"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=21"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=21"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=20"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/34-editor-ux.js?v=17"></script>
@@ -1082,9 +1119,9 @@ window.SB_EDITOR_CONFIG = {
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/39-global-blocks.js?v=19"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/41-business-blocks.js?v=20"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/35-history.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=21"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=21"></script>
 
 </body>
 </html>

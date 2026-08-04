@@ -91,7 +91,12 @@ function refreshInspectorAccessTab() {
 
     var groupPanel = document.getElementById('siteGroupPanel');
     var accessPanel = document.getElementById('siteAccessPanel');
-    var visible = !!((groupPanel && !groupPanel.hidden) || (accessPanel && !accessPanel.hidden));
+    var pageAccessPanel = document.getElementById('pageAccessPanel');
+    var visible = !!(
+        (groupPanel && !groupPanel.hidden)
+        || (accessPanel && !accessPanel.hidden)
+        || (pageAccessPanel && !pageAccessPanel.hidden)
+    );
 
     tab.hidden = !visible;
 
@@ -284,7 +289,11 @@ function updatePublicPageLink() {
         }
     });
 
-    var accessObserverTargets = [document.getElementById('siteGroupPanel'), document.getElementById('siteAccessPanel')].filter(Boolean);
+    var accessObserverTargets = [
+        document.getElementById('siteGroupPanel'),
+        document.getElementById('siteAccessPanel'),
+        document.getElementById('pageAccessPanel')
+    ].filter(Boolean);
     if (accessObserverTargets.length && typeof MutationObserver === 'function') {
         var accessObserver = new MutationObserver(refreshInspectorAccessTab);
         accessObserverTargets.forEach(function (node) {

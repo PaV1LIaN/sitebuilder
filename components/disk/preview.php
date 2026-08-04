@@ -65,12 +65,6 @@ try {
     );
 
     $rootInfo = DiskRootResolver::resolveWithSource($context, $settings, false);
-    $permissions = DiskPermissionService::resolve($context, $settings, $rootInfo['rootFolderId']);
-
-    if (empty($permissions['canView'])) {
-        throw new RuntimeException('ACCESS_DENIED');
-    }
-
     if ($fileId <= 0) {
         throw new RuntimeException('INVALID_FILE_ID');
     }
@@ -79,6 +73,14 @@ try {
         $fileId,
         $rootInfo['rootFolderId'],
         $context
+    );
+    DiskValidator::assertCanForItemParent(
+        $context,
+        $settings,
+        'file',
+        $fileId,
+        (int)$rootInfo['rootFolderId'],
+        'canView'
     );
 
     $file = File::loadById($fileId);

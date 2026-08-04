@@ -32,6 +32,13 @@ $context = DiskContextFactory::fromArray([
 
 DiskValidator::assertContext($context);
 
+$settings = DiskSettingsRepository::ensureExistsForBlock(
+    $context->blockId,
+    $context->siteId,
+    $context->pageId,
+    $context->currentUserId
+);
+
 $rootFolderId = (int)($job['rootFolderId'] ?? 0);
 $targetFolderId = (int)($job['targetFolderId'] ?? 0);
 $fileId = (int)($job['fileId'] ?? 0);
@@ -42,6 +49,13 @@ if ($rootFolderId <= 0 || $targetFolderId <= 0 || $fileId <= 0) {
 
 DiskValidator::assertFolderInsideRoot($targetFolderId, $rootFolderId, $context);
 DiskValidator::assertFileInsideRoot($fileId, $rootFolderId, $context);
+DiskValidator::assertCanForFolder(
+    $context,
+    $settings,
+    $targetFolderId,
+    $rootFolderId,
+    'canUpload'
+);
 
 $file = File::loadById($fileId);
 

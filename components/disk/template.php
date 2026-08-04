@@ -27,6 +27,10 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
         <div class="sb-disk__header-actions">
             <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="refresh">Обновить</button>
 
+            <?php if (!empty($arResult['PERMISSIONS']['canManageAccess'])): ?>
+                <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="folder-access">Права папки</button>
+            <?php endif; ?>
+
             <?php if (!empty($arResult['PERMISSIONS']['canEditSettings'])): ?>
                 <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="settings">Настройки</button>
             <?php endif; ?>
@@ -58,13 +62,9 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
         </div>
 
         <div class="sb-disk__toolbar-right">
-            <?php if (!empty($arResult['PERMISSIONS']['canUpload'])): ?>
-                <button type="button" class="sb-disk__btn" data-action="upload">Загрузить</button>
-            <?php endif; ?>
+            <button type="button" class="sb-disk__btn" data-action="upload" data-permission="canUpload" <?= empty($arResult['PERMISSIONS']['canUpload']) ? 'hidden' : '' ?>>Загрузить</button>
 
-            <?php if (!empty($arResult['PERMISSIONS']['canCreateFolder'])): ?>
-                <button type="button" class="sb-disk__btn" data-action="create-folder">Новая папка</button>
-            <?php endif; ?>
+            <button type="button" class="sb-disk__btn" data-action="create-folder" data-permission="canCreateFolder" <?= empty($arResult['PERMISSIONS']['canCreateFolder']) ? 'hidden' : '' ?>>Новая папка</button>
 
             <div class="sb-disk__view-switch">
                 <button type="button" class="sb-disk__view-btn is-active" data-view="table">Таблица</button>
@@ -76,8 +76,8 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
     <div class="sb-disk__bulkbar" data-role="bulkbar" hidden>
         <span class="sb-disk__bulkbar-text" data-role="bulkbar-text">Выбрано: 0</span>
         <div class="sb-disk__bulkbar-actions">
-            <button type="button" class="sb-disk__btn" data-action="download-selected">Скачать</button>
-            <button type="button" class="sb-disk__btn sb-disk__btn--danger" data-action="delete-selected">Удалить</button>
+            <button type="button" class="sb-disk__btn" data-action="download-selected" data-permission="canDownload">Скачать</button>
+            <button type="button" class="sb-disk__btn sb-disk__btn--danger" data-action="delete-selected" data-permission="canDelete">Удалить</button>
         </div>
     </div>
 
@@ -184,7 +184,7 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
                                 <label class="sb-disk-form__label">Режим прав</label>
                                 <select class="sb-disk-form__select" name="permissionMode">
                                     <option value="inherit_site">Наследовать права сайта</option>
-                                    <option value="custom">Собственные ограничения блока</option>
+                                    <option value="custom">Индивидуальные права папок</option>
                                 </select>
                             </div>
 
@@ -213,6 +213,46 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
                 <div class="sb-disk-modal__footer">
                     <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="close-settings">Отмена</button>
                     <button type="button" class="sb-disk__btn" data-action="save-settings">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <?php if (!empty($arResult['PERMISSIONS']['canManageAccess'])): ?>
+        <div class="sb-disk-modal" data-role="folder-access-modal" hidden>
+            <div class="sb-disk-modal__backdrop" data-action="close-folder-access"></div>
+            <div class="sb-disk-modal__dialog sb-disk-folder-access">
+                <div class="sb-disk-modal__header">
+                    <div>
+                        <h3 class="sb-disk-modal__title">Права текущей папки</h3>
+                        <div class="sb-disk-form__hint" data-role="folder-access-folder"></div>
+                    </div>
+                    <button type="button" class="sb-disk-modal__close" data-action="close-folder-access">×</button>
+                </div>
+
+                <div class="sb-disk-modal__body">
+                    <div class="sb-disk-folder-access__warning" data-role="folder-access-warning" hidden>
+                        В настройках блока включите режим «Индивидуальные права папок», иначе записи сохранятся, но применяться не будут.
+                    </div>
+
+                    <div class="sb-disk-folder-access__search">
+                        <input type="search" class="sb-disk-form__input" data-role="folder-access-query" placeholder="ФИО, логин, email или ID">
+                        <button type="button" class="sb-disk__btn" data-action="search-folder-access-user">Найти</button>
+                    </div>
+                    <div class="sb-disk-folder-access__results" data-role="folder-access-results"></div>
+
+                    <div class="sb-disk-folder-access__editor" data-role="folder-access-editor" hidden>
+                        <strong data-role="folder-access-selected-user"></strong>
+                        <select class="sb-disk-form__select" data-role="folder-access-role">
+                            <option value="VIEWER">Просмотр и скачивание</option>
+                            <option value="EDITOR">Редактирование содержимого</option>
+                            <option value="DENY">Нет доступа</option>
+                        </select>
+                        <button type="button" class="sb-disk__btn" data-action="save-folder-access">Сохранить</button>
+                    </div>
+
+                    <div class="sb-disk-folder-access__list" data-role="folder-access-list"></div>
+                    <div class="sb-disk-modal__message" data-role="folder-access-message"></div>
                 </div>
             </div>
         </div>
