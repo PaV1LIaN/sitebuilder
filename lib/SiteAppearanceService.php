@@ -117,6 +117,7 @@ class SiteAppearanceService
         }
 
         self::validateUploadFile($file);
+        self::ensureUploadDirectory();
 
         $site = self::getSiteOrFail($siteId);
         $settings = self::normalizeAppearanceSettings($site['settings'] ?? []);
@@ -130,6 +131,13 @@ class SiteAppearanceService
 
         if ($newFileId <= 0) {
             throw new RuntimeException('FILE_SAVE_ERROR');
+        }
+
+        try {
+            self::assertSavedFileExists($newFileId);
+        } catch (Throwable $e) {
+            CFile::Delete($newFileId);
+            throw $e;
         }
 
         /*
@@ -327,6 +335,24 @@ class SiteAppearanceService
             throw new RuntimeException('FILE_TOO_LARGE');
         }
 
+        $tmpName = trim((string)($file['tmp_name'] ?? ''));
+
+        if ($tmpName === '' || !is_file($tmpName)) {
+            throw new RuntimeException('UPLOAD_TMP_FILE_NOT_FOUND');
+        }
+
+        if (!is_readable($tmpName)) {
+            throw new RuntimeException('UPLOAD_TMP_FILE_NOT_READABLE');
+        }
+
+        if (
+            PHP_SAPI !== 'cli'
+            && function_exists('is_uploaded_file')
+            && !is_uploaded_file($tmpName)
+        ) {
+            throw new RuntimeException('INVALID_UPLOAD_SOURCE');
+        }
+
         $name = (string)($file['name'] ?? '');
         $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
 
@@ -334,14 +360,142 @@ class SiteAppearanceService
             throw new RuntimeException('BAD_FILE_EXTENSION');
         }
 
+        $mime = self::detectMimeType(
+            $tmpName,
+            (string)($file['type'] ?? '')
+        );
+
+        if (!in_array($mime, self::ALLOWED_MIME_TYPES, true)) {
+            throw new RuntimeException('BAD_FILE_MIME_TYPE');
+        }
+    }
+
+    protected static function detectMimeType(
+        string $tmpName,
+        string $clientMime
+    ): string {
         $mime = '';
 
-        if (!empty($file['type'])) {
-            $mime = strtolower((string)$file['type']);
+        if (class_exists('finfo')) {
+            try {
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $detected = $finfo->file($tmpName);
+
+                if (is_string($detected)) {
+                    $mime = strtolower(trim($detected));
+                }
+            } catch (Throwable $e) {
+                $mime = '';
+            }
         }
 
-        if ($mime !== '' && !in_array($mime, self::ALLOWED_MIME_TYPES, true)) {
-            throw new RuntimeException('BAD_FILE_MIME_TYPE');
+        if ($mime === '' && function_exists('mime_content_type')) {
+            $detected = @mime_content_type($tmpName);
+
+            if (is_string($detected)) {
+                $mime = strtolower(trim($detected));
+            }
+        }
+
+        if ($mime === '') {
+            $mime = strtolower(trim($clientMime));
+        }
+
+        $aliases = [
+            'image/jpg' => 'image/jpeg',
+            'image/pjpeg' => 'image/jpeg',
+            'image/x-png' => 'image/png',
+        ];
+
+        return $aliases[$mime] ?? $mime;
+    }
+
+    protected static function ensureUploadDirectory(): void
+    {
+        $documentRoot = rtrim(
+            (string)($_SERVER['DOCUMENT_ROOT'] ?? ''),
+            '/'
+        );
+
+        if ($documentRoot === '') {
+            throw new RuntimeException('DOCUMENT_ROOT_NOT_FOUND');
+        }
+
+        $directory = $documentRoot
+            . '/upload/'
+            . trim(self::UPLOAD_DIR, '/');
+
+        if (!is_dir($directory)) {
+            $created = false;
+
+            if (function_exists('CheckDirPath')) {
+                $created = (bool)CheckDirPath($directory . '/');
+            } else {
+                $created = @mkdir($directory, 0775, true);
+            }
+
+            if (!$created && !is_dir($directory)) {
+                throw new RuntimeException(
+                    'UPLOAD_DIRECTORY_CREATE_FAILED'
+                );
+            }
+        }
+
+        if (!is_writable($directory)) {
+            throw new RuntimeException(
+                'UPLOAD_DIRECTORY_NOT_WRITABLE'
+            );
+        }
+    }
+
+    protected static function assertSavedFileExists(int $fileId): void
+    {
+        $file = CFile::GetFileArray($fileId);
+
+        if (!is_array($file)) {
+            throw new RuntimeException('FILE_RECORD_NOT_FOUND');
+        }
+
+        $src = trim((string)($file['SRC'] ?? ''));
+
+        if ($src === '') {
+            throw new RuntimeException('FILE_RECORD_NOT_FOUND');
+        }
+
+        /*
+         * Облачные обработчики и внешние URL нельзя проверять через is_file().
+         */
+        if (
+            !empty($file['HANDLER_ID'])
+            || preg_match('#^(?:https?:)?//#i', $src)
+        ) {
+            return;
+        }
+
+        $documentRoot = rtrim(
+            (string)($_SERVER['DOCUMENT_ROOT'] ?? ''),
+            '/'
+        );
+        $urlPath = parse_url($src, PHP_URL_PATH);
+
+        if (
+            $documentRoot === ''
+            || !is_string($urlPath)
+            || $urlPath === ''
+        ) {
+            throw new RuntimeException(
+                'FILE_PHYSICAL_SAVE_FAILED'
+            );
+        }
+
+        $absolutePath = $documentRoot
+            . '/'
+            . ltrim($urlPath, '/');
+
+        if (!is_file($absolutePath)) {
+            throw new RuntimeException(
+                'FILE_PHYSICAL_SAVE_FAILED'
+            );
         }
     }
 

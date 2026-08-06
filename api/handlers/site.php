@@ -101,6 +101,16 @@ if (!function_exists('sb_site_handler_handle_exception')) {
             'BAD_FILE_EXTENSION' => 422,
             'BAD_FILE_MIME_TYPE' => 422,
             'BAD_ASSET_TYPE' => 422,
+            'INVALID_UPLOAD_SOURCE' => 422,
+            'UPLOAD_TMP_FILE_NOT_FOUND' => 422,
+            'UPLOAD_TMP_FILE_NOT_READABLE' => 422,
+            'DOCUMENT_ROOT_NOT_FOUND' => 500,
+            'UPLOAD_DIRECTORY_CREATE_FAILED' => 500,
+            'UPLOAD_DIRECTORY_NOT_WRITABLE' => 500,
+            'FILE_SAVE_ERROR' => 500,
+            'FILE_RECORD_NOT_FOUND' => 500,
+            'FILE_PHYSICAL_SAVE_FAILED' => 500,
+            'CFile_NOT_FOUND' => 503,
             'SOCIALNETWORK_MODULE_NOT_INSTALLED' => 503,
             'CSocNetUserToGroup_NOT_FOUND' => 503,
             'CSocNetGroup_NOT_FOUND' => 503,
@@ -1086,11 +1096,7 @@ if ($action === 'site.appearanceUpload') {
     } catch (InvalidArgumentException $e) {
         throw $e;
     } catch (Throwable $e) {
-        error_log('SiteBuilder site.appearanceUpload failed: ' . $e->getMessage());
-        sb_json_error('SITE_APPEARANCEUPLOAD_FAILED', 500, [
-            'handler' => 'site',
-            'action' => $action,
-        ]);
+        sb_site_handler_handle_exception($e, $action);
     }
 }
 
