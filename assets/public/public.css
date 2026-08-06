@@ -3156,3 +3156,10 @@ body {
         top: 21px;
     }
 }
+
+
+/* SiteBuilder public root icon removal v1 */
+.sb-section-nav__root-link::before {
+    content: none !important;
+    display: none !important;
+}

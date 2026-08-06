@@ -553,7 +553,7 @@ if ($pageHasDiskBlock) {
     <?php if ($pageSeoOgDescription !== ''): ?><meta property="og:description" content="<?= sb_public_h($pageSeoOgDescription) ?>"><?php endif; ?>
     <?php if ($pageSeoOgImage !== ''): ?><meta property="og:image" content="<?= sb_public_h($pageSeoOgImage) ?>"><?php endif; ?>
 
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=24">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=25">
 
     <?php if ($pageHasDiskBlock): ?>
         <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=10">
