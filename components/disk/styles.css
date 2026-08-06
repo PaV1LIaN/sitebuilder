@@ -2548,3 +2548,45 @@
         flex-direction: column;
     }
 }
+
+/* =========================================================
+   SiteBuilder Disk full-width table refinement v1
+   ========================================================= */
+
+.sb-public-block--disk,
+.sb-block--disk,
+.sb-disk--modern {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+/*
+ * Пагинация уже ограничивает количество строк, поэтому отдельный
+ * вертикальный скролл внутри таблицы не нужен.
+ */
+.sb-disk--modern [data-view-container="table"] {
+    max-height: none !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+}
+
+.sb-disk--modern .sb-disk__name-cell {
+    width: 46%;
+    min-width: 340px;
+}
+
+.sb-disk--modern .sb-disk__command-panel,
+.sb-disk--modern [data-role="disk-pagination"] {
+    width: 100%;
+    max-width: none;
+}
+
+@media (max-width: 900px) {
+    .sb-disk--modern .sb-disk__name-cell {
+        width: auto;
+        min-width: 280px;
+    }
+}
