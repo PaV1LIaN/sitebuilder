@@ -52,6 +52,7 @@ class DiskPermissionService
             'canEditSettings' => $rolePermissions['canEditSettings'],
 
             'role' => $rolePermissions['role'],
+            'accessSource' => $rolePermissions['accessSource'] ?? '',
             'folderRole' => $folderRule['role'] ?? null,
             'folderRuleId' => isset($folderRule['folderId']) ? (int)$folderRule['folderId'] : null,
             'folderRuleInherited' => !empty($folderRule['inherited']),
@@ -61,12 +62,84 @@ class DiskPermissionService
     protected static function resolveRolePermissions(DiskContext $context): array
     {
         if (DiskCurrentUser::isAdmin()) {
-            return self::permissionsForRole('bitrix_admin');
+            return self::withAccessSource(
+                self::permissionsForRole('bitrix_admin'),
+                'bitrix_admin'
+            );
         }
 
-        $role = SiteAccessRepository::getUserRole($context->siteId, $context->currentUserId);
+        /*
+         * Сначала определяем глобальную роль сайта.
+         * Она нужна, чтобы сохранить полный доступ OWNER/ADMIN.
+         */
+        $globalRole = SiteAccessRepository::getUserRole(
+            $context->siteId,
+            $context->currentUserId
+        );
 
-        return self::permissionsForRole((string)$role);
+        if ($globalRole === 'site_admin') {
+            return self::withAccessSource(
+                self::permissionsForRole('site_admin'),
+                'global_site_role'
+            );
+        }
+
+        /*
+         * PageAccessService объединяет:
+         * - глобальные роли сайта;
+         * - точечные права выбранной страницы;
+         * - наследуемые права родительской страницы.
+         *
+         * Благодаря этому пользователь, которому выдали can_disk_view
+         * или can_disk_edit только на одной странице, получает доступ
+         * к компоненту Диска именно на этой странице.
+         */
+        if (PageAccessService::canEditDisk(
+            $context->siteId,
+            $context->pageId,
+            $context->currentUserId
+        )) {
+            return self::withAccessSource(
+                self::permissionsForRole('site_editor'),
+                $globalRole !== null
+                    ? 'global_or_page_access'
+                    : 'page_access'
+            );
+        }
+
+        if (PageAccessService::canViewDisk(
+            $context->siteId,
+            $context->pageId,
+            $context->currentUserId
+        )) {
+            $viewRole = in_array(
+                $globalRole,
+                ['site_user', 'site_viewer'],
+                true
+            )
+                ? $globalRole
+                : 'site_viewer';
+
+            return self::withAccessSource(
+                self::permissionsForRole($viewRole),
+                $globalRole !== null
+                    ? 'global_or_page_access'
+                    : 'page_access'
+            );
+        }
+
+        return self::withAccessSource(
+            self::permissionsForRole(''),
+            'none'
+        );
+    }
+
+    protected static function withAccessSource(
+        array $permissions,
+        string $source
+    ): array {
+        $permissions['accessSource'] = $source;
+        return $permissions;
     }
 
     protected static function permissionsForRole(string $role): array
@@ -88,9 +161,9 @@ class DiskPermissionService
         }
 
         /*
-         * EDITOR теперь НЕ редактирует сайт.
-         * Он работает только с файлами диска:
-         * загрузка, скачивание, удаление.
+         * EDITOR не редактирует страницы сайта.
+         * Он работает с файлами Диска:
+         * загрузка, скачивание и удаление.
          */
         if ($role === 'site_editor') {
             return [
@@ -164,6 +237,7 @@ class DiskPermissionService
         $management = [
             'canManageAccess' => !empty($base['canManageAccess']),
             'canEditSettings' => !empty($base['canEditSettings']),
+            'accessSource' => $base['accessSource'] ?? '',
         ];
 
         if ($role === FolderAccessRepository::ROLE_EDITOR) {

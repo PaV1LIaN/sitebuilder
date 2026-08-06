@@ -19,6 +19,8 @@ if (!defined('SITEBUILDER_DISK_BOOTSTRAP')) {
     require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/json.php';
     require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/response.php';
     require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/access.php';
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessRepository.php';
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessService.php';
     require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/RevisionService.php';
 
     \Bitrix\Main\Loader::includeModule('disk');
