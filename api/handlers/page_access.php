@@ -573,7 +573,16 @@ try {
         sb_page_access_json_error('RETRY_TRANSACTION', 409);
     }
 
-    sb_page_access_json_error('INTERNAL_ERROR', 500);
+    sb_page_access_json_error(
+        'PAGE_ACCESS_DATABASE_ERROR',
+        500,
+        [
+            'sqlState' => $sqlState,
+            'action' => (string)(
+                $_POST['action'] ?? ''
+            ),
+        ]
+    );
 } catch (RuntimeException $e) {
     $error = trim($e->getMessage());
 
