@@ -186,6 +186,7 @@ $canManagePageAccess = $USER->IsAdmin()
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v4.css?v=18">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v5.css?v=19">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v7.css?v=3">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v8.css?v=1">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">
@@ -846,12 +847,12 @@ $canManagePageAccess = $USER->IsAdmin()
                             </div>
                         </div>
 
-                        <div class="sb-editor-json-actions">
+                        <div class="sb-editor-json-actions" aria-label="Действия с блоком">
                             <button class="sb-btn sb-btn-primary" type="button" id="saveBlockBtn">Сохранить блок</button>
-                            <button class="sb-btn sb-btn-light" type="button" id="duplicateBlockBtn">Дублировать</button>
-                            <button class="sb-btn sb-btn-light" type="button" id="moveBlockUpBtn">Блок ↑</button>
-                            <button class="sb-btn sb-btn-light" type="button" id="moveBlockDownBtn">Блок ↓</button>
-                            <button class="sb-btn sb-btn-danger" type="button" id="deleteBlockBtn">Удалить</button>
+                            <button class="sb-btn sb-btn-light" type="button" id="duplicateBlockBtn">⧉ Дублировать</button>
+                            <button class="sb-btn sb-btn-light" type="button" id="moveBlockUpBtn" title="Переместить блок выше">↑ Выше</button>
+                            <button class="sb-btn sb-btn-light" type="button" id="moveBlockDownBtn" title="Переместить блок ниже">↓ Ниже</button>
+                            <button class="sb-btn sb-btn-danger" type="button" id="deleteBlockBtn">Удалить блок</button>
                         </div>
                     </div>
                 </div>
