@@ -85,6 +85,7 @@ function setInspectorTab(tab) {
     });
 }
 
+/* SiteBuilder page access active panel fix v1 */
 function refreshInspectorAccessTab() {
     var tab = document.getElementById('inspectorAccessTab');
     if (!tab) return;
@@ -102,6 +103,23 @@ function refreshInspectorAccessTab() {
 
     if (!visible && state && state.inspectorTab === 'access') {
         setInspectorTab('page');
+        return;
+    }
+
+    /*
+     * Панели доступа загружаются асинхронно.
+     * Если вкладка «Доступ» уже открыта, новая панель после
+     * снятия hidden должна сразу получить is-active.
+     */
+    if (visible && state && state.inspectorTab === 'access') {
+        document
+            .querySelectorAll('[data-inspector-panel="access"]')
+            .forEach(function (panel) {
+                panel.classList.toggle(
+                    'is-active',
+                    !panel.hidden
+                );
+            });
     }
 }
 
