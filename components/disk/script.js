@@ -27,6 +27,9 @@
       items: [],
       selectedIds: [],
       searchQuery: '',
+      page: 1,
+      pageSize: 20,
+      pageSizeOptions: [10, 20, 50, 100],
       viewMode: (parsed.settings && parsed.settings.viewMode) || 'table',
       folderAccessItems: [],
       folderAccessUsers: [],
@@ -324,6 +327,7 @@
       }
 
       this.state.currentFolderId = folderId;
+      this.state.page = 1;
       this.state.items = Array.isArray(res.data.items) ? res.data.items : [];
       this.state.breadcrumbs = Array.isArray(res.data.breadcrumbs) ? res.data.breadcrumbs : [];
       this.state.permissions = res.data.permissions || this.state.permissions || {};
@@ -364,6 +368,7 @@
       }
 
       this.state.items = Array.isArray(res.data.items) ? res.data.items : [];
+      this.state.page = 1;
       this.state.selectedIds = [];
       this.renderAll();
 
@@ -503,6 +508,254 @@
     return folders.concat(files);
   };
 
+  DiskComponent.prototype.getPaginationInfo = function () {
+    var items = this.getDisplayItems();
+    var options = Array.isArray(this.state.pageSizeOptions)
+      ? this.state.pageSizeOptions
+      : [10, 20, 50, 100];
+
+    var pageSize = Number(this.state.pageSize || 20);
+
+    if (options.indexOf(pageSize) === -1) {
+      pageSize = 20;
+    }
+
+    var total = items.length;
+    var totalPages = Math.max(1, Math.ceil(total / pageSize));
+    var page = Number(this.state.page || 1);
+
+    if (!Number.isFinite(page)) {
+      page = 1;
+    }
+
+    page = Math.max(1, Math.min(totalPages, Math.floor(page)));
+
+    var start = total > 0 ? (page - 1) * pageSize : 0;
+    var end = Math.min(start + pageSize, total);
+
+    this.state.page = page;
+    this.state.pageSize = pageSize;
+
+    return {
+      items: items,
+      total: total,
+      totalPages: totalPages,
+      page: page,
+      pageSize: pageSize,
+      start: start,
+      end: end
+    };
+  };
+
+  DiskComponent.prototype.getPagedDisplayItems = function () {
+    var info = this.getPaginationInfo();
+
+    return info.items.slice(info.start, info.end);
+  };
+
+  DiskComponent.prototype.getPaginationTokens = function (page, totalPages) {
+    if (totalPages <= 7) {
+      var allPages = [];
+
+      for (var allPage = 1; allPage <= totalPages; allPage++) {
+        allPages.push(allPage);
+      }
+
+      return allPages;
+    }
+
+    var tokens = [1];
+    var start = Math.max(2, page - 1);
+    var end = Math.min(totalPages - 1, page + 1);
+
+    if (page <= 4) {
+      end = Math.min(totalPages - 1, 5);
+    }
+
+    if (page >= totalPages - 3) {
+      start = Math.max(2, totalPages - 4);
+    }
+
+    if (start > 2) {
+      tokens.push('ellipsis-left');
+    }
+
+    for (var current = start; current <= end; current++) {
+      tokens.push(current);
+    }
+
+    if (end < totalPages - 1) {
+      tokens.push('ellipsis-right');
+    }
+
+    tokens.push(totalPages);
+
+    return tokens;
+  };
+
+  DiskComponent.prototype.setPage = function (page) {
+    var info = this.getPaginationInfo();
+    var nextPage = Math.max(
+      1,
+      Math.min(info.totalPages, Math.floor(Number(page || 1)))
+    );
+
+    this.state.page = nextPage;
+    this.state.selectedIds = [];
+
+    var selectAll = this.root.querySelector('[data-role="select-all"]');
+
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    }
+
+    this.renderAll();
+  };
+
+  DiskComponent.prototype.setPageSize = function (pageSize) {
+    var options = Array.isArray(this.state.pageSizeOptions)
+      ? this.state.pageSizeOptions
+      : [10, 20, 50, 100];
+
+    pageSize = Number(pageSize || 20);
+
+    if (options.indexOf(pageSize) === -1) {
+      pageSize = 20;
+    }
+
+    this.state.pageSize = pageSize;
+    this.state.page = 1;
+    this.state.selectedIds = [];
+
+    var selectAll = this.root.querySelector('[data-role="select-all"]');
+
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    }
+
+    this.renderAll();
+  };
+
+  DiskComponent.prototype.renderPagination = function () {
+    var self = this;
+    var info = this.getPaginationInfo();
+    var tableContainer = this.root.querySelector(
+      '[data-view-container="table"]'
+    );
+    var gridContainer = this.root.querySelector(
+      '[data-view-container="grid"]'
+    );
+    var anchor = gridContainer || tableContainer;
+
+    if (!anchor || !anchor.parentNode) {
+      return;
+    }
+
+    var pagination = this.root.querySelector(
+      '[data-role="disk-pagination"]'
+    );
+
+    if (!pagination) {
+      pagination = document.createElement('div');
+      pagination.className = 'sb-disk__pagination';
+      pagination.setAttribute('data-role', 'disk-pagination');
+
+      anchor.parentNode.insertBefore(
+        pagination,
+        anchor.nextSibling
+      );
+    }
+
+    if (info.total <= 0) {
+      pagination.hidden = true;
+      pagination.innerHTML = '';
+      return;
+    }
+
+    pagination.hidden = false;
+
+    var pageSizeOptions = (
+      Array.isArray(this.state.pageSizeOptions)
+        ? this.state.pageSizeOptions
+        : [10, 20, 50, 100]
+    ).map(function (value) {
+      return ''
+        + '<option value="' + value + '"'
+        + (value === info.pageSize ? ' selected' : '')
+        + '>' + value + '</option>';
+    }).join('');
+
+    var pageButtons = this.getPaginationTokens(
+      info.page,
+      info.totalPages
+    ).map(function (token) {
+      if (typeof token !== 'number') {
+        return '<span class="sb-disk__pagination-ellipsis">…</span>';
+      }
+
+      var active = token === info.page;
+
+      return ''
+        + '<button type="button"'
+        + ' class="sb-disk__pagination-btn'
+        + (active ? ' is-active' : '') + '"'
+        + ' data-pagination-page="' + token + '"'
+        + (active ? ' aria-current="page"' : '')
+        + '>' + token + '</button>';
+    }).join('');
+
+    pagination.innerHTML = ''
+      + '<div class="sb-disk__pagination-summary">'
+      + '  <span>Показано '
+      + (info.start + 1)
+      + '–'
+      + info.end
+      + ' из '
+      + info.total
+      + '</span>'
+      + '  <label class="sb-disk__page-size">'
+      + '    <span>На странице</span>'
+      + '    <select data-role="page-size">' + pageSizeOptions + '</select>'
+      + '  </label>'
+      + '</div>'
+      + '<div class="sb-disk__pagination-pages">'
+      + '  <button type="button" class="sb-disk__pagination-btn sb-disk__pagination-btn--wide"'
+      + ' data-pagination-page="' + (info.page - 1) + '"'
+      + (info.page <= 1 ? ' disabled' : '')
+      + '>Назад</button>'
+      + pageButtons
+      + '  <button type="button" class="sb-disk__pagination-btn sb-disk__pagination-btn--wide"'
+      + ' data-pagination-page="' + (info.page + 1) + '"'
+      + (info.page >= info.totalPages ? ' disabled' : '')
+      + '>Вперёд</button>'
+      + '</div>';
+
+    pagination.querySelectorAll('[data-pagination-page]').forEach(
+      function (button) {
+        button.addEventListener('click', function () {
+          if (button.disabled) {
+            return;
+          }
+
+          self.setPage(
+            Number(button.getAttribute('data-pagination-page') || 1)
+          );
+        });
+      }
+    );
+
+    var pageSizeSelect = pagination.querySelector(
+      '[data-role="page-size"]'
+    );
+
+    if (pageSizeSelect) {
+      pageSizeSelect.addEventListener('change', function () {
+        self.setPageSize(Number(pageSizeSelect.value || 20));
+      });
+    }
+  };
   DiskComponent.prototype.renderHistoryControl = function (item) {
     if (!item || String(item.entityType || '') !== 'file') {
       return '';
@@ -2231,6 +2484,15 @@
     this.renderBreadcrumbs();
     this.renderItemsTable();
     this.renderItemsGrid();
+    this.renderPagination();
+
+    var selectAll = this.root.querySelector('[data-role="select-all"]');
+
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    }
+
     this.syncSelectedState();
     this.arrangeModernLayout();
   };
@@ -2400,7 +2662,7 @@
 
     var self = this;
 
-    tbody.innerHTML = this.getDisplayItems().map(function (item) {
+    tbody.innerHTML = this.getPagedDisplayItems().map(function (item) {
         var typeText = getItemTypeText(item);
         var addedByText = getItemAddedByText(item);
         var sizeText = item.entityType === 'folder' ? '—' : (item.size ? formatBytes(item.size) : '—');
@@ -2460,7 +2722,7 @@
 
         var self = this;
 
-        container.innerHTML = this.getDisplayItems().map(function (item) {
+        container.innerHTML = this.getPagedDisplayItems().map(function (item) {
             var typeText = getItemTypeText(item);
             var addedByText = getItemAddedByText(item);
             var sizeText = item.entityType === 'folder' ? 'Папка' : (item.size ? formatBytes(item.size) : '—');

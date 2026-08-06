@@ -1939,3 +1939,196 @@
         flex-direction: column;
     }
 }
+
+/* =========================================================
+   SiteBuilder Disk compact pagination v1
+   ========================================================= */
+
+.sb-disk--modern table {
+    min-width: 880px;
+}
+
+.sb-disk--modern thead th {
+    height: 34px;
+    padding: 6px 10px;
+    font-size: 11px;
+}
+
+.sb-disk--modern tbody td {
+    height: 52px;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.sb-disk--modern tbody td:nth-child(4),
+.sb-disk--modern tbody td:nth-child(5) {
+    white-space: nowrap;
+}
+
+.sb-disk--modern .sb-disk__check-cell {
+    width: 38px;
+}
+
+.sb-disk--modern .sb-disk__name-cell {
+    min-width: 290px;
+}
+
+.sb-disk--modern .sb-disk__col--actions {
+    width: 190px;
+}
+
+.sb-disk--modern .sb-disk__modern-name {
+    gap: 9px;
+}
+
+.sb-disk--modern .sb-disk__modern-name-title {
+    font-size: 13px;
+    line-height: 1.2;
+}
+
+.sb-disk--modern .sb-disk__modern-name-sub {
+    margin-top: 2px;
+    font-size: 11px;
+    line-height: 1.15;
+}
+
+.sb-disk--modern .sb-disk__modern-icon {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    max-width: 32px;
+    min-height: 32px;
+    max-height: 32px;
+    flex-basis: 32px;
+    border-radius: 10px;
+    font-size: 9px;
+}
+
+.sb-disk--modern .sb-disk__modern-icon--folder {
+    font-size: 17px;
+}
+
+.sb-disk--modern .sb-disk__added-by {
+    max-width: 150px;
+    min-height: 22px;
+    padding: 0 7px;
+    font-size: 11px;
+}
+
+.sb-disk--modern .sb-disk__actions {
+    flex-wrap: nowrap;
+    gap: 4px;
+}
+
+.sb-disk--modern .sb-disk__actions .sb-disk__row-btn {
+    width: auto;
+    min-height: 26px;
+    height: 26px;
+    padding: 0 7px;
+    border-radius: 8px;
+    font-size: 11px;
+}
+
+.sb-disk__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px 20px;
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px 4px 2px;
+    border-top: 1px solid var(--disk-border, #e5e7eb);
+}
+
+.sb-disk__pagination-summary {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    color: var(--disk-muted, #6b7280);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.sb-disk__page-size {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+}
+
+.sb-disk .sb-disk__page-size select {
+    width: 72px;
+    min-width: 72px;
+    height: 34px !important;
+    padding: 0 28px 0 10px !important;
+}
+
+.sb-disk__pagination-pages {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.sb-disk .sb-disk__pagination-btn {
+    min-width: 34px;
+    width: 34px;
+    min-height: 34px;
+    height: 34px;
+    padding: 0 8px;
+    border-radius: 10px;
+    font-size: 12px;
+}
+
+.sb-disk .sb-disk__pagination-btn--wide {
+    width: auto;
+    min-width: 72px;
+}
+
+.sb-disk .sb-disk__pagination-btn.is-active {
+    border-color: var(--disk-accent, #2563eb);
+    background: var(--disk-accent, #2563eb);
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(37, 99, 235, .18);
+}
+
+.sb-disk .sb-disk__pagination-btn:disabled {
+    opacity: .42;
+    cursor: default;
+    pointer-events: none;
+}
+
+.sb-disk__pagination-ellipsis {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 34px;
+    color: var(--disk-muted, #6b7280);
+    font-weight: 800;
+}
+
+@media (max-width: 760px) {
+    .sb-disk__pagination {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .sb-disk__pagination-pages {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 700px) {
+    .sb-disk--modern .sb-disk__actions {
+        align-items: center;
+        flex-direction: row;
+        flex-wrap: nowrap;
+    }
+
+    .sb-disk--modern .sb-disk__actions .sb-disk__row-btn {
+        width: auto;
+    }
+}

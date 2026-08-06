@@ -534,7 +534,7 @@ if ($pageHasDiskBlock) {
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=20">
 
     <?php if ($pageHasDiskBlock): ?>
-        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=5">
+        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=6">
     <?php endif; ?>
 
     <style>
@@ -653,7 +653,7 @@ document.addEventListener('click', function (e) {
 </script>
 
 <?php if ($pageHasDiskBlock): ?>
-    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=5"></script>
+    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=6"></script>
 <?php endif; ?>
 
 <?php
