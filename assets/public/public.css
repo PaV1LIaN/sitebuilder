@@ -2498,3 +2498,23 @@ body {
         margin-bottom: 14px !important;
     }
 }
+
+/* =========================================================
+   SiteBuilder Disk final page polish v1
+   ========================================================= */
+
+.sb-box--content > .sb-page-title {
+    margin-bottom: 12px !important;
+    font-size: clamp(23px, 1.85vw, 30px) !important;
+}
+
+.sb-page-section:has(.sb-disk) {
+    margin-top: 0 !important;
+}
+
+@media (max-width: 640px) {
+    .sb-box--content > .sb-page-title {
+        margin-bottom: 10px !important;
+        font-size: 22px !important;
+    }
+}

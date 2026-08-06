@@ -531,10 +531,10 @@ if ($pageHasDiskBlock) {
     <?php if ($pageSeoOgDescription !== ''): ?><meta property="og:description" content="<?= sb_public_h($pageSeoOgDescription) ?>"><?php endif; ?>
     <?php if ($pageSeoOgImage !== ''): ?><meta property="og:image" content="<?= sb_public_h($pageSeoOgImage) ?>"><?php endif; ?>
 
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=21">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=22">
 
     <?php if ($pageHasDiskBlock): ?>
-        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=8">
+        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=9">
     <?php endif; ?>
 
     <style>
@@ -653,7 +653,7 @@ document.addEventListener('click', function (e) {
 </script>
 
 <?php if ($pageHasDiskBlock): ?>
-    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=7"></script>
+    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=8"></script>
 <?php endif; ?>
 
 <?php

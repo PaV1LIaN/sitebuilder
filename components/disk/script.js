@@ -2576,6 +2576,7 @@
 
     this.syncSelectedState();
     this.arrangeModernLayout();
+    this.polishCommandPanel();
   };
 
   DiskComponent.prototype.arrangeModernLayout = function () {
@@ -3977,6 +3978,322 @@
     return res && res.data ? res.data : {};
   }
 
+  /* =========================================================
+     SiteBuilder Disk final polish v1
+     ========================================================= */
+
+  DiskComponent.prototype.bindActionMenuViewportEvents = function () {
+    if (this._diskActionMenuViewportBound) {
+      return;
+    }
+
+    this._diskActionMenuViewportBound = true;
+
+    var self = this;
+
+    this._diskActionMenuViewportHandler = function () {
+      self.closeActionMenus();
+    };
+
+    window.addEventListener(
+      'resize',
+      this._diskActionMenuViewportHandler,
+      {passive: true}
+    );
+
+    /*
+     * capture=true позволяет закрыть меню при прокрутке как страницы,
+     * так и любого вложенного контейнера.
+     */
+    window.addEventListener(
+      'scroll',
+      this._diskActionMenuViewportHandler,
+      true
+    );
+  };
+
+  DiskComponent.prototype.closeActionMenus = function (exceptWrap) {
+    this.root.querySelectorAll(
+      '.sb-disk__action-menu-wrap.is-open'
+    ).forEach(function (wrap) {
+      if (exceptWrap && wrap === exceptWrap) {
+        return;
+      }
+
+      wrap.classList.remove('is-open');
+
+      var menu = wrap.querySelector('.sb-disk__action-menu');
+      var toggle = wrap.querySelector('[data-action-menu-toggle]');
+
+      if (menu) {
+        menu.hidden = true;
+        menu.classList.remove('is-up', 'is-viewport-menu');
+        menu.removeAttribute('style');
+      }
+
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+  };
+
+  DiskComponent.prototype.positionActionMenu = function (
+    wrap,
+    menu,
+    button
+  ) {
+    var viewportWidth =
+      window.innerWidth || document.documentElement.clientWidth;
+    var viewportHeight =
+      window.innerHeight || document.documentElement.clientHeight;
+    var padding = 10;
+    var gap = 7;
+    var preferredWidth = 216;
+    var width = Math.min(
+      preferredWidth,
+      Math.max(170, viewportWidth - (padding * 2))
+    );
+
+    menu.classList.remove('is-up');
+    menu.classList.add('is-viewport-menu');
+    menu.hidden = false;
+
+    menu.style.width = width + 'px';
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+    menu.style.right = 'auto';
+    menu.style.bottom = 'auto';
+    menu.style.maxHeight = Math.max(
+      140,
+      viewportHeight - (padding * 2)
+    ) + 'px';
+    menu.style.visibility = 'hidden';
+
+    var buttonRect = button.getBoundingClientRect();
+    var menuHeight = menu.offsetHeight;
+
+    var left = buttonRect.right - width;
+
+    left = Math.max(
+      padding,
+      Math.min(left, viewportWidth - width - padding)
+    );
+
+    var top = buttonRect.bottom + gap;
+    var canOpenBelow =
+      top + menuHeight <= viewportHeight - padding;
+
+    if (!canOpenBelow) {
+      var topAbove = buttonRect.top - menuHeight - gap;
+
+      if (topAbove >= padding) {
+        top = topAbove;
+        menu.classList.add('is-up');
+      } else {
+        top = Math.max(
+          padding,
+          viewportHeight - menuHeight - padding
+        );
+      }
+    }
+
+    menu.style.left = Math.round(left) + 'px';
+    menu.style.top = Math.round(top) + 'px';
+    menu.style.visibility = 'visible';
+  };
+
+  DiskComponent.prototype.toggleActionMenu = function (button) {
+    var wrap = button
+      ? button.closest('.sb-disk__action-menu-wrap')
+      : null;
+
+    if (!wrap) {
+      return;
+    }
+
+    var menu = wrap.querySelector('.sb-disk__action-menu');
+
+    if (!menu) {
+      return;
+    }
+
+    var shouldOpen =
+      menu.hidden || !wrap.classList.contains('is-open');
+
+    this.closeActionMenus(wrap);
+
+    if (!shouldOpen) {
+      wrap.classList.remove('is-open');
+      menu.hidden = true;
+      menu.classList.remove('is-up', 'is-viewport-menu');
+      menu.removeAttribute('style');
+      button.setAttribute('aria-expanded', 'false');
+      return;
+    }
+
+    this.bindActionMenuViewportEvents();
+
+    wrap.classList.add('is-open');
+    button.setAttribute('aria-expanded', 'true');
+
+    this.positionActionMenu(wrap, menu, button);
+  };
+
+  DiskComponent.prototype.getVisibleItemsSummary = function () {
+    var files = 0;
+    var folders = 0;
+
+    this.getDisplayItems().forEach(function (item) {
+      if (String(item.entityType || '').toLowerCase() === 'folder') {
+        folders++;
+      } else {
+        files++;
+      }
+    });
+
+    var parts = [];
+
+    if (files > 0) {
+      parts.push(files + ' ' + this.getRussianCountWord(
+        files,
+        'файл',
+        'файла',
+        'файлов'
+      ));
+    }
+
+    if (folders > 0) {
+      parts.push(folders + ' ' + this.getRussianCountWord(
+        folders,
+        'папка',
+        'папки',
+        'папок'
+      ));
+    }
+
+    return parts.join(' · ') || 'Пустая папка';
+  };
+
+  DiskComponent.prototype.getRussianCountWord = function (
+    value,
+    one,
+    few,
+    many
+  ) {
+    value = Math.abs(Number(value || 0)) % 100;
+
+    var last = value % 10;
+
+    if (value > 10 && value < 20) {
+      return many;
+    }
+
+    if (last === 1) {
+      return one;
+    }
+
+    if (last >= 2 && last <= 4) {
+      return few;
+    }
+
+    return many;
+  };
+
+  DiskComponent.prototype.polishCommandPanel = function () {
+    var panel = this.root.querySelector('.sb-disk__command-panel');
+
+    if (!panel) {
+      return;
+    }
+
+    var headerLeft = panel.querySelector(
+      '.sb-disk__smart-header-left'
+    );
+    var toolbarRight = panel.querySelector(
+      '.sb-disk__smart-toolbar-right'
+    );
+
+    if (headerLeft) {
+      var summary = headerLeft.querySelector(
+        '[data-role="visible-items-summary"]'
+      );
+
+      if (!summary) {
+        summary = document.createElement('span');
+        summary.className = 'sb-disk__visible-items-summary';
+        summary.setAttribute(
+          'data-role',
+          'visible-items-summary'
+        );
+        headerLeft.appendChild(summary);
+      }
+
+      summary.textContent = this.getVisibleItemsSummary();
+    }
+
+    if (toolbarRight) {
+      var viewButtons = Array.prototype.slice.call(
+        toolbarRight.querySelectorAll('.sb-disk__view-btn')
+      );
+
+      if (viewButtons.length) {
+        var switcher = toolbarRight.querySelector(
+          '.sb-disk__polished-view-switch'
+        );
+
+        if (!switcher) {
+          switcher = document.createElement('div');
+          switcher.className =
+            'sb-disk__polished-view-switch';
+        }
+
+        viewButtons.forEach(function (button) {
+          switcher.appendChild(button);
+        });
+
+        toolbarRight.appendChild(switcher);
+      }
+    }
+
+    var labels = [
+      ['[data-action="refresh"]', 'Обновить содержимое папки'],
+      ['[data-action="folder-access"]', 'Настроить права папки'],
+      ['[data-action="settings"]', 'Настройки файлового блока'],
+      ['[data-action="upload"]', 'Загрузить файлы'],
+      ['[data-action="create-folder"]', 'Создать новую папку']
+    ];
+
+    labels.forEach(function (item) {
+      var node = panel.querySelector(item[0]);
+
+      if (node) {
+        node.setAttribute('title', item[1]);
+        node.setAttribute('aria-label', item[1]);
+      }
+    });
+
+    var search = panel.querySelector(
+      '[data-role="search-input"]'
+    );
+
+    if (search) {
+      search.setAttribute(
+        'aria-label',
+        'Поиск файлов и папок'
+      );
+    }
+
+    var sort = panel.querySelector(
+      '[data-role="sort-select"]'
+    );
+
+    if (sort) {
+      sort.setAttribute(
+        'aria-label',
+        'Сортировка файлов и папок'
+      );
+    }
+  };
   function initDisks() {
     document.querySelectorAll('.sb-disk').forEach(function (root) {
       if (root.getAttribute('data-disk-component-ready') === '1') {
