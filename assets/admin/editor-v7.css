@@ -499,3 +499,89 @@ body.sb-editor-theme-dark .sb-editor-addbar {
 > .sb-access-scope-panel[hidden] {
     display: none !important;
 }
+
+/* =========================================================
+   SiteBuilder access inspector scroll fix v1
+   All access cards keep their natural height. The complete
+   access tab uses one predictable vertical scrollbar.
+   ========================================================= */
+
+.sb-editor-col--right .sb-access-inspector {
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    height: 100% !important;
+    max-height: 100%;
+    box-sizing: border-box;
+}
+
+.sb-editor-col--right .sb-access-inspector.is-active {
+    display: flex !important;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 8px;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: 0 3px 24px 0;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    overscroll-behavior-y: contain;
+}
+
+/*
+ * Earlier grid rules could distribute the available height
+ * between cards and clip their inner controls. Access cards
+ * must always use their real content height.
+ */
+.sb-editor-col--right
+.sb-access-inspector.is-active
+> .sb-access-scope-panel {
+    flex: 0 0 auto !important;
+    align-self: stretch;
+    display: block;
+    width: 100%;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    box-sizing: border-box;
+    overflow: visible !important;
+}
+
+.sb-editor-col--right
+.sb-access-inspector.is-active
+> .sb-access-scope-panel[hidden] {
+    display: none !important;
+}
+
+/* Prevent inner access elements from creating a second scroll area. */
+.sb-access-inspector .sb-access-form,
+.sb-access-inspector .sb-page-access-permissions,
+.sb-access-inspector .sb-access-list,
+.sb-access-inspector .sb-editor-inspector-actions {
+    min-height: 0;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+.sb-access-inspector .sb-page-access-permissions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+}
+
+.sb-access-inspector .sb-switch {
+    min-width: 0;
+}
+
+/* Leave enough room below the final role list. */
+.sb-access-inspector > .sb-access-scope-panel:last-child {
+    margin-bottom: 8px;
+}
+
+@media (max-width: 1080px) {
+    .sb-editor-col--right .sb-access-inspector.is-active {
+        max-height: calc(100vh - 170px);
+        padding-bottom: 32px;
+    }
+}
