@@ -495,9 +495,31 @@ $leftContentHtml = $vm['leftMode'] === 'menu' && $menuHtml !== ''
     ? $menuHtml
     : $leftHtml;
 
-if ($vm['leftMode'] === 'menu' && $vm['sectionNavHtml'] !== '') {
-    $leftContentHtml = $vm['sectionNavHtml'];
+if ($vm['leftMode'] === 'menu') {
+    $sectionNavHtml = (string)($vm['sectionNavHtml'] ?? '');
+
+    /*
+     * Корневой раздел без дочерних страниц не должен создавать
+     * пустую боковую колонку. Настоящее дерево всегда содержит
+     * хотя бы один элемент .sb-tree-node.
+     */
+    $leftContentHtml = str_contains(
+        $sectionNavHtml,
+        'sb-tree-node'
+    )
+        ? $sectionNavHtml
+        : '';
 }
+
+/*
+ * Классы сетки зависят от реально отображаемых панелей,
+ * а не только от сохранённых настроек layout.
+ */
+$renderLeftSidebar = !empty($vm['showLeft'])
+    && trim((string)$leftContentHtml) !== '';
+
+$renderRightSidebar = !empty($vm['showRight'])
+    && trim((string)$rightHtml) !== '';
 
 global $APPLICATION;
 
@@ -531,7 +553,7 @@ if ($pageHasDiskBlock) {
     <?php if ($pageSeoOgDescription !== ''): ?><meta property="og:description" content="<?= sb_public_h($pageSeoOgDescription) ?>"><?php endif; ?>
     <?php if ($pageSeoOgImage !== ''): ?><meta property="og:image" content="<?= sb_public_h($pageSeoOgImage) ?>"><?php endif; ?>
 
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=22">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=23">
 
     <?php if ($pageHasDiskBlock): ?>
         <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=10">
@@ -550,7 +572,7 @@ if ($pageHasDiskBlock) {
 <body>
 <div class="sb-public-shell" style="<?= sb_public_h($appearanceStyle) ?>">
     <?php if ($vm['showHeader']): ?>
-        <header class="sb-public-header">
+        <header class="sb-public-header" data-role="public-header">
             <div class="sb-container sb-header-container">
                 <div class="sb-header-brand-row">
                     <div class="sb-brand">
@@ -575,13 +597,49 @@ if ($pageHasDiskBlock) {
 
     <main class="sb-public-main">
         <div class="sb-container">
-            <div class="sb-layout <?= $vm['showLeft'] ? 'sb-layout--left' : '' ?> <?= $vm['showRight'] ? 'sb-layout--right' : '' ?>">
-                <?php if ($vm['showLeft'] && trim($leftContentHtml) !== ''): ?>
-                    <aside class="sb-sidebar sb-sidebar--left">
-                        <div class="sb-box">
-                            <?= $leftContentHtml !== ''
-                                ? $leftContentHtml
-                                : '<div class="sb-empty">Левая зона пуста</div>' ?>
+            <?php if ($renderLeftSidebar): ?>
+                <button
+                    type="button"
+                    class="sb-public-section-nav-toggle"
+                    data-action="open-section-nav"
+                    aria-controls="sb-public-section-nav"
+                    aria-expanded="false"
+                >
+                    <span
+                        class="sb-public-section-nav-toggle__icon"
+                        aria-hidden="true"
+                    ></span>
+                    <span>Разделы</span>
+                </button>
+
+                <div
+                    class="sb-public-nav-backdrop"
+                    data-action="close-section-nav"
+                    hidden
+                ></div>
+            <?php endif; ?>
+
+            <div class="sb-layout <?= $renderLeftSidebar ? 'sb-layout--left' : '' ?> <?= $renderRightSidebar ? 'sb-layout--right' : '' ?>">
+                <?php if ($renderLeftSidebar): ?>
+                    <aside
+                        id="sb-public-section-nav"
+                        class="sb-sidebar sb-sidebar--left"
+                        data-role="section-nav-drawer"
+                        aria-label="Навигация по страницам раздела"
+                    >
+                        <div class="sb-sidebar__mobile-head">
+                            <strong>Разделы</strong>
+
+                            <button
+                                type="button"
+                                class="sb-sidebar__mobile-close"
+                                data-action="close-section-nav"
+                                aria-label="Закрыть навигацию"
+                            >×</button>
+                        </div>
+
+                        <div class="sb-box sb-sidebar__box">
+                            <?= $leftContentHtml ?>
                         </div>
                     </aside>
                 <?php endif; ?>
@@ -589,6 +647,15 @@ if ($pageHasDiskBlock) {
                 <section class="sb-content">
                     <div class="sb-box sb-box--content">
                         <?php if ($currentPage): ?>
+                            <?php if (
+                                !empty($vm['breadcrumbsHtml'])
+                                && count($vm['breadcrumbs'] ?? []) > 1
+                            ): ?>
+                                <div class="sb-page-breadcrumbs">
+                                    <?= $vm['breadcrumbsHtml'] ?>
+                                </div>
+                            <?php endif; ?>
+
                             <h1 class="sb-page-title">
                                 <?= sb_public_h((string)($currentPage['title'] ?? 'Страница')) ?>
                             </h1>
@@ -606,7 +673,7 @@ if ($pageHasDiskBlock) {
                     </div>
                 </section>
 
-                <?php if ($vm['showRight']): ?>
+                <?php if ($renderRightSidebar): ?>
                     <aside class="sb-sidebar sb-sidebar--right">
                         <div class="sb-box">
                             <?= $rightHtml !== ''
@@ -628,29 +695,6 @@ if ($pageHasDiskBlock) {
     <?php endif; ?>
 </div>
 
-<script>
-document.addEventListener('click', function (e) {
-    var toggle = e.target.closest('[data-role="toggle"]');
-
-    if (!toggle) {
-        return;
-    }
-
-    var node = toggle.closest('.sb-tree-node');
-
-    if (!node) {
-        return;
-    }
-
-    var isOpen = node.classList.contains('is-open');
-
-    node.classList.toggle('is-open', !isOpen);
-    toggle.setAttribute(
-        'aria-expanded',
-        !isOpen ? 'true' : 'false'
-    );
-});
-</script>
 
 <?php if ($pageHasDiskBlock): ?>
     <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=9"></script>
@@ -681,7 +725,7 @@ $isPublicEditMode = (
     <script src="<?= sb_public_h($basePath) ?>/components/table/edit.js"></script>
 <?php endif; ?>
 
-<script src="<?= sb_public_h($basePath) ?>/assets/public/public-interactions.js?v=19"></script>
+<script src="<?= sb_public_h($basePath) ?>/assets/public/public-interactions.js?v=20"></script>
 <script src="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.js?v=20"></script>
 </body>
 </html>
