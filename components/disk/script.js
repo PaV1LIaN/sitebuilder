@@ -1867,6 +1867,22 @@
   DiskComponent.prototype.bindStaticEvents = function () {
     var self = this;
 
+    if (!this._diskActionMenuDocumentBound) {
+      this._diskActionMenuDocumentBound = true;
+
+      document.addEventListener('click', function (event) {
+        if (!event.target.closest('[data-action-menu-toggle]')) {
+          self.closeActionMenus();
+        }
+      });
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          self.closeActionMenus();
+        }
+      });
+    }
+
     this.root.addEventListener('dblclick', async function (e) {
       var item = e.target.closest(
         '.sb-disk__row[data-id][data-entity-type], .sb-disk__card[data-id][data-entity-type]'
@@ -2086,7 +2102,7 @@
     if (selectAll) {
       selectAll.addEventListener('change', function () {
         var checked = !!selectAll.checked;
-        var checkboxes = self.root.querySelectorAll('.sb-disk__item-check');
+        var checkboxes = self.getActiveItemCheckboxes();
 
         self.state.selectedIds = [];
 
@@ -2184,6 +2200,42 @@
     }
 
     this.root.addEventListener('click', async function (e) {
+      var menuToggle = e.target.closest('[data-action-menu-toggle]');
+
+      if (menuToggle) {
+        e.preventDefault();
+        e.stopPropagation();
+        self.toggleActionMenu(menuToggle);
+        return;
+      }
+
+      var retryLoad = e.target.closest('[data-action="retry-load"]');
+
+      if (retryLoad) {
+        await self.loadFolder(
+          self.state.currentFolderId || self.state.rootFolderId
+        );
+        return;
+      }
+
+      var clearSelection = e.target.closest('[data-action="clear-selection"]');
+
+      if (clearSelection) {
+        self.clearSelection();
+        return;
+      }
+
+      var openFileMenuItem = e.target.closest('[data-row-action="open-file"]');
+
+      if (openFileMenuItem) {
+        var openFileRow = e.target.closest('[data-id][data-entity-type="file"]');
+
+        if (openFileRow) {
+          self.openFileFromElement(openFileRow);
+        }
+
+        return;
+      }
       var crumb = e.target.closest('.sb-disk__crumb');
       if (crumb) {
         var crumbFolderId = Number(crumb.getAttribute('data-folder-id') || 0);
@@ -2393,7 +2445,10 @@
 
       var downloadSelectedBtn = e.target.closest('[data-action="download-selected"]');
       if (downloadSelectedBtn) {
-        var rows = self.root.querySelectorAll('[data-id][data-entity-type="file"]');
+        var activeContainer = self.getActiveViewContainer();
+        var rows = activeContainer
+          ? activeContainer.querySelectorAll('[data-id][data-entity-type="file"]')
+          : [];
 
         rows.forEach(function (row) {
           var id = Number(row.getAttribute('data-id') || 0);
@@ -2432,26 +2487,35 @@
   };
 
   DiskComponent.prototype.collectSelectedItemsPayload = function () {
-    var rows = this.root.querySelectorAll('[data-id][data-entity-type]');
+    var container = this.getActiveViewContainer();
+    var rows = container
+      ? container.querySelectorAll('[data-id][data-entity-type]')
+      : [];
     var items = [];
+    var seen = {};
 
     rows.forEach(function (row) {
       var id = Number(row.getAttribute('data-id') || 0);
-      if (id <= 0) {
+      var entityType = row.getAttribute('data-entity-type') || '';
+      var key = entityType + ':' + id;
+
+      if (
+        id <= 0
+        || this.state.selectedIds.indexOf(id) === -1
+        || seen[key]
+      ) {
         return;
       }
 
-      if (this.state.selectedIds.indexOf(id) !== -1) {
-        items.push({
-          id: id,
-          entityType: row.getAttribute('data-entity-type')
-        });
-      }
+      seen[key] = true;
+      items.push({
+        id: id,
+        entityType: entityType
+      });
     }, this);
 
     return items;
   };
-
   DiskComponent.prototype.syncSelectedState = function () {
     var rows = this.root.querySelectorAll('[data-id][data-entity-type]');
 
@@ -2461,13 +2525,20 @@
       row.classList.toggle('is-selected', selected);
     }, this);
 
-    var cards = this.root.querySelectorAll('.sb-disk__card[data-id]');
+    var activeCheckboxes = Array.prototype.slice.call(
+      this.getActiveItemCheckboxes()
+    );
+    var checkedCount = activeCheckboxes.filter(function (checkbox) {
+      return checkbox.checked;
+    }).length;
+    var selectAll = this.root.querySelector('[data-role="select-all"]');
 
-    cards.forEach(function (card) {
-      var id = Number(card.getAttribute('data-id') || 0);
-      var selected = this.state.selectedIds.indexOf(id) !== -1;
-      card.classList.toggle('is-selected', selected);
-    }, this);
+    if (selectAll) {
+      selectAll.checked = activeCheckboxes.length > 0
+        && checkedCount === activeCheckboxes.length;
+      selectAll.indeterminate = checkedCount > 0
+        && checkedCount < activeCheckboxes.length;
+    }
 
     var bulkbar = this.root.querySelector('[data-role="bulkbar"]');
     var bulkbarText = this.root.querySelector('[data-role="bulkbar-text"]');
@@ -2475,9 +2546,19 @@
     if (bulkbar && bulkbarText) {
       bulkbar.hidden = !this.state.selectedIds.length;
       bulkbarText.textContent = 'Выбрано: ' + this.state.selectedIds.length;
+
+      var actions = bulkbar.querySelector('.sb-disk__bulkbar-actions');
+
+      if (actions && !actions.querySelector('[data-action="clear-selection"]')) {
+        var clearButton = document.createElement('button');
+        clearButton.type = 'button';
+        clearButton.className = 'sb-disk__btn sb-disk__btn--ghost';
+        clearButton.setAttribute('data-action', 'clear-selection');
+        clearButton.textContent = 'Снять выбор';
+        actions.appendChild(clearButton);
+      }
     }
   };
-
   DiskComponent.prototype.renderAll = function () {
     this.prepareModernUi();
     this.renderSubtitle();
@@ -2502,19 +2583,18 @@
 
     var breadcrumbs = root.querySelector('[data-role="breadcrumbs"]');
     var refreshBtn = root.querySelector('[data-action="refresh"]');
+    var folderAccessBtn = root.querySelector('[data-action="folder-access"]');
     var settingsBtn = root.querySelector('[data-action="settings"]');
-
     var searchInput = root.querySelector('[data-role="search-input"]');
     var sortSelect = root.querySelector('[data-role="sort-select"]');
     var uploadBtn = root.querySelector('[data-action="upload"]');
     var createFolderBtn = root.querySelector('[data-action="create-folder"]');
-
-    var viewButtons = Array.prototype.slice.call(root.querySelectorAll('.sb-disk__view-btn'));
-
+    var viewButtons = Array.prototype.slice.call(
+      root.querySelectorAll('.sb-disk__view-btn')
+    );
     var tableContainer = root.querySelector('[data-view-container="table"]');
     var gridContainer = root.querySelector('[data-view-container="grid"]');
     var bulkbar = root.querySelector('[data-role="bulkbar"]');
-
     var anchor = bulkbar || tableContainer || gridContainer || root.firstElementChild;
 
     if (!anchor) {
@@ -2522,19 +2602,13 @@
     }
 
     var header = root.querySelector('.sb-disk__smart-header');
+
     if (!header) {
       header = document.createElement('div');
       header.className = 'sb-disk__smart-header';
-
-      var headerLeft = document.createElement('div');
-      headerLeft.className = 'sb-disk__smart-header-left';
-
-      var headerRight = document.createElement('div');
-      headerRight.className = 'sb-disk__smart-header-right';
-
-      header.appendChild(headerLeft);
-      header.appendChild(headerRight);
-
+      header.innerHTML = ''
+        + '<div class="sb-disk__smart-header-left"></div>'
+        + '<div class="sb-disk__smart-header-right"></div>';
       root.insertBefore(header, anchor);
     }
 
@@ -2545,27 +2619,21 @@
       headerLeftNode.appendChild(breadcrumbs);
     }
 
-    if (refreshBtn) {
-      headerRightNode.appendChild(refreshBtn);
-    }
-
-    if (settingsBtn) {
-      headerRightNode.appendChild(settingsBtn);
-    }
+    [refreshBtn, folderAccessBtn, settingsBtn].forEach(function (button) {
+      if (button) {
+        button.classList.add('sb-disk-modern-control');
+        headerRightNode.appendChild(button);
+      }
+    });
 
     var toolbar = root.querySelector('.sb-disk__smart-toolbar');
+
     if (!toolbar) {
       toolbar = document.createElement('div');
       toolbar.className = 'sb-disk__smart-toolbar';
-
-      var toolbarLeft = document.createElement('div');
-      toolbarLeft.className = 'sb-disk__smart-toolbar-left';
-
-      var toolbarRight = document.createElement('div');
-      toolbarRight.className = 'sb-disk__smart-toolbar-right';
-
-      toolbar.appendChild(toolbarLeft);
-      toolbar.appendChild(toolbarRight);
+      toolbar.innerHTML = ''
+        + '<div class="sb-disk__smart-toolbar-left"></div>'
+        + '<div class="sb-disk__smart-toolbar-right"></div>';
 
       if (header.nextSibling) {
         root.insertBefore(toolbar, header.nextSibling);
@@ -2577,27 +2645,38 @@
     var toolbarLeftNode = toolbar.querySelector('.sb-disk__smart-toolbar-left');
     var toolbarRightNode = toolbar.querySelector('.sb-disk__smart-toolbar-right');
 
-    if (searchInput) {
-      toolbarLeftNode.appendChild(searchInput);
-    }
-
-    if (sortSelect) {
-      toolbarLeftNode.appendChild(sortSelect);
-    }
-
-    if (uploadBtn) {
-      toolbarRightNode.appendChild(uploadBtn);
-    }
-
-    if (createFolderBtn) {
-      toolbarRightNode.appendChild(createFolderBtn);
-    }
-
-    viewButtons.forEach(function (btn) {
-      toolbarRightNode.appendChild(btn);
+    [searchInput, sortSelect].forEach(function (control) {
+      if (control) {
+        toolbarLeftNode.appendChild(control);
+      }
     });
-  };
 
+    [uploadBtn, createFolderBtn].forEach(function (button) {
+      if (button) {
+        toolbarRightNode.appendChild(button);
+      }
+    });
+
+    viewButtons.forEach(function (button) {
+      toolbarRightNode.appendChild(button);
+    });
+
+    var commandPanel = root.querySelector('.sb-disk__command-panel');
+
+    if (!commandPanel) {
+      commandPanel = document.createElement('div');
+      commandPanel.className = 'sb-disk__command-panel';
+      root.insertBefore(commandPanel, header);
+    }
+
+    if (header.parentNode !== commandPanel) {
+      commandPanel.appendChild(header);
+    }
+
+    if (toolbar.parentNode !== commandPanel) {
+      commandPanel.appendChild(toolbar);
+    }
+  };
   DiskComponent.prototype.renderSubtitle = function () {
     var node = this.root.querySelector('[data-role="subtitle"]');
     if (!node) {
@@ -2654,151 +2733,368 @@
     }).join('<span class="sb-disk__crumb-separator">/</span>');
   };
 
+  /* =========================================================
+     SiteBuilder Disk visual refinement v2
+     ========================================================= */
+
+  DiskComponent.prototype.getActiveViewContainer = function () {
+    var selector = this.state.viewMode === 'grid'
+      ? '[data-view-container="grid"]'
+      : '[data-view-container="table"]';
+
+    return this.root.querySelector(selector);
+  };
+
+  DiskComponent.prototype.getActiveItemCheckboxes = function () {
+    var container = this.getActiveViewContainer();
+
+    return container
+      ? container.querySelectorAll('.sb-disk__item-check')
+      : [];
+  };
+
+  DiskComponent.prototype.clearSelection = function () {
+    this.state.selectedIds = [];
+
+    this.root.querySelectorAll('.sb-disk__item-check').forEach(
+      function (checkbox) {
+        checkbox.checked = false;
+      }
+    );
+
+    var selectAll = this.root.querySelector('[data-role="select-all"]');
+
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    }
+
+    this.syncSelectedState();
+  };
+
+  DiskComponent.prototype.closeActionMenus = function (exceptWrap) {
+    this.root.querySelectorAll('.sb-disk__action-menu-wrap.is-open').forEach(
+      function (wrap) {
+        if (exceptWrap && wrap === exceptWrap) {
+          return;
+        }
+
+        wrap.classList.remove('is-open');
+
+        var menu = wrap.querySelector('.sb-disk__action-menu');
+        var toggle = wrap.querySelector('[data-action-menu-toggle]');
+
+        if (menu) {
+          menu.hidden = true;
+          menu.classList.remove('is-up');
+        }
+
+        if (toggle) {
+          toggle.setAttribute('aria-expanded', 'false');
+        }
+      }
+    );
+  };
+
+  DiskComponent.prototype.toggleActionMenu = function (button) {
+    var wrap = button
+      ? button.closest('.sb-disk__action-menu-wrap')
+      : null;
+
+    if (!wrap) {
+      return;
+    }
+
+    var menu = wrap.querySelector('.sb-disk__action-menu');
+
+    if (!menu) {
+      return;
+    }
+
+    var shouldOpen = menu.hidden || !wrap.classList.contains('is-open');
+
+    this.closeActionMenus(wrap);
+
+    wrap.classList.toggle('is-open', shouldOpen);
+    menu.hidden = !shouldOpen;
+    button.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+
+    if (shouldOpen) {
+      var rect = wrap.getBoundingClientRect();
+      var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      var spaceBelow = viewportHeight - rect.bottom;
+
+      menu.classList.toggle(
+        'is-up',
+        spaceBelow < 250 && rect.top > 250
+      );
+    }
+  };
+
+  DiskComponent.prototype.renderItemActions = function (item) {
+    var permissions = this.state.permissions || {};
+    var menuItems = [];
+    var entityType = String(item.entityType || 'file');
+
+    if (entityType === 'folder') {
+      menuItems.push(
+        '<button type="button" class="sb-disk__action-menu-item" data-row-action="open">'
+        + '<span aria-hidden="true">↗</span><strong>Открыть папку</strong>'
+        + '</button>'
+      );
+    } else {
+      menuItems.push(
+        '<button type="button" class="sb-disk__action-menu-item" data-row-action="open-file">'
+        + '<span aria-hidden="true">↗</span><strong>Открыть</strong>'
+        + '</button>'
+      );
+
+      if (permissions.canDownload) {
+        menuItems.push(
+          '<button type="button" class="sb-disk__action-menu-item" data-row-action="download">'
+          + '<span aria-hidden="true">↓</span><strong>Скачать</strong>'
+          + '</button>'
+        );
+      }
+
+      if (this.getHistoryItemsForFile(item.name).length) {
+        menuItems.push(
+          '<button type="button" class="sb-disk__action-menu-item" data-row-action="history">'
+          + '<span aria-hidden="true">↺</span><strong>История</strong>'
+          + '</button>'
+        );
+      }
+
+      if (isArchiveItem(item) && permissions.canUpload) {
+        menuItems.push(
+          '<button type="button" class="sb-disk__action-menu-item" data-row-action="unpack">'
+          + '<span aria-hidden="true">⇲</span><strong>Распаковать</strong>'
+          + '</button>'
+        );
+      }
+    }
+
+    if (permissions.canRename) {
+      menuItems.push(
+        '<button type="button" class="sb-disk__action-menu-item" data-row-action="rename">'
+        + '<span aria-hidden="true">✎</span><strong>Переименовать</strong>'
+        + '</button>'
+      );
+    }
+
+    if (permissions.canDelete) {
+      menuItems.push(
+        '<button type="button" class="sb-disk__action-menu-item is-danger" data-row-action="delete">'
+        + '<span aria-hidden="true">×</span><strong>Удалить</strong>'
+        + '</button>'
+      );
+    }
+
+    var hiddenOpenControl = renderOpenControl(item);
+
+    if (!menuItems.length) {
+      return hiddenOpenControl;
+    }
+
+    var menuId = 'sb-disk-action-menu-'
+      + Number(this.state.blockId || 0)
+      + '-'
+      + entityType
+      + '-'
+      + Number(item.id || 0);
+
+    return hiddenOpenControl
+      + '<div class="sb-disk__action-menu-wrap">'
+      + '  <button type="button" class="sb-disk__action-menu-toggle"'
+      + '    data-action-menu-toggle'
+      + '    aria-label="Действия с ' + escapeHtml(item.name || 'элементом') + '"'
+      + '    aria-controls="' + escapeHtml(menuId) + '"'
+      + '    aria-expanded="false"'
+      + '    title="Действия">⋯</button>'
+      + '  <div class="sb-disk__action-menu" id="' + escapeHtml(menuId) + '" role="menu" hidden>'
+      + menuItems.join('')
+      + '  </div>'
+      + '</div>';
+  };
   DiskComponent.prototype.renderItemsTable = function () {
     var tbody = this.root.querySelector('[data-role="items-table"]');
+
     if (!tbody) {
-        return;
+      return;
     }
 
     var self = this;
 
     tbody.innerHTML = this.getPagedDisplayItems().map(function (item) {
-        var typeText = getItemTypeText(item);
-        var addedByText = getItemAddedByText(item);
-        var sizeText = item.entityType === 'folder' ? '—' : (item.size ? formatBytes(item.size) : '—');
-        var iconHtml = renderItemIcon(item);
-        var openControl = renderOpenControl(item);
-        var historyControl = self.renderHistoryControl(item);
-        var permissions = self.state.permissions || {};
+      var typeText = getItemTypeText(item);
+      var addedByText = getItemAddedByText(item);
+      var addedByCompact = formatPersonCompact(addedByText);
+      var initials = getPersonInitials(addedByText);
+      var dateInfo = formatDiskDate(item.updatedAt || '');
+      var sizeText = item.entityType === 'folder'
+        ? '—'
+        : (item.size ? formatBytes(item.size) : '—');
+      var iconHtml = renderItemIcon(item);
 
-        return '' +
-        '<tr class="sb-disk__row ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
-            'data-id="' + escapeHtml(item.id) + '" ' +
-            'data-entity-type="' + escapeHtml(item.entityType) + '" ' +
-            'data-name="' + escapeHtml(item.name) + '" ' +
-            'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" ' +
-            'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" ' +
-            'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">' +
-            '<td class="sb-disk__check-cell">' +
-                '<input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">' +
-            '</td>' +
-            '<td class="sb-disk__name-cell">' +
-                '<div class="sb-disk__modern-name">' +
-                iconHtml +
-                '<div class="sb-disk__modern-name-main">' +
-                    '<div class="sb-disk__modern-name-title">' + escapeHtml(item.name) + '</div>' +
-                    '<div class="sb-disk__modern-name-sub">' + escapeHtml(typeText) + '</div>' +
-                '</div>' +
-                '</div>' +
-            '</td>' +
-            '<td><span class="sb-disk__added-by">' + escapeHtml(addedByText) + '</span></td>' +
-            '<td>' + escapeHtml(sizeText) + '</td>' +
-            '<td>' + escapeHtml(item.updatedAt || '—') + '</td>' +
-            '<td>' +
-                '<div class="sb-disk__actions">' +
-                openControl +
-                historyControl +
-                (item.entityType === 'file' && permissions.canDownload
-                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
-                    : '') +
-                (isArchiveItem(item) && permissions.canUpload
-                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="unpack">Распаковать</button>'
-                    : '') +
-                (permissions.canRename ? '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' : '') +
-                (permissions.canDelete ? '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' : '') +
-                '</div>' +
-            '</td>' +
-        '</tr>';
+      return ''
+        + '<tr class="sb-disk__row ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" '
+        + 'data-id="' + escapeHtml(item.id) + '" '
+        + 'data-entity-type="' + escapeHtml(item.entityType) + '" '
+        + 'data-name="' + escapeHtml(item.name) + '" '
+        + 'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" '
+        + 'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" '
+        + 'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">'
+        + '  <td class="sb-disk__check-cell">'
+        + '    <input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">'
+        + '  </td>'
+        + '  <td class="sb-disk__name-cell">'
+        + '    <div class="sb-disk__modern-name">'
+        + iconHtml
+        + '      <div class="sb-disk__modern-name-main">'
+        + '        <div class="sb-disk__modern-name-title" title="' + escapeHtml(item.name) + '">'
+        + escapeHtml(item.name)
+        + '        </div>'
+        + '        <div class="sb-disk__modern-name-sub">' + escapeHtml(typeText) + '</div>'
+        + '      </div>'
+        + '    </div>'
+        + '  </td>'
+        + '  <td>'
+        + '    <div class="sb-disk__author" title="' + escapeHtml(addedByText) + '">'
+        + '      <span class="sb-disk__author-avatar">' + escapeHtml(initials) + '</span>'
+        + '      <span class="sb-disk__author-name">' + escapeHtml(addedByCompact) + '</span>'
+        + '    </div>'
+        + '  </td>'
+        + '  <td class="sb-disk__size-cell">' + escapeHtml(sizeText) + '</td>'
+        + '  <td>'
+        + '    <div class="sb-disk__date" title="' + escapeHtml(dateInfo.title) + '">'
+        + '      <span>' + escapeHtml(dateInfo.dateText) + '</span>'
+        + (dateInfo.timeText ? '<small>' + escapeHtml(dateInfo.timeText) + '</small>' : '')
+        + '    </div>'
+        + '  </td>'
+        + '  <td class="sb-disk__actions-cell">'
+        + '    <div class="sb-disk__actions">' + self.renderItemActions(item) + '</div>'
+        + '  </td>'
+        + '</tr>';
     }).join('');
-    };
+  };
+  DiskComponent.prototype.renderItemsGrid = function () {
+    var container = this.root.querySelector('[data-view-container="grid"]');
 
-    DiskComponent.prototype.renderItemsGrid = function () {
-        var container = this.root.querySelector('[data-view-container="grid"]');
-        if (!container) {
-            return;
-        }
+    if (!container) {
+      return;
+    }
 
-        container.classList.add('sb-disk__grid');
+    container.classList.add('sb-disk__grid');
 
-        var self = this;
+    var self = this;
 
-        container.innerHTML = this.getPagedDisplayItems().map(function (item) {
-            var typeText = getItemTypeText(item);
-            var addedByText = getItemAddedByText(item);
-            var sizeText = item.entityType === 'folder' ? 'Папка' : (item.size ? formatBytes(item.size) : '—');
-            var openControl = renderOpenControl(item);
-            var historyControl = self.renderHistoryControl(item);
-            var permissions = self.state.permissions || {};
+    container.innerHTML = this.getPagedDisplayItems().map(function (item) {
+      var typeText = getItemTypeText(item);
+      var addedByText = getItemAddedByText(item);
+      var addedByCompact = formatPersonCompact(addedByText);
+      var initials = getPersonInitials(addedByText);
+      var dateInfo = formatDiskDate(item.updatedAt || '');
+      var sizeText = item.entityType === 'folder'
+        ? 'Папка'
+        : (item.size ? formatBytes(item.size) : '—');
 
-            return '' +
-            '<div class="sb-disk__card ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
-                'data-id="' + escapeHtml(item.id) + '" ' +
-                'data-entity-type="' + escapeHtml(item.entityType) + '" ' +
-                'data-name="' + escapeHtml(item.name) + '" ' +
-                'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" ' +
-                'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" ' +
-                'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">' +
-                '<div class="sb-disk__card-top">' +
-                    '<label class="sb-disk__card-check">' +
-                    '<input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">' +
-                    '</label>' +
-                    '<span class="sb-disk__type-pill">' + escapeHtml(typeText) + '</span>' +
-                '</div>' +
-                '<div class="sb-disk__card-preview">' +
-                    renderItemIcon(item) +
-                '</div>' +
-                '<div class="sb-disk__card-name">' + escapeHtml(item.name) + '</div>' +
-                '<div class="sb-disk__card-meta">' +
-                    '<span class="sb-disk__card-sub">' + escapeHtml(sizeText) + '</span>' +
-                '</div>' +
-                '<div class="sb-disk__card-meta">' +
-                    '<span class="sb-disk__card-sub">Добавил: ' + escapeHtml(addedByText) + '</span>' +
-                '</div>' +
-                '<div class="sb-disk__card-meta">' +
-                    '<span class="sb-disk__card-sub">' + escapeHtml(item.updatedAt || '') + '</span>' +
-                '</div>' +
-                '<div class="sb-disk__card-actions">' +
-                    openControl +
-                    historyControl +
-                    (item.entityType === 'file' && permissions.canDownload
-                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
-                    : '') +
-                    (isArchiveItem(item) && permissions.canUpload
-                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="unpack">Распаковать</button>'
-                    : '') +
-                    (permissions.canRename ? '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' : '') +
-                    (permissions.canDelete ? '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' : '') +
-                '</div>' +
-            '</div>';
-        }).join('');
-        };
-
-
+      return ''
+        + '<div class="sb-disk__card ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" '
+        + 'data-id="' + escapeHtml(item.id) + '" '
+        + 'data-entity-type="' + escapeHtml(item.entityType) + '" '
+        + 'data-name="' + escapeHtml(item.name) + '" '
+        + 'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" '
+        + 'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" '
+        + 'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">'
+        + '  <div class="sb-disk__card-top">'
+        + '    <label class="sb-disk__card-check">'
+        + '      <input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">'
+        + '    </label>'
+        + '    <span class="sb-disk__type-pill">' + escapeHtml(typeText) + '</span>'
+        + '  </div>'
+        + '  <div class="sb-disk__card-preview">' + renderItemIcon(item) + '</div>'
+        + '  <div class="sb-disk__card-name" title="' + escapeHtml(item.name) + '">'
+        + escapeHtml(item.name)
+        + '  </div>'
+        + '  <div class="sb-disk__card-meta sb-disk__card-meta--primary">'
+        + '    <span>' + escapeHtml(sizeText) + '</span>'
+        + '    <span>' + escapeHtml(dateInfo.dateText) + (dateInfo.timeText ? ', ' + escapeHtml(dateInfo.timeText) : '') + '</span>'
+        + '  </div>'
+        + '  <div class="sb-disk__card-author" title="' + escapeHtml(addedByText) + '">'
+        + '    <span class="sb-disk__author-avatar">' + escapeHtml(initials) + '</span>'
+        + '    <span class="sb-disk__author-name">' + escapeHtml(addedByCompact) + '</span>'
+        + '  </div>'
+        + '  <div class="sb-disk__card-actions">' + self.renderItemActions(item) + '</div>'
+        + '</div>';
+    }).join('');
+  };
   DiskComponent.prototype.setLoading = function (loading) {
     this.state.loading = !!loading;
+    this.root.classList.toggle('is-loading', !!loading);
 
     var loadingNode = this.root.querySelector('[data-state="loading"]');
-    if (loadingNode) {
-      loadingNode.hidden = !loading;
+
+    if (!loadingNode) {
+      return;
+    }
+
+    if (!loadingNode.getAttribute('data-modern-loading-ready')) {
+      loadingNode.setAttribute('data-modern-loading-ready', '1');
+      loadingNode.innerHTML = ''
+        + '<div class="sb-disk__loading-head">Обновляю содержимое…</div>'
+        + '<div class="sb-disk__skeleton-list">'
+        + [1, 2, 3, 4, 5].map(function () {
+          return ''
+            + '<div class="sb-disk__skeleton-row">'
+            + '  <span class="sb-disk__skeleton-icon"></span>'
+            + '  <span class="sb-disk__skeleton-line"></span>'
+            + '  <span class="sb-disk__skeleton-short"></span>'
+            + '</div>';
+        }).join('')
+        + '</div>';
+    }
+
+    if (loading && typeof this.renderState === 'function') {
+      this.renderState('loading');
+    } else {
+      loadingNode.hidden = true;
     }
   };
-
   DiskComponent.prototype.renderState = function (stateName) {
     var nodes = this.root.querySelectorAll('[data-state]');
 
     nodes.forEach(function (node) {
       node.hidden = true;
 
-      if (node.getAttribute('data-state') === 'empty') {
+      var state = node.getAttribute('data-state');
+
+      if (state === 'empty') {
         node.classList.add('sb-disk-empty-enhanced');
 
         if (!node.getAttribute('data-modern-empty-ready')) {
           node.setAttribute('data-modern-empty-ready', '1');
-          node.innerHTML = '' +
-            '<div class="sb-disk-empty-icon">📁</div>' +
-            '<strong>Пока здесь пусто</strong>' +
-            '<span>Загрузите первый файл или создайте новую папку.</span>';
+          node.innerHTML = ''
+            + '<div class="sb-disk-empty-icon">📁</div>'
+            + '<strong>В этой папке пока нет файлов</strong>'
+            + '<span>Перетащите файлы сюда или нажмите «Загрузить».</span>';
         }
+      }
+
+      if (state === 'error' && !node.getAttribute('data-modern-error-ready')) {
+        node.setAttribute('data-modern-error-ready', '1');
+        node.innerHTML = ''
+          + '<div class="sb-disk__state-icon is-error">!</div>'
+          + '<strong>Не удалось загрузить файлы</strong>'
+          + '<span>Проверьте соединение и повторите попытку.</span>'
+          + '<button type="button" class="sb-disk__retry-btn" data-action="retry-load">Повторить</button>';
+      }
+
+      if (state === 'no-access' && !node.getAttribute('data-modern-access-ready')) {
+        node.setAttribute('data-modern-access-ready', '1');
+        node.innerHTML = ''
+          + '<div class="sb-disk__state-icon">🔒</div>'
+          + '<strong>Нет доступа к этой папке</strong>'
+          + '<span>Обратитесь к администратору сайта для получения прав.</span>';
       }
     });
 
@@ -2807,11 +3103,11 @@
     }
 
     var node = this.root.querySelector('[data-state="' + stateName + '"]');
+
     if (node) {
       node.hidden = false;
     }
   };
-
   /* =========================================================
      FOLDER ACCESS
      ========================================================= */
@@ -3360,6 +3656,130 @@
      HELPERS
      ========================================================= */
 
+  function formatPersonCompact(value) {
+    value = String(value || '').trim().replace(/\s+/g, ' ');
+
+    if (!value || value === '—' || /^ID\s+\d+$/i.test(value)) {
+      return value || '—';
+    }
+
+    var parts = value.split(' ').filter(Boolean);
+
+    if (parts.length < 2) {
+      return value.length > 24 ? value.slice(0, 23) + '…' : value;
+    }
+
+    var surname = parts[0];
+    var initials = parts.slice(1, 3).map(function (part) {
+      var clean = String(part || '').replace(/[^A-Za-zА-Яа-яЁё]/g, '');
+      return clean ? clean.charAt(0).toUpperCase() + '.' : '';
+    }).filter(Boolean);
+
+    return initials.length ? surname + ' ' + initials.join(' ') : surname;
+  }
+
+  function getPersonInitials(value) {
+    value = String(value || '').trim().replace(/\s+/g, ' ');
+
+    if (!value || value === '—') {
+      return '—';
+    }
+
+    if (/^ID\s+\d+$/i.test(value)) {
+      return 'ID';
+    }
+
+    var parts = value.split(' ').filter(Boolean);
+    var first = parts[0] ? parts[0].charAt(0) : '';
+    var second = parts[1] ? parts[1].charAt(0) : '';
+    var result = (first + second).toUpperCase();
+
+    return result || '?';
+  }
+
+  function padDiskDate(value) {
+    return String(value).padStart(2, '0');
+  }
+
+  function formatDiskDate(value) {
+    var raw = String(value || '').trim();
+
+    if (!raw || raw === '—') {
+      return {
+        dateText: '—',
+        timeText: '',
+        title: raw || '—'
+      };
+    }
+
+    var normalized = raw.replace(' ', 'T');
+    var date = new Date(normalized);
+
+    if (Number.isNaN(date.getTime())) {
+      var isoMatch = raw.match(
+        /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/
+      );
+      var ruMatch = raw.match(
+        /^(\d{2})\.(\d{2})\.(\d{4})[ ,T]*(\d{2})?[:.]?(\d{2})?/
+      );
+
+      if (isoMatch) {
+        date = new Date(
+          Number(isoMatch[1]),
+          Number(isoMatch[2]) - 1,
+          Number(isoMatch[3]),
+          Number(isoMatch[4]),
+          Number(isoMatch[5])
+        );
+      } else if (ruMatch) {
+        date = new Date(
+          Number(ruMatch[3]),
+          Number(ruMatch[2]) - 1,
+          Number(ruMatch[1]),
+          Number(ruMatch[4] || 0),
+          Number(ruMatch[5] || 0)
+        );
+      }
+    }
+
+    if (Number.isNaN(date.getTime())) {
+      return {
+        dateText: raw,
+        timeText: '',
+        title: raw
+      };
+    }
+
+    var today = new Date();
+    var todayStart = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
+    var dateStart = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate()
+    );
+    var diffDays = Math.round(
+      (todayStart.getTime() - dateStart.getTime()) / 86400000
+    );
+    var dateText = diffDays === 0
+      ? 'Сегодня'
+      : (diffDays === 1
+        ? 'Вчера'
+        : padDiskDate(date.getDate())
+          + '.'
+          + padDiskDate(date.getMonth() + 1)
+          + '.'
+          + date.getFullYear());
+
+    return {
+      dateText: dateText,
+      timeText: padDiskDate(date.getHours()) + ':' + padDiskDate(date.getMinutes()),
+      title: raw
+    };
+  }
      function getItemAddedByText(item) {
         if (!item) {
             return '—';
