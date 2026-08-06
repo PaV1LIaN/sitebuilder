@@ -653,7 +653,7 @@ document.addEventListener('click', function (e) {
 </script>
 
 <?php if ($pageHasDiskBlock): ?>
-    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=8"></script>
+    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=9"></script>
 <?php endif; ?>
 
 <?php

@@ -2079,22 +2079,73 @@
     var searchInput = this.root.querySelector('[data-role="search-input"]');
     if (searchInput) {
       var searchTimer = null;
+      var searchIsComposing = false;
+      var lastScheduledValue = null;
 
-      searchInput.addEventListener('input', function () {
+      var runSearch = function () {
         var value = String(searchInput.value || '').trim();
 
         clearTimeout(searchTimer);
+        searchTimer = null;
 
-        searchTimer = setTimeout(function () {
-          self.state.searchQuery = value;
+        if (value === lastScheduledValue) {
+          return;
+        }
 
-          if (value === '') {
-            self.loadFolder(self.state.currentFolderId || self.state.rootFolderId);
-            return;
+        lastScheduledValue = value;
+        self.state.searchQuery = value;
+        self.state.page = 1;
+
+        if (value === '') {
+          self.loadFolder(
+            self.state.currentFolderId || self.state.rootFolderId
+          );
+          return;
+        }
+
+        self.search(value);
+      };
+
+      var scheduleSearch = function () {
+        clearTimeout(searchTimer);
+
+        if (searchIsComposing) {
+          return;
+        }
+
+        searchTimer = setTimeout(runSearch, 700);
+      };
+
+      searchInput.addEventListener('compositionstart', function () {
+        searchIsComposing = true;
+        clearTimeout(searchTimer);
+      });
+
+      searchInput.addEventListener('compositionend', function () {
+        searchIsComposing = false;
+        scheduleSearch();
+      });
+
+      searchInput.addEventListener('input', function () {
+        scheduleSearch();
+      });
+
+      searchInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          runSearch();
+          return;
+        }
+
+        if (event.key === 'Escape') {
+          event.preventDefault();
+
+          if (searchInput.value !== '') {
+            searchInput.value = '';
+            lastScheduledValue = null;
+            runSearch();
           }
-
-          self.search(value);
-        }, 250);
+        }
       });
     }
 
@@ -2647,7 +2698,7 @@
     var toolbarRightNode = toolbar.querySelector('.sb-disk__smart-toolbar-right');
 
     [searchInput, sortSelect].forEach(function (control) {
-      if (control) {
+      if (control && control.parentNode !== toolbarLeftNode) {
         toolbarLeftNode.appendChild(control);
       }
     });
@@ -4294,6 +4345,8 @@
       );
     }
   };
+  /* SiteBuilder Disk search focus fix v1 */
+
   function initDisks() {
     document.querySelectorAll('.sb-disk').forEach(function (root) {
       if (root.getAttribute('data-disk-component-ready') === '1') {
