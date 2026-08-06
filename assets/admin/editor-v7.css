@@ -462,3 +462,40 @@ body.sb-editor-theme-dark .sb-editor-addbar {
         transition: none !important;
     }
 }
+
+
+/* =========================================================
+   SiteBuilder page access structural fix v2
+   ========================================================= */
+
+.sb-editor-col--right .sb-access-inspector {
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+    padding-right: 2px;
+    scrollbar-width: thin;
+    overscroll-behavior: contain;
+}
+
+.sb-editor-col--right .sb-access-inspector.is-active {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+}
+
+.sb-editor-col--right
+.sb-access-inspector
+> .sb-access-scope-panel {
+    display: block;
+    width: 100%;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0;
+    overflow: visible !important;
+}
+
+.sb-editor-col--right
+.sb-access-inspector
+> .sb-access-scope-panel[hidden] {
+    display: none !important;
+}

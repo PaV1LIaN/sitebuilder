@@ -85,41 +85,46 @@ function setInspectorTab(tab) {
     });
 }
 
-/* SiteBuilder page access active panel fix v1 */
+/* SiteBuilder page access structural fix v2 */
 function refreshInspectorAccessTab() {
     var tab = document.getElementById('inspectorAccessTab');
-    if (!tab) return;
-
-    var groupPanel = document.getElementById('siteGroupPanel');
-    var accessPanel = document.getElementById('siteAccessPanel');
-    var pageAccessPanel = document.getElementById('pageAccessPanel');
-    var visible = !!(
-        (groupPanel && !groupPanel.hidden)
-        || (accessPanel && !accessPanel.hidden)
-        || (pageAccessPanel && !pageAccessPanel.hidden)
+    var inspector = document.getElementById(
+        'accessInspectorPanel'
     );
 
-    tab.hidden = !visible;
-
-    if (!visible && state && state.inspectorTab === 'access') {
-        setInspectorTab('page');
+    if (!tab || !inspector) {
         return;
     }
 
-    /*
-     * Панели доступа загружаются асинхронно.
-     * Если вкладка «Доступ» уже открыта, новая панель после
-     * снятия hidden должна сразу получить is-active.
-     */
-    if (visible && state && state.inspectorTab === 'access') {
-        document
-            .querySelectorAll('[data-inspector-panel="access"]')
-            .forEach(function (panel) {
-                panel.classList.toggle(
-                    'is-active',
-                    !panel.hidden
-                );
-            });
+    var scopePanels = [
+        document.getElementById('pageAccessPanel'),
+        document.getElementById('siteGroupPanel'),
+        document.getElementById('siteAccessPanel')
+    ].filter(Boolean);
+
+    var visible = scopePanels.some(function (panel) {
+        return !panel.hidden;
+    });
+
+    inspector.hidden = !visible;
+    tab.hidden = !visible;
+
+    if (!visible) {
+        inspector.classList.remove('is-active');
+
+        if (state && state.inspectorTab === 'access') {
+            setInspectorTab('page');
+        }
+
+        return;
+    }
+
+    if (state && state.inspectorTab === 'access') {
+        /*
+         * Теперь у вкладки только один настоящий inspector-panel.
+         * Внутренние карточки больше не конкурируют за is-active.
+         */
+        setInspectorTab('access');
     }
 }
 

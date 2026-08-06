@@ -14,7 +14,7 @@ function setManagementPanelsVisible(canManage) {
     }
 
     if (pageAccessPanel) {
-        pageAccessPanel.hidden = !canManageCurrentPageAccess();
+        pageAccessPanel.hidden = !canManagePageAccessScope();
     }
 
     if (apiPanel) {
@@ -37,7 +37,7 @@ function setManagementPanelsVisible(canManage) {
     }
 }
 
-/* SiteBuilder editor page access visibility fix v1 */
+/* SiteBuilder page access structural fix v2 */
 function currentSiteRoleRank() {
     var site = state.site || {};
     var accessContext = state.siteAccessContext || {};
@@ -49,18 +49,20 @@ function currentSiteRoleRank() {
         accessContext.role_rank
     ];
 
-    for (var index = 0; index < rankCandidates.length; index++) {
-        var candidate = Number(rankCandidates[index] || 0);
+    for (
+        var index = 0;
+        index < rankCandidates.length;
+        index++
+    ) {
+        var candidate = Number(
+            rankCandidates[index] || 0
+        );
 
         if (candidate > 0) {
             return candidate;
         }
     }
 
-    /*
-     * site.get также возвращает готовый флаг globalEdit.
-     * Он соответствует глобальным ADMIN и OWNER.
-     */
     if (
         site.currentUserHasGlobalEdit === true
         || site.current_user_has_global_edit === true
@@ -85,25 +87,23 @@ function currentSiteRoleRank() {
     }[role] || 0;
 }
 
-function canManageCurrentPageAccess() {
-    if (Number(state.currentPageId || 0) <= 0) {
-        return false;
-    }
-
+function canManagePageAccessScope() {
     var site = state.site || {};
     var accessContext = state.siteAccessContext || {};
 
-    return IS_BITRIX_ADMIN
+    return config.canManagePageAccess === true
+        || IS_BITRIX_ADMIN
         || currentSiteRoleRank() >= 3
         || site.currentUserHasGlobalEdit === true
         || site.current_user_has_global_edit === true
         || accessContext.globalEdit === true
         || accessContext.hasGlobalEdit === true
-        /*
-         * Успешный site.accessList означает, что сервер уже
-         * подтвердил права OWNER или администратора Битрикс24.
-         */
         || state.canManageSiteAccess === true;
+}
+
+function canManageCurrentPageAccess() {
+    return Number(state.currentPageId || 0) > 0
+        && canManagePageAccessScope();
 }
 
 function renderBitrixGroupPanel() {
@@ -738,7 +738,7 @@ async function loadPageAccessList(force) {
     if (!panel) return;
 
     var pageId = Number(state.currentPageId || 0);
-    var canManage = canManageCurrentPageAccess();
+    var canManage = canManagePageAccessScope();
 
     panel.hidden = !canManage;
     updatePageAccessHeading();
@@ -752,6 +752,16 @@ async function loadPageAccessList(force) {
             clearSelectedPageAccessUser();
             hidePageAccessMessage();
         }
+
+        state.pageAccessItems = [];
+        state.pageAccessLoadedPageId = 0;
+        state.pageAccessLoadingPageId = 0;
+        state.pageAccessContextPageId = 0;
+        renderPageAccessList();
+        return;
+    }
+
+    if (pageId <= 0) {
         state.pageAccessItems = [];
         state.pageAccessLoadedPageId = 0;
         state.pageAccessLoadingPageId = 0;

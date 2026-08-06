@@ -164,6 +164,14 @@ if (!$canOpenEditor) {
 
     exit;
 }
+
+/*
+ * Источник истины для интерфейса прав страницы.
+ * Сервер всё равно повторно проверяет эти полномочия
+ * в api/handlers/page_access.php.
+ */
+$canManagePageAccess = $USER->IsAdmin()
+    || (int)($globalRoleRank ?? 0) >= 3;
 ?>
 <!doctype html>
 <html lang="ru">
@@ -177,7 +185,7 @@ if (!$canOpenEditor) {
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v3.css?v=17">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v4.css?v=18">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v5.css?v=19">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v7.css?v=1">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v7.css?v=2">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">
@@ -866,7 +874,17 @@ if (!$canOpenEditor) {
                     <div id="historyList" class="sb-history-list"></div>
                 </div>
 
-                <div class="sb-panel sb-inspector-panel" data-inspector-panel="access" id="pageAccessPanel" hidden>
+                <div
+                    class="sb-inspector-panel sb-access-inspector"
+                    data-inspector-panel="access"
+                    id="accessInspectorPanel"
+                    <?= $canManagePageAccess ? '' : 'hidden' ?>
+                >
+                    <div
+                        class="sb-panel sb-access-scope-panel"
+                        id="pageAccessPanel"
+                        <?= $canManagePageAccess ? '' : 'hidden' ?>
+                    >
                     <h2 class="sb-panel-title">Права выбранной страницы</h2>
                     <p class="sb-access-help">
                         <strong id="pageAccessPageTitle">Страница не выбрана</strong><br>
@@ -903,7 +921,7 @@ if (!$canOpenEditor) {
                     </div>
                 </div>
 
-                <div class="sb-panel sb-inspector-panel" data-inspector-panel="access" id="siteGroupPanel" hidden>
+                    <div class="sb-panel sb-access-scope-panel" id="siteGroupPanel" hidden>
                     <h2 class="sb-panel-title">Группа Битрикс24 и права</h2>
                     <p class="sb-editor-note">
                         Группа используется для связки сайта с пользователями Битрикс24.
@@ -921,7 +939,7 @@ if (!$canOpenEditor) {
                     <div id="syncAccessResult" class="sb-output" style="margin-top:12px;"></div>
                 </div>
 
-                <div class="sb-panel sb-inspector-panel" data-inspector-panel="access" id="siteAccessPanel" hidden>
+                    <div class="sb-panel sb-access-scope-panel" id="siteAccessPanel" hidden>
                     <h2 class="sb-panel-title">Права на весь сайт</h2>
                     <p class="sb-access-help">
                         OWNER управляет сайтом и правами. ADMIN редактирует структуру сайта. EDITOR работает с файлами диска. VIEWER только смотрит.
@@ -956,6 +974,7 @@ if (!$canOpenEditor) {
 
                     <div id="accessList" class="sb-access-list">
                         <div class="sb-empty">Права не загружены</div>
+                    </div>
                     </div>
                 </div>
 
@@ -1140,6 +1159,7 @@ window.SB_EDITOR_CONFIG = {
     apiUrl: '<?= CUtil::JSEscape($basePath) ?>/api/index.php',
     siteId: <?= (int)$siteId ?>,
     isBitrixAdmin: <?= $USER->IsAdmin() ? 'true' : 'false' ?>,
+    canManagePageAccess: <?= $canManagePageAccess ? 'true' : 'false' ?>,
     sessid: '<?= CUtil::JSEscape(bitrix_sessid()) ?>'
 };
 </script>
@@ -1148,7 +1168,7 @@ window.SB_EDITOR_CONFIG = {
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=21"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=22"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=22"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=23"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=20"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/34-editor-ux.js?v=17"></script>
@@ -1158,7 +1178,7 @@ window.SB_EDITOR_CONFIG = {
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/39-global-blocks.js?v=19"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/41-business-blocks.js?v=20"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/35-history.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=22"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=23"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=21"></script>
 
