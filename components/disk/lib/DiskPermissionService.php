@@ -161,17 +161,20 @@ class DiskPermissionService
         }
 
         /*
-         * EDITOR не редактирует страницы сайта.
-         * Он работает с файлами Диска:
-         * загрузка, скачивание и удаление.
+         * EDITOR не редактирует страницы сайта и не управляет
+         * настройками блока или правами других пользователей.
+         *
+         * Право изменения Диска означает полноценную работу
+         * с содержимым: загрузку, создание папок, переименование,
+         * перемещение, копирование, удаление и скачивание.
          */
         if ($role === 'site_editor') {
             return [
                 'role' => $role,
                 'canView' => true,
                 'canUpload' => true,
-                'canCreateFolder' => false,
-                'canRename' => false,
+                'canCreateFolder' => true,
+                'canRename' => true,
                 'canDelete' => true,
                 'canDownload' => true,
                 'canManageAccess' => false,
