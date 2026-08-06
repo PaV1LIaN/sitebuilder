@@ -177,6 +177,7 @@ if (!$canOpenEditor) {
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v3.css?v=17">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v4.css?v=18">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v5.css?v=19">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v7.css?v=1">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">
@@ -311,10 +312,47 @@ if (!$canOpenEditor) {
                         <p class="sb-editor-canvas-sub" id="canvasPageMeta">Выберите страницу слева</p>
                     </div>
 
-                    <div class="sb-toolbar">
-                        <button class="sb-icon-btn" type="button" id="movePageUpBtn" title="Переместить страницу вверх">↑</button>
-                        <button class="sb-icon-btn" type="button" id="movePageDownBtn" title="Переместить страницу вниз">↓</button>
-                        <button class="sb-btn sb-btn-primary sb-btn-small" type="button" id="publishPageBtn">Опубликовать</button>
+                    <div class="sb-editor-canvas-head__actions">
+                        <div
+                            class="sb-editor-zoom"
+                            role="group"
+                            aria-label="Масштаб холста"
+                        >
+                            <button
+                                type="button"
+                                id="editorZoomOutBtn"
+                                title="Уменьшить масштаб"
+                                aria-label="Уменьшить масштаб"
+                            >−</button>
+
+                            <button
+                                type="button"
+                                class="sb-editor-zoom__value"
+                                id="editorZoomValue"
+                                title="Сбросить масштаб до 100%"
+                            >100%</button>
+
+                            <button
+                                type="button"
+                                id="editorZoomInBtn"
+                                title="Увеличить масштаб"
+                                aria-label="Увеличить масштаб"
+                            >+</button>
+
+                            <button
+                                type="button"
+                                class="sb-editor-zoom__fit"
+                                id="editorZoomFitBtn"
+                                aria-pressed="false"
+                                title="Вписать страницу в рабочую область"
+                            >Вписать</button>
+                        </div>
+
+                        <div class="sb-toolbar">
+                            <button class="sb-icon-btn" type="button" id="movePageUpBtn" title="Переместить страницу вверх">↑</button>
+                            <button class="sb-icon-btn" type="button" id="movePageDownBtn" title="Переместить страницу вниз">↓</button>
+                            <button class="sb-btn sb-btn-primary sb-btn-small" type="button" id="publishPageBtn">Опубликовать</button>
+                        </div>
                     </div>
                 </div>
 
@@ -1114,6 +1152,7 @@ window.SB_EDITOR_CONFIG = {
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=20"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/34-editor-ux.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/42-workspace-shell.js?v=1"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/36-content-tools.js?v=18"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/38-design-tools.js?v=19"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/39-global-blocks.js?v=19"></script>
