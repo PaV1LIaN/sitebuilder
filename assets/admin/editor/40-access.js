@@ -37,14 +37,45 @@ function setManagementPanelsVisible(canManage) {
     }
 }
 
+/* SiteBuilder editor page access visibility fix v1 */
 function currentSiteRoleRank() {
-    var rank = Number(state.site && state.site.currentUserRoleRank);
+    var site = state.site || {};
+    var accessContext = state.siteAccessContext || {};
 
-    if (rank > 0) {
-        return rank;
+    var rankCandidates = [
+        site.currentUserRoleRank,
+        site.current_user_role_rank,
+        accessContext.roleRank,
+        accessContext.role_rank
+    ];
+
+    for (var index = 0; index < rankCandidates.length; index++) {
+        var candidate = Number(rankCandidates[index] || 0);
+
+        if (candidate > 0) {
+            return candidate;
+        }
     }
 
-    var role = String((state.site && state.site.currentUserRole) || '').toUpperCase();
+    /*
+     * site.get также возвращает готовый флаг globalEdit.
+     * Он соответствует глобальным ADMIN и OWNER.
+     */
+    if (
+        site.currentUserHasGlobalEdit === true
+        || site.current_user_has_global_edit === true
+        || accessContext.globalEdit === true
+        || accessContext.hasGlobalEdit === true
+    ) {
+        return 3;
+    }
+
+    var role = String(
+        site.currentUserRole
+        || site.current_user_role
+        || accessContext.role
+        || ''
+    ).toUpperCase();
 
     return {
         VIEWER: 1,
@@ -55,8 +86,24 @@ function currentSiteRoleRank() {
 }
 
 function canManageCurrentPageAccess() {
-    return Number(state.currentPageId || 0) > 0
-        && (IS_BITRIX_ADMIN || currentSiteRoleRank() >= 3);
+    if (Number(state.currentPageId || 0) <= 0) {
+        return false;
+    }
+
+    var site = state.site || {};
+    var accessContext = state.siteAccessContext || {};
+
+    return IS_BITRIX_ADMIN
+        || currentSiteRoleRank() >= 3
+        || site.currentUserHasGlobalEdit === true
+        || site.current_user_has_global_edit === true
+        || accessContext.globalEdit === true
+        || accessContext.hasGlobalEdit === true
+        /*
+         * Успешный site.accessList означает, что сервер уже
+         * подтвердил права OWNER или администратора Битрикс24.
+         */
+        || state.canManageSiteAccess === true;
 }
 
 function renderBitrixGroupPanel() {
@@ -330,13 +377,28 @@ async function loadAccessList() {
         });
 
         state.accessItems = Array.isArray(res.items) ? res.items : [];
+        state.canManageSiteAccess = true;
 
         setManagementPanelsVisible(true);
         renderBitrixGroupPanel();
         renderAccessList();
+
+        if (typeof loadPageAccessList === 'function') {
+            await loadPageAccessList(true);
+        }
     } catch (e) {
         state.accessItems = [];
+        state.canManageSiteAccess = false;
+
+        /*
+         * Глобальный ADMIN может управлять правами страницы,
+         * даже если OWNER-only endpoint site.accessList ему недоступен.
+         */
         setManagementPanelsVisible(false);
+
+        if (typeof loadPageAccessList === 'function') {
+            await loadPageAccessList(true);
+        }
     }
 }
 

@@ -4,6 +4,7 @@ async function loadSite() {
     });
 
     state.site = res.site || null;
+    state.siteAccessContext = res.access || null;
 }
 
 async function loadPages() {
@@ -25,7 +26,7 @@ async function loadPages() {
 
 async function loadBlocks() {
     if (typeof loadPageAccessList === 'function') {
-        loadPageAccessList();
+        await loadPageAccessList();
     }
 
     if (!state.currentPageId) {
