@@ -3002,3 +3002,157 @@ body {
         transition: none !important;
     }
 }
+
+/* =========================================================
+   SiteBuilder public tree polish v1
+   Ширина боковой панели не изменяется.
+   ========================================================= */
+
+/* Техническая шапка корневого раздела */
+.sb-section-nav__title-row {
+    display: flex;
+    align-items: center;
+    min-height: 42px;
+    padding: 4px 6px 10px;
+}
+
+.sb-section-nav__root-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
+.sb-section-nav__root-link::before {
+    content: "▦";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    border: 1px solid rgba(37, 99, 235, .18);
+    border-radius: 8px;
+    background: rgba(37, 99, 235, .08);
+    color: var(--sb-accent, #2563eb);
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+/* Более плотная строка: стрелка ближе к названию */
+.sb-tree-node__row {
+    position: relative;
+    gap: 1px;
+}
+
+.sb-tree-node__toggle {
+    margin-right: 1px;
+}
+
+.sb-section-nav__link {
+    margin-right: 4px;
+    padding-right: 10px;
+}
+
+/* Соединители уровней дерева */
+.sb-tree-node__children {
+    position: relative;
+    margin-left: 14px;
+    padding-left: 15px;
+    border-left: 0 !important;
+}
+
+.sb-tree-node__children::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 18px;
+    left: 0;
+    width: 1px;
+    background: var(--sb-border, #dbe3ef);
+}
+
+.sb-tree-node__children > .sb-tree-node {
+    position: relative;
+}
+
+.sb-tree-node__children
+> .sb-tree-node
+> .sb-tree-node__row::before {
+    content: "";
+    position: absolute;
+    top: 17px;
+    left: -15px;
+    width: 13px;
+    height: 1px;
+    background: var(--sb-border, #dbe3ef);
+}
+
+/*
+ * У последнего элемента вертикальная линия завершается
+ * на уровне горизонтального соединителя.
+ */
+.sb-tree-node__children
+> .sb-tree-node:last-child::after {
+    content: "";
+    position: absolute;
+    top: 18px;
+    bottom: 0;
+    left: -15px;
+    width: 2px;
+    background: var(--sb-surface, #ffffff);
+    pointer-events: none;
+}
+
+/* Активный пункт не прижимается к краям карточки */
+.sb-section-nav__link.is-active {
+    margin-right: 5px;
+    padding-left: 11px;
+    border-color: rgba(37, 99, 235, .20);
+    background: rgba(37, 99, 235, .09);
+    box-shadow:
+        inset 3px 0 0 var(--sb-accent, #2563eb),
+        0 1px 2px rgba(15, 23, 42, .025);
+}
+
+.sb-section-nav__link:hover {
+    margin-right: 5px;
+}
+
+/* Карточка дерева сохраняет ширину из настройки layout */
+.sb-sidebar--left .sb-sidebar__box {
+    width: 100%;
+    min-width: 0;
+}
+
+/* После удаления breadcrumbs заголовок начинает карточку */
+.sb-box--content > .sb-page-title:first-child {
+    margin-top: 0;
+}
+
+@media (max-width: 1000px) {
+    .sb-section-nav__link {
+        min-height: 40px;
+    }
+
+    .sb-tree-node__toggle {
+        height: 40px;
+    }
+
+    .sb-tree-node__children
+    > .sb-tree-node
+    > .sb-tree-node__row::before {
+        top: 20px;
+    }
+
+    .sb-tree-node__children::before {
+        bottom: 20px;
+    }
+
+    .sb-tree-node__children
+    > .sb-tree-node:last-child::after {
+        top: 21px;
+    }
+}

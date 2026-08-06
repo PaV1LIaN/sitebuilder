@@ -553,7 +553,7 @@ if ($pageHasDiskBlock) {
     <?php if ($pageSeoOgDescription !== ''): ?><meta property="og:description" content="<?= sb_public_h($pageSeoOgDescription) ?>"><?php endif; ?>
     <?php if ($pageSeoOgImage !== ''): ?><meta property="og:image" content="<?= sb_public_h($pageSeoOgImage) ?>"><?php endif; ?>
 
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=23">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=24">
 
     <?php if ($pageHasDiskBlock): ?>
         <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=10">
@@ -647,14 +647,6 @@ if ($pageHasDiskBlock) {
                 <section class="sb-content">
                     <div class="sb-box sb-box--content">
                         <?php if ($currentPage): ?>
-                            <?php if (
-                                !empty($vm['breadcrumbsHtml'])
-                                && count($vm['breadcrumbs'] ?? []) > 1
-                            ): ?>
-                                <div class="sb-page-breadcrumbs">
-                                    <?= $vm['breadcrumbsHtml'] ?>
-                                </div>
-                            <?php endif; ?>
 
                             <h1 class="sb-page-title">
                                 <?= sb_public_h((string)($currentPage['title'] ?? 'Страница')) ?>
