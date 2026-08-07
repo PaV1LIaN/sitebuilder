@@ -1082,6 +1082,404 @@ if (!function_exists('sb_public_design_animation')) {
     }
 }
 
+
+if (!function_exists('sb_public_responsive_margin_inline')) {
+    function sb_public_responsive_margin_inline(string $align): string
+    {
+        return match ($align) {
+            'center' => 'auto',
+            'right' => 'auto 0',
+            default => '0 auto',
+        };
+    }
+}
+
+if (!function_exists('sb_public_responsive_bool')) {
+    function sb_public_responsive_bool($value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (in_array($value, [1, '1', 'true', 'yes', 'on'], true)) {
+            return true;
+        }
+
+        if (in_array($value, [0, '0', 'false', 'no', 'off'], true)) {
+            return false;
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('sb_public_responsive_style_vars')) {
+    function sb_public_responsive_style_vars(
+        string $type,
+        array $props
+    ): array {
+        $responsive = sb_public_to_array(
+            $props['_responsive'] ?? []
+        );
+
+        if (!$responsive) {
+            return [];
+        }
+
+        $styles = [];
+
+        foreach (['tablet', 'mobile'] as $device) {
+            $config = sb_public_to_array(
+                $responsive[$device] ?? []
+            );
+
+            if (!$config) {
+                continue;
+            }
+
+            $prefix = '--sb-r-' . $device . '-';
+
+            if (
+                array_key_exists('marginTop', $config)
+                && $config['marginTop'] !== ''
+            ) {
+                $styles[] = $prefix . 'margin-top:'
+                    . sb_public_clamp_int(
+                        $config['marginTop'],
+                        0,
+                        240
+                    )
+                    . 'px';
+            }
+
+            if (
+                array_key_exists('marginBottom', $config)
+                && $config['marginBottom'] !== ''
+            ) {
+                $styles[] = $prefix . 'margin-bottom:'
+                    . sb_public_clamp_int(
+                        $config['marginBottom'],
+                        0,
+                        240
+                    )
+                    . 'px';
+            }
+
+            if ($type === 'heading') {
+                if (
+                    array_key_exists('size', $config)
+                    && $config['size'] !== ''
+                ) {
+                    $styles[] = $prefix . 'size:'
+                        . sb_public_clamp_int(
+                            $config['size'],
+                            12,
+                            120
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('align', $config)
+                    && $config['align'] !== ''
+                ) {
+                    $align = sb_public_safe_choice(
+                        $config['align'],
+                        ['left', 'center', 'right'],
+                        'left'
+                    );
+
+                    $styles[] = $prefix
+                        . 'align:' . $align;
+                    $styles[] = $prefix
+                        . 'margin-inline:'
+                        . sb_public_responsive_margin_inline(
+                            $align
+                        );
+                }
+
+                if (
+                    array_key_exists('maxWidth', $config)
+                    && $config['maxWidth'] !== ''
+                ) {
+                    $maxWidth = sb_public_clamp_int(
+                        $config['maxWidth'],
+                        0,
+                        1800
+                    );
+
+                    $styles[] = $prefix
+                        . 'max-width:'
+                        . ($maxWidth > 0
+                            ? $maxWidth . 'px'
+                            : 'none');
+                }
+            } elseif ($type === 'text') {
+                if (
+                    array_key_exists('size', $config)
+                    && $config['size'] !== ''
+                ) {
+                    $styles[] = $prefix . 'size:'
+                        . sb_public_clamp_int(
+                            $config['size'],
+                            12,
+                            72
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('align', $config)
+                    && $config['align'] !== ''
+                ) {
+                    $align = sb_public_safe_choice(
+                        $config['align'],
+                        [
+                            'left',
+                            'center',
+                            'right',
+                            'justify',
+                        ],
+                        'left'
+                    );
+
+                    $styles[] = $prefix
+                        . 'align:' . $align;
+
+                    if ($align !== 'justify') {
+                        $styles[] = $prefix
+                            . 'margin-inline:'
+                            . sb_public_responsive_margin_inline(
+                                $align
+                            );
+                    }
+                }
+
+                if (
+                    array_key_exists('lineHeight', $config)
+                    && $config['lineHeight'] !== ''
+                    && is_numeric($config['lineHeight'])
+                ) {
+                    $lineHeight = max(
+                        1.0,
+                        min(
+                            2.4,
+                            (float)$config['lineHeight']
+                        )
+                    );
+
+                    $styles[] = $prefix
+                        . 'line-height:'
+                        . rtrim(
+                            rtrim(
+                                number_format(
+                                    $lineHeight,
+                                    2,
+                                    '.',
+                                    ''
+                                ),
+                                '0'
+                            ),
+                            '.'
+                        );
+                }
+
+                if (
+                    array_key_exists('maxWidth', $config)
+                    && $config['maxWidth'] !== ''
+                ) {
+                    $maxWidth = sb_public_clamp_int(
+                        $config['maxWidth'],
+                        0,
+                        1800
+                    );
+
+                    $styles[] = $prefix
+                        . 'max-width:'
+                        . ($maxWidth > 0
+                            ? $maxWidth . 'px'
+                            : 'none');
+                }
+            } elseif ($type === 'button') {
+                if (
+                    array_key_exists('align', $config)
+                    && $config['align'] !== ''
+                ) {
+                    $align = sb_public_safe_choice(
+                        $config['align'],
+                        ['left', 'center', 'right'],
+                        'left'
+                    );
+
+                    $justify = match ($align) {
+                        'center' => 'center',
+                        'right' => 'flex-end',
+                        default => 'flex-start',
+                    };
+
+                    $styles[] = $prefix
+                        . 'align:' . $align;
+                    $styles[] = $prefix
+                        . 'button-display:flex';
+                    $styles[] = $prefix
+                        . 'button-justify:' . $justify;
+                }
+
+                if (
+                    array_key_exists('fullWidth', $config)
+                ) {
+                    $fullWidth =
+                        sb_public_responsive_bool(
+                            $config['fullWidth']
+                        );
+
+                    if ($fullWidth !== null) {
+                        $styles[] = $prefix
+                            . 'button-width:'
+                            . ($fullWidth
+                                ? '100%'
+                                : 'auto');
+                    }
+                }
+            } elseif ($type === 'image') {
+                if (
+                    array_key_exists('width', $config)
+                    && $config['width'] !== ''
+                ) {
+                    $styles[] = $prefix
+                        . 'image-width:'
+                        . sb_public_clamp_int(
+                            $config['width'],
+                            10,
+                            100
+                        )
+                        . '%';
+                }
+
+                if (
+                    array_key_exists('radius', $config)
+                    && $config['radius'] !== ''
+                ) {
+                    $styles[] = $prefix
+                        . 'image-radius:'
+                        . sb_public_clamp_int(
+                            $config['radius'],
+                            0,
+                            80
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('align', $config)
+                    && $config['align'] !== ''
+                ) {
+                    $align = sb_public_safe_choice(
+                        $config['align'],
+                        ['left', 'center', 'right'],
+                        'center'
+                    );
+
+                    $styles[] = $prefix
+                        . 'margin-inline:'
+                        . sb_public_responsive_margin_inline(
+                            $align
+                        );
+                }
+            } elseif ($type === 'hero') {
+                if (
+                    array_key_exists('minHeight', $config)
+                    && $config['minHeight'] !== ''
+                ) {
+                    $styles[] = $prefix
+                        . 'hero-height:'
+                        . sb_public_clamp_int(
+                            $config['minHeight'],
+                            220,
+                            900
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('radius', $config)
+                    && $config['radius'] !== ''
+                ) {
+                    $styles[] = $prefix
+                        . 'hero-radius:'
+                        . sb_public_clamp_int(
+                            $config['radius'],
+                            0,
+                            80
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('titleSize', $config)
+                    && $config['titleSize'] !== ''
+                ) {
+                    $styles[] = $prefix
+                        . 'title-size:'
+                        . sb_public_clamp_int(
+                            $config['titleSize'],
+                            18,
+                            96
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('align', $config)
+                    && $config['align'] !== ''
+                ) {
+                    $align = sb_public_safe_choice(
+                        $config['align'],
+                        ['left', 'center'],
+                        'left'
+                    );
+
+                    $styles[] = $prefix
+                        . 'align:' . $align;
+                    $styles[] = $prefix
+                        . 'hero-justify:'
+                        . ($align === 'center'
+                            ? 'center'
+                            : 'flex-start');
+                }
+            } elseif ($type === 'cards') {
+                if (
+                    array_key_exists('columns', $config)
+                    && $config['columns'] !== ''
+                ) {
+                    $styles[] = $prefix
+                        . 'columns:'
+                        . sb_public_clamp_int(
+                            $config['columns'],
+                            1,
+                            4
+                        );
+                }
+
+                if (
+                    array_key_exists('align', $config)
+                    && $config['align'] !== ''
+                ) {
+                    $styles[] = $prefix
+                        . 'align:'
+                        . sb_public_safe_choice(
+                            $config['align'],
+                            ['left', 'center'],
+                            'left'
+                        );
+                }
+            }
+        }
+
+        return $styles;
+    }
+}
+
 if (!function_exists('sb_public_render_block')) {
     function sb_public_render_block(array $block, array $context = []): string
     {
@@ -1129,6 +1527,25 @@ if (!function_exists('sb_public_render_block')) {
             '--sb-motion-duration:' . $duration . 'ms',
         ];
         $attributes = '';
+
+        $responsiveStyles =
+            sb_public_responsive_style_vars(
+                $type,
+                $props
+            );
+
+        if ($responsiveStyles) {
+            $classes[] = 'sb-responsive-block';
+            $styles = array_merge(
+                $styles,
+                $responsiveStyles
+            );
+            $attributes .=
+                ' data-sb-responsive-type="'
+                . sb_public_h($type)
+                . '"';
+        }
+
         if ($animation !== 'none') {
             $classes[] = 'sb-motion';
             $classes[] = 'sb-motion--' . $animation;
