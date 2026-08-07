@@ -107,7 +107,7 @@ if (pagesList) {
 }
 
 if (blocksList) {
-    /* SiteBuilder contextual entity selection v1 */
+    /* SiteBuilder contextual entity selection v2 */
     blocksList.addEventListener('click', function (e) {
         var blockItem = e.target.closest('[data-block-id]');
 
@@ -125,14 +125,11 @@ if (blocksList) {
                     getBlockColumn(selectedBlock);
 
                 if (selectedSectionId > 0) {
-                    state.currentSectionId =
-                        selectedSectionId;
+                    state.currentSectionId = selectedSectionId;
                 }
 
                 state.currentColumn =
-                    selectedColumn > 0
-                        ? selectedColumn
-                        : 1;
+                    selectedColumn > 0 ? selectedColumn : 1;
             }
 
             renderPageSectionsPanel();
@@ -150,95 +147,40 @@ if (blocksList) {
             '[data-editor-section-id]'
         );
 
-        if (sectionItem) {
-            var sectionId = Number(
-                sectionItem.getAttribute(
-                    'data-editor-section-id'
-                ) || 0
-            );
-
-            var columnItem = e.target.closest(
-                '.sb-editor-section-preview__column[data-column]'
-            );
-
-            if (sectionId > 0) {
-                state.currentBlockId = 0;
-                state.currentSectionId = sectionId;
-                state.currentColumn = columnItem
-                    ? Math.max(
-                        1,
-                        Number(
-                            columnItem.getAttribute(
-                                'data-column'
-                            ) || 1
-                        )
-                    )
-                    : 1;
-
-                renderPageSectionsPanel();
-                renderBlocks();
-                fillBlockForm();
-
-                if (
-                    typeof setInspectorTab
-                    === 'function'
-                ) {
-                    setInspectorTab('section');
-                }
-            }
-
+        if (!sectionItem) {
             return;
+        }
+
+        var sectionId = Number(
+            sectionItem.getAttribute('data-editor-section-id') || 0
+        );
+
+        if (sectionId <= 0) {
+            return;
+        }
+
+        var columnItem = e.target.closest(
+            '.sb-editor-section-preview__column[data-column]'
+        );
+
+        state.currentBlockId = 0;
+        state.currentSectionId = sectionId;
+        state.currentColumn = columnItem
+            ? Math.max(
+                1,
+                Number(columnItem.getAttribute('data-column') || 1)
+            )
+            : 1;
+
+        renderPageSectionsPanel();
+        renderBlocks();
+        fillBlockForm();
+
+        if (typeof setInspectorTab === 'function') {
+            setInspectorTab('section');
         }
     });
 
-OLD,
-    'контекстный click блок/секция'
-);
-
-$events = sbReplaceOnce(
-    $events,
-    <<<'OLD'
-    blocksList.addEventListener('drop', async function (e) {
-OLD,
-    <<<'NEW'
-    var editorViewport =
-        document.getElementById('editorViewport');
-
-    if (editorViewport) {
-        editorViewport.addEventListener(
-            'click',
-            function (e) {
-                if (
-                    e.target.closest(
-                        '.sb-editor-block,'
-                        + '[data-editor-section-id],'
-                        + '.sb-editor-addbar,'
-                        + 'button,a,input,textarea,select,'
-                        + '[contenteditable="true"]'
-                    )
-                ) {
-                    return;
-                }
-
-                if (!e.target.closest('.sb-editor-page')) {
-                    return;
-                }
-
-                state.currentBlockId = 0;
-                fillBlockForm();
-                renderBlocks();
-
-                if (
-                    typeof setInspectorTab
-                    === 'function'
-                ) {
-                    setInspectorTab('page');
-                }
-            }
-        );
-    }
-
-    blocksList.addEventListener('drop', async function (e) {
     blocksList.addEventListener('dragstart', function (e) {
         var blockNode = e.target.closest('.sb-editor-block[data-block-id]');
         if (!blockNode) {
@@ -349,6 +291,38 @@ OLD,
     });
 }
 
+var editorViewportContext =
+    document.getElementById('editorViewport');
+
+if (editorViewportContext) {
+    editorViewportContext.addEventListener('click', function (e) {
+        if (
+            e.target.closest(
+                '.sb-editor-block,'
+                + '[data-editor-section-id],'
+                + '.sb-editor-addbar,'
+                + 'button,a,input,textarea,select,'
+                + '[contenteditable="true"]'
+            )
+        ) {
+            return;
+        }
+
+        if (!e.target.closest('.sb-editor-page')) {
+            return;
+        }
+
+        state.currentBlockId = 0;
+
+        fillBlockForm();
+        renderBlocks();
+
+        if (typeof setInspectorTab === 'function') {
+            setInspectorTab('page');
+        }
+    });
+}
+
 var addPageSectionBtn = document.getElementById('addPageSectionBtn');
 if (addPageSectionBtn) {
     addPageSectionBtn.addEventListener('click', createPageSection);
@@ -395,6 +369,7 @@ document.addEventListener('click', function (e) {
             state.currentBlockId = 0;
             state.currentSectionId = sectionId;
             state.currentColumn = 1;
+
             renderPageSectionsPanel();
             renderBlocks();
             fillBlockForm();
