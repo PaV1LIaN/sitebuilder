@@ -41,9 +41,32 @@
 
     function ctSafeMediaUrl(value) {
         value = String(value || '').trim();
-        if (value.indexOf(BASE_PATH + '/media_preview.php?') === 0) return value;
-        if (value.indexOf('/local/sitebuilder/media_preview.php?') === 0) return value;
-        return '';
+
+        if (!value) {
+            return '';
+        }
+
+        try {
+            var parsed = new URL(value, window.location.origin);
+
+            if (parsed.origin !== window.location.origin) {
+                return '';
+            }
+
+            var fileId = 0;
+
+            if (/\/media_preview\.php$/i.test(parsed.pathname)) {
+                fileId = Number(parsed.searchParams.get('fileId') || 0);
+            } else if (/\/bitrix\/tools\/disk\/downloadFile\.php$/i.test(parsed.pathname)) {
+                fileId = Number(parsed.searchParams.get('objectId') || 0);
+            }
+
+            return fileId > 0
+                ? '/bitrix/tools/disk/downloadFile.php?objectId=' + fileId
+                : '';
+        } catch (error) {
+            return '';
+        }
     }
 
     /* -----------------------------------------------------
@@ -240,7 +263,8 @@
         }
 
         mediaGrid.innerHTML = items.map(function (file) {
-            var previewUrl = ctSafeMediaUrl(file.previewUrl) || (BASE_PATH + '/media_preview.php?siteId=' + siteId + '&fileId=' + Number(file.id || 0));
+            var previewUrl = ctSafeMediaUrl(file.previewUrl || file.downloadUrl)
+                || ('/bitrix/tools/disk/downloadFile.php?objectId=' + Number(file.id || 0));
             return ''
                 + '<article class="sb-media-card" data-media-id="' + Number(file.id || 0) + '" data-media-url="' + ctEscape(previewUrl) + '" data-media-name="' + ctEscape(file.name || '') + '">'
                 + '  <button class="sb-media-card__choose" type="button" data-media-choose title="Выбрать изображение">'

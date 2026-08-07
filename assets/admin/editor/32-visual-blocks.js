@@ -44,8 +44,40 @@
         return /^#[0-9a-f]{6}$/i.test(value) ? value : (fallback || '');
     }
 
-    function vbSafeUrl(value, imageOnly) {
+    function vbNormalizeDiskMediaUrl(value) {
         value = String(value || '').trim();
+
+        if (!value) {
+            return '';
+        }
+
+        try {
+            var parsed = new URL(value, window.location.origin);
+
+            if (parsed.origin !== window.location.origin) {
+                return value;
+            }
+
+            var fileId = 0;
+
+            if (/\/media_preview\.php$/i.test(parsed.pathname)) {
+                fileId = Number(parsed.searchParams.get('fileId') || 0);
+            } else if (/\/bitrix\/tools\/disk\/downloadFile\.php$/i.test(parsed.pathname)) {
+                fileId = Number(parsed.searchParams.get('objectId') || 0);
+            }
+
+            if (fileId > 0) {
+                return '/bitrix/tools/disk/downloadFile.php?objectId=' + fileId;
+            }
+        } catch (error) {
+            return value;
+        }
+
+        return value;
+    }
+
+    function vbSafeUrl(value, imageOnly) {
+        value = vbNormalizeDiskMediaUrl(value);
 
         if (
             !value
