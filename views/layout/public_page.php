@@ -569,6 +569,7 @@ if ($pageHasDiskBlock) {
     </style>
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.css?v=20">
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/responsive-blocks.css?v=1">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/responsive-stage2.css?v=1">
 </head>
 <body>
 <div class="sb-public-shell" style="<?= sb_public_h($appearanceStyle) ?>">

@@ -852,9 +852,22 @@ if (!function_exists('sb_public_render_page_sections')) {
                 '--sb-section-padding-bottom:' . $paddingBottom . 'px',
                 '--sb-section-padding-x:' . $paddingX . 'px',
                 '--sb-section-radius:' . $radius . 'px',
+                '--sb-section-min-height:' . $minHeight . 'px',
                 '--sb-motion-delay:' . $sectionDelay . 'ms',
                 '--sb-motion-duration:' . $sectionDuration . 'ms',
             ];
+
+            $sectionResponsiveStyles =
+                sb_public_section_responsive_style_vars(
+                    $props
+                );
+
+            if ($sectionResponsiveStyles) {
+                $sectionStyles = array_merge(
+                    $sectionStyles,
+                    $sectionResponsiveStyles
+                );
+            }
 
             if ($minHeight > 0) {
                 $sectionStyles[] = 'min-height:' . $minHeight . 'px';
@@ -1480,6 +1493,282 @@ if (!function_exists('sb_public_responsive_style_vars')) {
     }
 }
 
+
+if (!function_exists('sb_public_section_responsive_style_vars')) {
+    function sb_public_section_responsive_style_vars(
+        array $props
+    ): array {
+        $responsive = sb_public_to_array(
+            $props['_responsive'] ?? []
+        );
+
+        if (!$responsive) {
+            return [];
+        }
+
+        $styles = [];
+
+        foreach (['tablet', 'mobile'] as $device) {
+            $config = sb_public_to_array(
+                $responsive[$device] ?? []
+            );
+
+            if (!$config) {
+                continue;
+            }
+
+            $prefix = '--sb-sr-' . $device . '-';
+
+            $numberFields = [
+                'gap' => [0, 120, 'gap'],
+                'paddingTop' => [0, 240, 'padding-top'],
+                'paddingBottom' => [0, 240, 'padding-bottom'],
+                'paddingX' => [0, 160, 'padding-x'],
+                'minHeight' => [0, 1200, 'min-height'],
+            ];
+
+            foreach (
+                $numberFields
+                as $key => [$min, $max, $cssKey]
+            ) {
+                if (
+                    !array_key_exists($key, $config)
+                    || $config[$key] === ''
+                ) {
+                    continue;
+                }
+
+                $styles[] =
+                    $prefix
+                    . $cssKey
+                    . ':'
+                    . sb_public_clamp_int(
+                        $config[$key],
+                        $min,
+                        $max
+                    )
+                    . 'px';
+            }
+
+            if (
+                array_key_exists(
+                    'verticalAlign',
+                    $config
+                )
+                && $config['verticalAlign'] !== ''
+            ) {
+                $styles[] =
+                    $prefix
+                    . 'align:'
+                    . sb_public_safe_choice(
+                        $config['verticalAlign'],
+                        [
+                            'start',
+                            'center',
+                            'end',
+                            'stretch',
+                        ],
+                        'start'
+                    );
+            }
+        }
+
+        return $styles;
+    }
+}
+
+if (!function_exists('sb_public_responsive_stage2_style_vars')) {
+    function sb_public_responsive_stage2_style_vars(
+        string $type,
+        array $props
+    ): array {
+        if (
+            !in_array(
+                $type,
+                [
+                    'quote',
+                    'stats',
+                    'divider',
+                    'spacer',
+                ],
+                true
+            )
+        ) {
+            return [];
+        }
+
+        $responsive = sb_public_to_array(
+            $props['_responsive'] ?? []
+        );
+
+        if (!$responsive) {
+            return [];
+        }
+
+        $styles = [];
+
+        foreach (['tablet', 'mobile'] as $device) {
+            $config = sb_public_to_array(
+                $responsive[$device] ?? []
+            );
+
+            if (!$config) {
+                continue;
+            }
+
+            $prefix = '--sb-r-' . $device . '-';
+
+            if ($type === 'quote') {
+                if (
+                    array_key_exists('align', $config)
+                    && $config['align'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'align:'
+                        . sb_public_safe_choice(
+                            $config['align'],
+                            ['left', 'center'],
+                            'left'
+                        );
+                }
+
+                if (
+                    array_key_exists(
+                        'textSize',
+                        $config
+                    )
+                    && $config['textSize'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'text-size:'
+                        . sb_public_clamp_int(
+                            $config['textSize'],
+                            14,
+                            48
+                        )
+                        . 'px';
+                }
+            } elseif ($type === 'stats') {
+                if (
+                    array_key_exists(
+                        'columns',
+                        $config
+                    )
+                    && $config['columns'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'columns:'
+                        . sb_public_clamp_int(
+                            $config['columns'],
+                            1,
+                            4
+                        );
+                }
+
+                if (
+                    array_key_exists('align', $config)
+                    && $config['align'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'align:'
+                        . sb_public_safe_choice(
+                            $config['align'],
+                            ['left', 'center'],
+                            'left'
+                        );
+                }
+
+                if (
+                    array_key_exists(
+                        'valueSize',
+                        $config
+                    )
+                    && $config['valueSize'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'value-size:'
+                        . sb_public_clamp_int(
+                            $config['valueSize'],
+                            18,
+                            72
+                        )
+                        . 'px';
+                }
+            } elseif ($type === 'divider') {
+                if (
+                    array_key_exists('width', $config)
+                    && $config['width'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'divider-width:'
+                        . sb_public_clamp_int(
+                            $config['width'],
+                            10,
+                            100
+                        )
+                        . '%';
+                }
+
+                if (
+                    array_key_exists(
+                        'thickness',
+                        $config
+                    )
+                    && $config['thickness'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'divider-thickness:'
+                        . sb_public_clamp_int(
+                            $config['thickness'],
+                            1,
+                            8
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('margin', $config)
+                    && $config['margin'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'divider-margin:'
+                        . sb_public_clamp_int(
+                            $config['margin'],
+                            0,
+                            160
+                        )
+                        . 'px';
+                }
+            } elseif ($type === 'spacer') {
+                if (
+                    array_key_exists('height', $config)
+                    && $config['height'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'height:'
+                        . sb_public_clamp_int(
+                            $config['height'],
+                            0,
+                            400
+                        )
+                        . 'px';
+                }
+            }
+        }
+
+        return $styles;
+    }
+}
+
 if (!function_exists('sb_public_render_block')) {
     function sb_public_render_block(array $block, array $context = []): string
     {
@@ -1528,11 +1817,16 @@ if (!function_exists('sb_public_render_block')) {
         ];
         $attributes = '';
 
-        $responsiveStyles =
+        $responsiveStyles = array_merge(
             sb_public_responsive_style_vars(
                 $type,
                 $props
-            );
+            ),
+            sb_public_responsive_stage2_style_vars(
+                $type,
+                $props
+            )
+        );
 
         if ($responsiveStyles) {
             $classes[] = 'sb-responsive-block';
