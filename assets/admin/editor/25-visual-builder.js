@@ -74,6 +74,17 @@ function setInspectorTab(tab) {
         state.inspectorTab = tab;
     }
 
+    /*
+     * Контекст плавающих controls на холсте.
+     * Секция и блок больше не показывают панели одновременно.
+     */
+    if (document.body) {
+        document.body.setAttribute(
+            'data-editor-inspector-tab',
+            tab
+        );
+    }
+
     document.querySelectorAll('[data-inspector-tab]').forEach(function (button) {
         button.classList.toggle('is-active', button.getAttribute('data-inspector-tab') === tab);
         button.setAttribute('aria-selected', button.getAttribute('data-inspector-tab') === tab ? 'true' : 'false');

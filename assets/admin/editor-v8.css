@@ -497,3 +497,98 @@ body.sb-editor-theme-dark .sb-editor-block-head .sb-editor-block-actions {
     margin-top: 0 !important;
     transform: none !important;
 }
+
+
+/* =========================================================
+   SiteBuilder contextual canvas controls v1
+   ========================================================= */
+
+/*
+ * Редактируем БЛОК:
+ * controls секции и колонки скрываем.
+ */
+body[data-editor-inspector-tab="block"]
+.sb-editor-section-preview__head,
+body[data-editor-inspector-tab="block"]
+.sb-editor-section-preview__column-head {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: none !important;
+}
+
+/*
+ * Редактируем СЕКЦИЮ:
+ * toolbar отдельных блоков скрываем.
+ */
+body[data-editor-inspector-tab="section"]
+.sb-editor-block-head {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: none !important;
+}
+
+/*
+ * На остальных вкладках плавающие технические controls
+ * на холсте вообще не нужны.
+ */
+body[data-editor-inspector-tab="page"]
+.sb-editor-section-preview__head,
+body[data-editor-inspector-tab="page"]
+.sb-editor-section-preview__column-head,
+body[data-editor-inspector-tab="page"]
+.sb-editor-block-head,
+
+body[data-editor-inspector-tab="history"]
+.sb-editor-section-preview__head,
+body[data-editor-inspector-tab="history"]
+.sb-editor-section-preview__column-head,
+body[data-editor-inspector-tab="history"]
+.sb-editor-block-head,
+
+body[data-editor-inspector-tab="access"]
+.sb-editor-section-preview__head,
+body[data-editor-inspector-tab="access"]
+.sb-editor-section-preview__column-head,
+body[data-editor-inspector-tab="access"]
+.sb-editor-block-head {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: none !important;
+}
+
+/*
+ * В режиме блока label слева и actions справа
+ * гарантированно остаются внутри ширины самого блока.
+ */
+body[data-editor-inspector-tab="block"]
+.sb-editor-block-head {
+    right: 5px !important;
+    left: 5px !important;
+    max-width: calc(100% - 10px);
+    box-sizing: border-box;
+}
+
+body[data-editor-inspector-tab="block"]
+.sb-editor-block-label {
+    max-width: calc(100% - 150px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body[data-editor-inspector-tab="block"]
+.sb-editor-block-actions {
+    flex: 0 0 auto;
+}
+
+/* Секционные controls держатся на своей верхней линии. */
+body[data-editor-inspector-tab="section"]
+.sb-editor-section-preview__head {
+    top: 6px !important;
+    right: 8px !important;
+    left: 8px !important;
+    min-height: 30px !important;
+}
