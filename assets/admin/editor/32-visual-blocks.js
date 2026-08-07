@@ -52,22 +52,32 @@
         }
 
         try {
-            var parsed = new URL(value, window.location.origin);
+            var parsed = new URL(
+                value,
+                window.location.origin
+            );
 
-            if (parsed.origin !== window.location.origin) {
+            if (
+                parsed.origin
+                !== window.location.origin
+            ) {
                 return value;
             }
 
-            var fileId = 0;
-
-            if (/\/media_preview\.php$/i.test(parsed.pathname)) {
-                fileId = Number(parsed.searchParams.get('fileId') || 0);
-            } else if (/\/bitrix\/tools\/disk\/downloadFile\.php$/i.test(parsed.pathname)) {
-                fileId = Number(parsed.searchParams.get('objectId') || 0);
-            }
-
-            if (fileId > 0) {
-                return '/bitrix/tools/disk/downloadFile.php?objectId=' + fileId;
+            /*
+             * Валидные legacy URL должны быть исправлены сервером
+             * в block.list. Если здесь всё-таки остался старый
+             * проблемный маршрут, не отправляем лишний 404/502.
+             */
+            if (
+                /\/media_preview\.php$/i.test(
+                    parsed.pathname
+                )
+                || /\/bitrix\/tools\/disk\/downloadFile\.php$/i.test(
+                    parsed.pathname
+                )
+            ) {
+                return '';
             }
         } catch (error) {
             return value;

@@ -39,7 +39,7 @@ if ($action === 'file.list') {
                     : '',
                 'downloadUrl' => sb_disk_file_download_url($child),
                 'previewUrl' => $isImage
-                    ? sb_disk_file_download_url($child)
+                    ? sb_disk_file_preview_url($child)
                     : '',
             ];
         }
@@ -117,7 +117,7 @@ if ($action === 'file.upload') {
                 'size' => (int)$file->getSize(),
                 'downloadUrl' => sb_disk_file_download_url($file),
                 'previewUrl' => $uploadedIsImage
-                    ? sb_disk_file_download_url($file)
+                    ? sb_disk_file_preview_url($file)
                     : '',
             ],
             'folderId' => (int)$folder->getId(),

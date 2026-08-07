@@ -27,6 +27,33 @@ if (!function_exists('sb_block_handler_validate_global_reference')) {
     }
 }
 
+if (!function_exists('sb_block_handler_resolve_media_urls')) {
+    function sb_block_handler_resolve_media_urls(
+        $value,
+        int $siteId
+    ) {
+        if (is_array($value)) {
+            foreach ($value as $key => $item) {
+                $value[$key] = sb_block_handler_resolve_media_urls(
+                    $item,
+                    $siteId
+                );
+            }
+
+            return $value;
+        }
+
+        if (is_string($value)) {
+            return sb_disk_resolve_legacy_media_url(
+                $siteId,
+                $value
+            );
+        }
+
+        return $value;
+    }
+}
+
 if (!function_exists('sb_block_handler_current_user_id')) {
     function sb_block_handler_current_user_id(): int
     {
@@ -148,8 +175,26 @@ if ($action === 'block.list') {
 
     $blocks = sb_blocks_for_page($pageId);
 
+    $siteId = (int)$pageContext['siteId'];
+
     $blocks = array_map(
-        'sb_normalize_block_record',
+        static function (array $block) use ($siteId): array {
+            $block = sb_normalize_block_record($block);
+
+            $block['content'] =
+                sb_block_handler_resolve_media_urls(
+                    $block['content'] ?? [],
+                    $siteId
+                );
+
+            $block['props'] =
+                sb_block_handler_resolve_media_urls(
+                    $block['props'] ?? [],
+                    $siteId
+                );
+
+            return $block;
+        },
         $blocks
     );
 

@@ -555,7 +555,160 @@ if (!function_exists('sb_disk_list_managed_site_folders')) {
 if (!function_exists('sb_disk_file_download_url')) {
     function sb_disk_file_download_url(File $file): string
     {
-        $fileId = (int)$file->getId();
-        return '/bitrix/tools/disk/downloadFile.php?objectId=' . $fileId;
+        try {
+            sb_disk_require_module();
+
+            $urlManager = Driver::getInstance()->getUrlManager();
+
+            if (method_exists($urlManager, 'getUrlForDownloadFile')) {
+                $url = (string)$urlManager->getUrlForDownloadFile($file);
+
+                if ($url !== '') {
+                    return $url;
+                }
+            }
+
+            if (method_exists($urlManager, 'getPathFileDetail')) {
+                return (string)$urlManager->getPathFileDetail($file);
+            }
+        } catch (Throwable $e) {
+            error_log(
+                'SiteBuilder Disk download URL failed for object #'
+                . (int)$file->getId()
+                . ': '
+                . $e->getMessage()
+            );
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('sb_disk_file_preview_url')) {
+    function sb_disk_file_preview_url(File $file): string
+    {
+        try {
+            sb_disk_require_module();
+
+            $urlManager = Driver::getInstance()->getUrlManager();
+
+            /*
+             * Для изображения нужен именно URL показа файла.
+             * Никаких вручную собранных /bitrix/tools/... маршрутов.
+             */
+            foreach (
+                [
+                    'getUrlForShowFile',
+                    'getUrlForShowView',
+                    'getUrlForDownloadFile',
+                ] as $method
+            ) {
+                if (!method_exists($urlManager, $method)) {
+                    continue;
+                }
+
+                try {
+                    $url = (string)$urlManager->{$method}($file);
+
+                    if ($url !== '') {
+                        return $url;
+                    }
+                } catch (Throwable $methodError) {
+                    /*
+                     * Версии коробки могут различаться по доступным
+                     * методам/сигнатурам. Пробуем следующий штатный метод.
+                     */
+                }
+            }
+        } catch (Throwable $e) {
+            error_log(
+                'SiteBuilder Disk preview URL failed for object #'
+                . (int)$file->getId()
+                . ': '
+                . $e->getMessage()
+            );
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('sb_disk_legacy_media_file_id')) {
+    function sb_disk_legacy_media_file_id(string $value): int
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return 0;
+        }
+
+        $parts = parse_url($value);
+
+        if ($parts === false) {
+            return 0;
+        }
+
+        $path = (string)($parts['path'] ?? '');
+        $query = [];
+        parse_str((string)($parts['query'] ?? ''), $query);
+
+        if (
+            str_ends_with(
+                strtolower($path),
+                '/local/sitebuilder/media_preview.php'
+            )
+            || str_ends_with(
+                strtolower($path),
+                '/media_preview.php'
+            )
+        ) {
+            return max(0, (int)($query['fileId'] ?? 0));
+        }
+
+        /*
+         * Это маршрут, который ошибочно использовал предыдущий патч.
+         * Он не считается реальным UrlManager URL.
+         */
+        if (
+            strtolower($path)
+            === '/bitrix/tools/disk/downloadfile.php'
+        ) {
+            return max(0, (int)($query['objectId'] ?? 0));
+        }
+
+        return 0;
+    }
+}
+
+if (!function_exists('sb_disk_resolve_legacy_media_url')) {
+    function sb_disk_resolve_legacy_media_url(
+        int $siteId,
+        string $value
+    ): string {
+        $fileId = sb_disk_legacy_media_file_id($value);
+
+        if ($fileId <= 0) {
+            return $value;
+        }
+
+        try {
+            /*
+             * Не позволяем legacy-ссылке превратиться в URL файла
+             * из чужой папки SiteBuilder.
+             */
+            if (!sb_disk_file_belongs_to_site($siteId, $fileId)) {
+                return '';
+            }
+
+            $file = sb_disk_load_file_by_id($fileId);
+
+            if (!$file instanceof File) {
+                return '';
+            }
+
+            return sb_disk_file_preview_url($file);
+        } catch (Throwable $e) {
+            return '';
+        }
     }
 }
