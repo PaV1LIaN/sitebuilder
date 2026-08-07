@@ -476,3 +476,24 @@ body.sb-editor-theme-dark .sb-editor-block-head .sb-editor-block-actions {
 #blockInspector > .sb-block-type-form.is-active::before {
     content: "\0421\043E\0434\0435\0440\0436\0438\043C\043E\0435 \0438 \043E\0444\043E\0440\043C\043B\0435\043D\0438\0435" !important;
 }
+
+/* Editor inspector/addbar alignment fix v1 */
+
+/* Нормальная подпись с настоящими пробелами */
+#blockInspector > .sb-block-type-form.is-active::before {
+    content: "\0421\043E\0434\0435\0440\0436\0438\043C\043E\0435\0020\0438\0020\043E\0444\043E\0440\043C\043B\0435\043D\0438\0435" !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+}
+
+/*
+ * Старое правило editor-v3 оставляло top: 62px.
+ * Из-за position:relative панель физически сдвигалась вниз
+ * и перекрывала рабочую область.
+ */
+.sb-editor-addbar {
+    position: relative !important;
+    top: auto !important;
+    margin-top: 0 !important;
+    transform: none !important;
+}
