@@ -188,7 +188,7 @@ $canManagePageAccess = $USER->IsAdmin()
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v7.css?v=3">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v8.css?v=4">
 </head>
-<body class="sb-admin-body">
+<body class="sb-admin-body" data-editor-inspector-tab="page">
 <div class="sb-page">
     <header class="sb-editor-appbar" id="editorAppbar">
         <div class="sb-editor-appbar__brand">
@@ -460,23 +460,6 @@ $canManagePageAccess = $USER->IsAdmin()
                         </select>
                     </div>
 
-                    <details class="sb-seo-panel" style="margin-top:14px;">
-                        <summary>SEO и соцсети</summary>
-                        <div class="sb-seo-panel__body">
-                            <div class="sb-field"><label for="pageSeoTitleInput">Meta title</label><input class="sb-input" id="pageSeoTitleInput" maxlength="255" placeholder="По умолчанию — название страницы"><small id="pageSeoTitleCounter">0/60</small></div>
-                            <div class="sb-field"><label for="pageSeoDescriptionInput">Meta description</label><textarea class="sb-textarea" id="pageSeoDescriptionInput" maxlength="500" rows="4"></textarea><small id="pageSeoDescriptionCounter">0/160</small></div>
-                            <div class="sb-field"><label for="pageSeoKeywordsInput">Ключевые слова</label><input class="sb-input" id="pageSeoKeywordsInput" maxlength="500"></div>
-                            <div class="sb-field"><label for="pageSeoCanonicalInput">Canonical URL</label><input class="sb-input" id="pageSeoCanonicalInput" placeholder="https://... или /path"></div>
-                            <div class="sb-form-grid sb-form-grid--2">
-                                <label class="sb-checkbox"><input type="checkbox" id="pageSeoIndexInput" checked><span>Разрешить индексацию</span></label>
-                                <label class="sb-checkbox"><input type="checkbox" id="pageSeoFollowInput" checked><span>Переходить по ссылкам</span></label>
-                            </div>
-                            <div class="sb-field"><label for="pageSeoOgTitleInput">OG title</label><input class="sb-input" id="pageSeoOgTitleInput" maxlength="255"></div>
-                            <div class="sb-field"><label for="pageSeoOgDescriptionInput">OG description</label><textarea class="sb-textarea" id="pageSeoOgDescriptionInput" maxlength="500" rows="3"></textarea></div>
-                            <div class="sb-field"><label for="pageSeoOgImageInput">OG image</label><div class="sb-input-with-action"><input class="sb-input" id="pageSeoOgImageInput" placeholder="URL изображения"><button class="sb-btn sb-btn-light sb-btn-small" type="button" data-open-media data-media-target="pageSeoOgImageInput">Медиатека</button></div></div>
-                            <a class="sb-btn sb-btn-light sb-btn-small" id="pageSitemapLink" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/sitemap.php?siteId=<?= (int)$siteId ?>" target="_blank" rel="noopener">Открыть sitemap.xml ↗</a>
-                        </div>
-                    </details>
 
                     <div class="sb-editor-inspector-actions">
                         <button class="sb-btn sb-btn-primary" type="button" id="savePageBtn">Сохранить страницу</button>
@@ -1168,7 +1151,7 @@ window.SB_EDITOR_CONFIG = {
 <script src="/bitrix/js/main/core/core.js"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=21"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=22"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=23"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=24"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=20"></script>
@@ -1181,7 +1164,7 @@ window.SB_EDITOR_CONFIG = {
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/35-history.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=23"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=21"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=22"></script>
 
 </body>
 </html>

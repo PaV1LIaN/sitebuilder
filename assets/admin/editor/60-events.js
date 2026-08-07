@@ -98,35 +98,147 @@ if (pagesList) {
         renderPages();
         fillPageForm();
 
+        if (typeof setInspectorTab === 'function') {
+            setInspectorTab('page');
+        }
+
         await loadBlocks();
     });
 }
 
 if (blocksList) {
+    /* SiteBuilder contextual entity selection v1 */
     blocksList.addEventListener('click', function (e) {
-        var item = e.target.closest('[data-block-id]');
-        if (!item) return;
+        var blockItem = e.target.closest('[data-block-id]');
 
-        state.currentBlockId = Number(item.getAttribute('data-block-id') || 0);
+        if (blockItem) {
+            state.currentBlockId = Number(
+                blockItem.getAttribute('data-block-id') || 0
+            );
 
-        var selectedBlock = getCurrentBlock();
+            var selectedBlock = getCurrentBlock();
 
-        if (selectedBlock) {
-            var selectedSectionId = getBlockSectionId(selectedBlock);
-            var selectedColumn = getBlockColumn(selectedBlock);
+            if (selectedBlock) {
+                var selectedSectionId =
+                    getBlockSectionId(selectedBlock);
+                var selectedColumn =
+                    getBlockColumn(selectedBlock);
 
-            if (selectedSectionId > 0) {
-                state.currentSectionId = selectedSectionId;
+                if (selectedSectionId > 0) {
+                    state.currentSectionId =
+                        selectedSectionId;
+                }
+
+                state.currentColumn =
+                    selectedColumn > 0
+                        ? selectedColumn
+                        : 1;
             }
 
-            state.currentColumn = selectedColumn > 0 ? selectedColumn : 1;
+            renderPageSectionsPanel();
+            renderBlocks();
+            fillBlockForm();
+
+            if (typeof setInspectorTab === 'function') {
+                setInspectorTab('block');
+            }
+
+            return;
         }
 
-        renderPageSectionsPanel();
-        renderBlocks();
-        fillBlockForm();
+        var sectionItem = e.target.closest(
+            '[data-editor-section-id]'
+        );
+
+        if (sectionItem) {
+            var sectionId = Number(
+                sectionItem.getAttribute(
+                    'data-editor-section-id'
+                ) || 0
+            );
+
+            var columnItem = e.target.closest(
+                '.sb-editor-section-preview__column[data-column]'
+            );
+
+            if (sectionId > 0) {
+                state.currentBlockId = 0;
+                state.currentSectionId = sectionId;
+                state.currentColumn = columnItem
+                    ? Math.max(
+                        1,
+                        Number(
+                            columnItem.getAttribute(
+                                'data-column'
+                            ) || 1
+                        )
+                    )
+                    : 1;
+
+                renderPageSectionsPanel();
+                renderBlocks();
+                fillBlockForm();
+
+                if (
+                    typeof setInspectorTab
+                    === 'function'
+                ) {
+                    setInspectorTab('section');
+                }
+            }
+
+            return;
+        }
     });
 
+OLD,
+    'контекстный click блок/секция'
+);
+
+$events = sbReplaceOnce(
+    $events,
+    <<<'OLD'
+    blocksList.addEventListener('drop', async function (e) {
+OLD,
+    <<<'NEW'
+    var editorViewport =
+        document.getElementById('editorViewport');
+
+    if (editorViewport) {
+        editorViewport.addEventListener(
+            'click',
+            function (e) {
+                if (
+                    e.target.closest(
+                        '.sb-editor-block,'
+                        + '[data-editor-section-id],'
+                        + '.sb-editor-addbar,'
+                        + 'button,a,input,textarea,select,'
+                        + '[contenteditable="true"]'
+                    )
+                ) {
+                    return;
+                }
+
+                if (!e.target.closest('.sb-editor-page')) {
+                    return;
+                }
+
+                state.currentBlockId = 0;
+                fillBlockForm();
+                renderBlocks();
+
+                if (
+                    typeof setInspectorTab
+                    === 'function'
+                ) {
+                    setInspectorTab('page');
+                }
+            }
+        );
+    }
+
+    blocksList.addEventListener('drop', async function (e) {
     blocksList.addEventListener('dragstart', function (e) {
         var blockNode = e.target.closest('.sb-editor-block[data-block-id]');
         if (!blockNode) {
@@ -249,11 +361,17 @@ document.addEventListener('click', function (e) {
         var targetColumn = Number(addTargetBtn.getAttribute('data-column') || 1);
 
         if (targetSectionId > 0) {
+            state.currentBlockId = 0;
             state.currentSectionId = targetSectionId;
             state.currentColumn = targetColumn > 0 ? targetColumn : 1;
 
             renderPageSectionsPanel();
             renderBlocks();
+            fillBlockForm();
+
+            if (typeof setInspectorTab === 'function') {
+                setInspectorTab('section');
+            }
 
             setPageSectionsMessage(
                 'Новые компоненты будут добавляться в секцию #' + targetSectionId + ', колонку ' + state.currentColumn,
@@ -274,10 +392,16 @@ document.addEventListener('click', function (e) {
         );
 
         if (sectionId > 0) {
+            state.currentBlockId = 0;
             state.currentSectionId = sectionId;
             state.currentColumn = 1;
             renderPageSectionsPanel();
             renderBlocks();
+            fillBlockForm();
+
+            if (typeof setInspectorTab === 'function') {
+                setInspectorTab('section');
+            }
         }
 
         return;
