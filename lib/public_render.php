@@ -1769,6 +1769,534 @@ if (!function_exists('sb_public_responsive_stage2_style_vars')) {
     }
 }
 
+
+if (!function_exists('sb_public_responsive_ratio_value')) {
+    function sb_public_responsive_ratio_value(
+        $value,
+        string $fallback = '16:9'
+    ): string {
+        $map = [
+            'auto' => 'auto',
+            '16:9' => '16 / 9',
+            '4:3' => '4 / 3',
+            '1:1' => '1 / 1',
+            '3:4' => '3 / 4',
+            '9:16' => '9 / 16',
+        ];
+
+        $value = (string)$value;
+
+        return $map[$value]
+            ?? $map[$fallback]
+            ?? '16 / 9';
+    }
+}
+
+if (!function_exists('sb_public_responsive_stage3_style_vars')) {
+    function sb_public_responsive_stage3_style_vars(
+        string $type,
+        array $props
+    ): array {
+        $supported = [
+            'faq',
+            'gallery',
+            'pricing',
+            'form',
+            'video',
+            'navigation',
+            'footer',
+        ];
+
+        if (!in_array($type, $supported, true)) {
+            return [];
+        }
+
+        $responsive = sb_public_to_array(
+            $props['_responsive'] ?? []
+        );
+
+        if (!$responsive) {
+            return [];
+        }
+
+        $styles = [];
+
+        foreach (['tablet', 'mobile'] as $device) {
+            $config = sb_public_to_array(
+                $responsive[$device] ?? []
+            );
+
+            if (!$config) {
+                continue;
+            }
+
+            $prefix = '--sb-r-' . $device . '-';
+
+            if ($type === 'faq') {
+                if (
+                    array_key_exists('titleSize', $config)
+                    && $config['titleSize'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'faq-title-size:'
+                        . sb_public_clamp_int(
+                            $config['titleSize'],
+                            18,
+                            64
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('questionSize', $config)
+                    && $config['questionSize'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'faq-question-size:'
+                        . sb_public_clamp_int(
+                            $config['questionSize'],
+                            12,
+                            28
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('itemGap', $config)
+                    && $config['itemGap'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'faq-item-gap:'
+                        . sb_public_clamp_int(
+                            $config['itemGap'],
+                            0,
+                            40
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('align', $config)
+                    && $config['align'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'align:'
+                        . sb_public_safe_choice(
+                            $config['align'],
+                            ['left', 'center'],
+                            'left'
+                        );
+                }
+            } elseif ($type === 'gallery') {
+                if (
+                    array_key_exists('columns', $config)
+                    && $config['columns'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'gallery-columns:'
+                        . sb_public_clamp_int(
+                            $config['columns'],
+                            1,
+                            6
+                        );
+                }
+
+                if (
+                    array_key_exists('gap', $config)
+                    && $config['gap'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'gallery-gap:'
+                        . sb_public_clamp_int(
+                            $config['gap'],
+                            0,
+                            64
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('ratio', $config)
+                    && $config['ratio'] !== ''
+                ) {
+                    $ratio =
+                        sb_public_responsive_ratio_value(
+                            $config['ratio'],
+                            '4:3'
+                        );
+
+                    $styles[] =
+                        $prefix
+                        . 'gallery-ratio:'
+                        . $ratio;
+
+                    $styles[] =
+                        $prefix
+                        . 'gallery-image-height:'
+                        . (
+                            $ratio === 'auto'
+                                ? 'auto'
+                                : '100%'
+                        );
+                }
+
+                if (
+                    array_key_exists('radius', $config)
+                    && $config['radius'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'gallery-radius:'
+                        . sb_public_clamp_int(
+                            $config['radius'],
+                            0,
+                            40
+                        )
+                        . 'px';
+                }
+            } elseif ($type === 'pricing') {
+                if (
+                    array_key_exists('columns', $config)
+                    && $config['columns'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'pricing-columns:'
+                        . sb_public_clamp_int(
+                            $config['columns'],
+                            1,
+                            4
+                        );
+                }
+
+                if (
+                    array_key_exists('gap', $config)
+                    && $config['gap'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'pricing-gap:'
+                        . sb_public_clamp_int(
+                            $config['gap'],
+                            0,
+                            64
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('cardPadding', $config)
+                    && $config['cardPadding'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'pricing-card-padding:'
+                        . sb_public_clamp_int(
+                            $config['cardPadding'],
+                            12,
+                            56
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('titleSize', $config)
+                    && $config['titleSize'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'pricing-title-size:'
+                        . sb_public_clamp_int(
+                            $config['titleSize'],
+                            18,
+                            64
+                        )
+                        . 'px';
+                }
+            } elseif ($type === 'form') {
+                if (
+                    array_key_exists('columns', $config)
+                    && $config['columns'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'form-columns:'
+                        . sb_public_clamp_int(
+                            $config['columns'],
+                            1,
+                            2
+                        );
+                }
+
+                if (
+                    array_key_exists('gap', $config)
+                    && $config['gap'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'form-gap:'
+                        . sb_public_clamp_int(
+                            $config['gap'],
+                            0,
+                            48
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('padding', $config)
+                    && $config['padding'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'form-padding:'
+                        . sb_public_clamp_int(
+                            $config['padding'],
+                            0,
+                            64
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('titleSize', $config)
+                    && $config['titleSize'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'form-title-size:'
+                        . sb_public_clamp_int(
+                            $config['titleSize'],
+                            18,
+                            64
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists(
+                        'buttonFullWidth',
+                        $config
+                    )
+                ) {
+                    $full =
+                        sb_public_responsive_bool(
+                            $config['buttonFullWidth']
+                        );
+
+                    if ($full !== null) {
+                        $styles[] =
+                            $prefix
+                            . 'form-button-width:'
+                            . ($full ? '100%' : 'auto');
+                    }
+                }
+            } elseif ($type === 'video') {
+                if (
+                    array_key_exists('width', $config)
+                    && $config['width'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'video-width:'
+                        . sb_public_clamp_int(
+                            $config['width'],
+                            20,
+                            100
+                        )
+                        . '%';
+                }
+
+                if (
+                    array_key_exists('ratio', $config)
+                    && $config['ratio'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'video-ratio:'
+                        . sb_public_responsive_ratio_value(
+                            $config['ratio'],
+                            '16:9'
+                        );
+                }
+
+                if (
+                    array_key_exists('radius', $config)
+                    && $config['radius'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'video-radius:'
+                        . sb_public_clamp_int(
+                            $config['radius'],
+                            0,
+                            40
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('align', $config)
+                    && $config['align'] !== ''
+                ) {
+                    $align =
+                        sb_public_safe_choice(
+                            $config['align'],
+                            ['left', 'center', 'right'],
+                            'center'
+                        );
+
+                    $styles[] =
+                        $prefix
+                        . 'video-margin-inline:'
+                        . sb_public_responsive_margin_inline(
+                            $align
+                        );
+                }
+            } elseif ($type === 'navigation') {
+                if (
+                    array_key_exists('layout', $config)
+                    && $config['layout'] !== ''
+                ) {
+                    $layout =
+                        sb_public_safe_choice(
+                            $config['layout'],
+                            ['row', 'stack'],
+                            'row'
+                        );
+
+                    if ($layout === 'stack') {
+                        $styles[] =
+                            $prefix
+                            . 'nav-direction:column';
+                        $styles[] =
+                            $prefix
+                            . 'nav-align-items:stretch';
+                        $styles[] =
+                            $prefix
+                            . 'nav-brand-margin:0';
+                        $styles[] =
+                            $prefix
+                            . 'nav-links-order:0';
+                        $styles[] =
+                            $prefix
+                            . 'nav-links-width:100%';
+                        $styles[] =
+                            $prefix
+                            . 'nav-links-direction:column';
+                        $styles[] =
+                            $prefix
+                            . 'nav-button-align:flex-start';
+                    } else {
+                        $styles[] =
+                            $prefix
+                            . 'nav-direction:row';
+                        $styles[] =
+                            $prefix
+                            . 'nav-align-items:center';
+                        $styles[] =
+                            $prefix
+                            . 'nav-brand-margin:auto';
+                        $styles[] =
+                            $prefix
+                            . 'nav-links-order:0';
+                        $styles[] =
+                            $prefix
+                            . 'nav-links-width:auto';
+                        $styles[] =
+                            $prefix
+                            . 'nav-links-direction:row';
+                        $styles[] =
+                            $prefix
+                            . 'nav-button-align:auto';
+                    }
+                }
+
+                if (
+                    array_key_exists('gap', $config)
+                    && $config['gap'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'nav-gap:'
+                        . sb_public_clamp_int(
+                            $config['gap'],
+                            0,
+                            48
+                        )
+                        . 'px';
+                }
+            } elseif ($type === 'footer') {
+                if (
+                    array_key_exists('columns', $config)
+                    && $config['columns'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'footer-columns:'
+                        . sb_public_clamp_int(
+                            $config['columns'],
+                            1,
+                            6
+                        );
+                }
+
+                if (
+                    array_key_exists('gap', $config)
+                    && $config['gap'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'footer-gap:'
+                        . sb_public_clamp_int(
+                            $config['gap'],
+                            0,
+                            64
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('padding', $config)
+                    && $config['padding'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'footer-padding:'
+                        . sb_public_clamp_int(
+                            $config['padding'],
+                            0,
+                            64
+                        )
+                        . 'px';
+                }
+
+                if (
+                    array_key_exists('align', $config)
+                    && $config['align'] !== ''
+                ) {
+                    $styles[] =
+                        $prefix
+                        . 'align:'
+                        . sb_public_safe_choice(
+                            $config['align'],
+                            ['left', 'center'],
+                            'left'
+                        );
+                }
+            }
+        }
+
+        return $styles;
+    }
+}
+
 if (!function_exists('sb_public_render_block')) {
     function sb_public_render_block(array $block, array $context = []): string
     {
@@ -1823,6 +2351,10 @@ if (!function_exists('sb_public_render_block')) {
                 $props
             ),
             sb_public_responsive_stage2_style_vars(
+                $type,
+                $props
+            ),
+            sb_public_responsive_stage3_style_vars(
                 $type,
                 $props
             )
