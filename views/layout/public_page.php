@@ -568,6 +568,7 @@ if ($pageHasDiskBlock) {
         }
     </style>
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.css?v=20">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/forms2.css?v=1">
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/responsive-blocks.css?v=1">
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/responsive-stage2.css?v=1">
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/responsive-stage3.css?v=1">
@@ -722,6 +723,6 @@ $isPublicEditMode = (
 <?php endif; ?>
 
 <script src="<?= sb_public_h($basePath) ?>/assets/public/public-interactions.js?v=20"></script>
-<script src="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.js?v=20"></script>
+<script src="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.js?v=21"></script>
 </body>
 </html>

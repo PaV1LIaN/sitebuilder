@@ -1,0 +1,84 @@
+/* =========================================================
+   SITEBUILDER / FORMS 2.0 / STAGE 1
+   ========================================================= */
+
+.sb-form-label {
+    display: block;
+    margin-bottom: 7px;
+    font-weight: 700;
+}
+
+.sb-form-radio-group {
+    display: grid;
+    gap: 8px;
+    padding: 2px 0;
+}
+
+.sb-form-radio {
+    min-height: 38px;
+    display: flex !important;
+    align-items: center;
+    gap: 9px;
+    margin: 0 !important;
+    padding: 8px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .78);
+    cursor: pointer;
+}
+
+.sb-form-radio:hover {
+    border-color: #bfdbfe;
+    background: #f8fbff;
+}
+
+.sb-form-radio input {
+    width: 16px !important;
+    height: 16px !important;
+    flex: 0 0 16px;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.sb-form-radio span {
+    min-width: 0;
+    line-height: 1.35;
+}
+
+.sb-form-field.is-error input:not([type="radio"]):not([type="checkbox"]),
+.sb-form-field.is-error select,
+.sb-form-field.is-error textarea {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, .08);
+}
+
+.sb-form-field.is-error .sb-form-radio {
+    border-color: #fecaca;
+}
+
+.sb-form-field__error:not(:empty) {
+    display: block;
+    margin-top: 6px;
+    color: #b91c1c;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.sb-form-options-empty {
+    padding: 9px 10px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    color: #64748b;
+    background: #f8fafc;
+    font-size: 13px;
+}
+
+.sb-public-form [aria-invalid="true"] {
+    outline: none;
+}
+
+@media (max-width: 640px) {
+    .sb-form-radio {
+        min-height: 42px;
+    }
+}
