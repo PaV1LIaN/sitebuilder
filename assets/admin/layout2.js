@@ -1,6 +1,6 @@
 /* =========================================================
-   SITEBUILDER / LAYOUT 2.0 / STAGE 1
-   Visual site shell editor. Existing API/DB are reused.
+   SITEBUILDER / LAYOUT 2.0 / STAGE 2
+   Visual site shell editor + DnD/relocate/duplicate.
    No autosave.
    ========================================================= */
 (function () {
@@ -34,6 +34,19 @@
         blockDirty: false,
         syncing: false,
         busy: false
+    };
+
+    var drag = {
+        pending: null,
+        active: false,
+        sourceId: 0,
+        sourceZone: '',
+        sourceIndex: -1,
+        targetZone: '',
+        targetSlotIndex: -1,
+        targetIndex: -1,
+        noOp: false,
+        ghost: null
     };
 
     function node(id) {
@@ -405,13 +418,22 @@
         var selected = id === Number(state.currentBlockId || 0);
 
         return ''
-            + '<article class="sb-layout2-block' + (selected ? ' is-selected' : '') + '" data-layout-block-id="' + id + '">'
+            + '<article class="sb-layout2-block' + (selected ? ' is-selected' : '') + '"'
+            + ' data-layout-block-id="' + id + '"'
+            + ' data-layout-block-zone="' + escapeHtml(zone) + '">'
+            + '  <button'
+            + ' class="sb-layout2-block__drag"'
+            + ' type="button"'
+            + ' data-layout-drag-handle="' + id + '"'
+            + ' title="Перетащить блок"'
+            + ' aria-label="Перетащить блок">⋮⋮</button>'
             + '  <button class="sb-layout2-block__main" type="button" data-layout-edit="' + id + '">'
             + '    <span class="sb-layout2-block__icon">' + escapeHtml(meta.icon) + '</span>'
             + '    <span class="sb-layout2-block__copy"><strong>' + escapeHtml(meta.title) + '</strong><small>'
             + escapeHtml(blockPreview(block)) + '</small></span>'
             + '  </button>'
             + '  <span class="sb-layout2-block__actions">'
+            + '    <button type="button" data-layout-duplicate="' + id + '" title="Дублировать" aria-label="Дублировать блок">⧉</button>'
             + '    <button type="button" data-layout-move="up" data-layout-id="' + id + '"' + (index === 0 ? ' disabled' : '') + ' title="Выше" aria-label="Переместить выше">↑</button>'
             + '    <button type="button" data-layout-move="down" data-layout-id="' + id + '"' + (index === total - 1 ? ' disabled' : '') + ' title="Ниже" aria-label="Переместить ниже">↓</button>'
             + '    <button type="button" class="is-danger" data-layout-delete="' + id + '" title="Удалить" aria-label="Удалить блок">×</button>'
@@ -419,13 +441,49 @@
             + '</article>';
     }
 
-    function renderAddMenu(zone) {
+    function addMenuKey(zone, targetIndex, prefix) {
+        return String(prefix || 'slot')
+            + ':'
+            + String(zone)
+            + ':'
+            + String(Number(targetIndex || 0));
+    }
+
+    function renderAddMenu(zone, targetIndex, key) {
+        targetIndex = Math.max(0, Number(targetIndex || 0));
+        key = key || addMenuKey(zone, targetIndex, 'slot');
+
         return ''
-            + '<div class="sb-layout2-add-menu" data-layout-add-menu="' + escapeHtml(zone) + '" hidden>'
-            + '<button type="button" data-layout-add-type="text" data-layout-zone="' + escapeHtml(zone) + '"><span>¶</span><strong>Текст</strong></button>'
-            + '<button type="button" data-layout-add-type="heading" data-layout-zone="' + escapeHtml(zone) + '"><span>H</span><strong>Заголовок</strong></button>'
-            + '<button type="button" data-layout-add-type="button" data-layout-zone="' + escapeHtml(zone) + '"><span>↗</span><strong>Кнопка</strong></button>'
-            + '<button type="button" data-layout-add-type="html" data-layout-zone="' + escapeHtml(zone) + '"><span>&lt;/&gt;</span><strong>HTML</strong></button>'
+            + '<div class="sb-layout2-add-menu" data-layout-add-menu="' + escapeHtml(key) + '" hidden>'
+            + '<button type="button" data-layout-add-type="text" data-layout-zone="' + escapeHtml(zone) + '" data-layout-target-index="' + targetIndex + '"><span>¶</span><strong>Текст</strong></button>'
+            + '<button type="button" data-layout-add-type="heading" data-layout-zone="' + escapeHtml(zone) + '" data-layout-target-index="' + targetIndex + '"><span>H</span><strong>Заголовок</strong></button>'
+            + '<button type="button" data-layout-add-type="button" data-layout-zone="' + escapeHtml(zone) + '" data-layout-target-index="' + targetIndex + '"><span>↗</span><strong>Кнопка</strong></button>'
+            + '<button type="button" data-layout-add-type="html" data-layout-zone="' + escapeHtml(zone) + '" data-layout-target-index="' + targetIndex + '"><span>&lt;/&gt;</span><strong>HTML</strong></button>'
+            + '</div>';
+    }
+
+    function renderInsertSlot(zone, index, empty) {
+        index = Math.max(0, Number(index || 0));
+        var key = addMenuKey(zone, index, 'slot');
+
+        return ''
+            + '<div class="sb-layout2-insert-slot' + (empty ? ' is-empty' : '') + '"'
+            + ' data-layout-drop-slot'
+            + ' data-layout-zone="' + escapeHtml(zone) + '"'
+            + ' data-layout-index="' + index + '">'
+            + '  <span class="sb-layout2-insert-line"></span>'
+            + '  <div class="sb-layout2-add-wrap sb-layout2-inline-add">'
+            + '    <button'
+            + ' type="button"'
+            + ' class="sb-layout2-inline-add__button"'
+            + ' data-layout-add-toggle="' + escapeHtml(key) + '"'
+            + ' data-layout-zone="' + escapeHtml(zone) + '"'
+            + ' data-layout-target-index="' + index + '"'
+            + ' title="' + (empty ? 'Добавить первый блок' : 'Добавить блок сюда') + '">'
+            + (empty ? '＋ Добавить блок' : '＋')
+            + '    </button>'
+            + renderAddMenu(zone, index, key)
+            + '  </div>'
             + '</div>';
     }
 
@@ -445,17 +503,20 @@
             }
         }
 
-        if (blocks.length) {
-            body += '<div class="sb-layout2-block-list">';
-            blocks.forEach(function (block, index) {
-                body += renderBlockCard(zone, block, index, blocks.length);
-            });
-            body += '</div>';
-        } else if (!isLeftMenu) {
-            body += '<div class="sb-layout2-zone-empty"><span>＋</span><strong>Зона пустая</strong><small>Добавьте первый блок</small></div>';
+        body += '<div class="sb-layout2-block-list" data-layout-block-list="' + escapeHtml(zone) + '">';
+
+        for (var i = 0; i <= blocks.length; i++) {
+            body += renderInsertSlot(zone, i, blocks.length === 0);
+
+            if (i < blocks.length) {
+                body += renderBlockCard(zone, blocks[i], i, blocks.length);
+            }
         }
 
+        body += '</div>';
+
         var specialNote = '';
+
         if (zone === 'header') {
             specialNote = 'Логотип и основное меню добавляются шапкой автоматически.';
         } else if (zone === 'footer' && blocks.length === 0) {
@@ -464,6 +525,8 @@
             specialNote = 'Пустая правая панель не занимает место на странице.';
         }
 
+        var headerKey = addMenuKey(zone, blocks.length, 'head');
+
         return ''
             + '<section class="sb-layout2-zone' + (enabled ? '' : ' is-disabled') + ' sb-layout2-zone--' + escapeHtml(zone) + '" data-layout-zone-card="' + escapeHtml(zone) + '">'
             + '<header class="sb-layout2-zone__head">'
@@ -471,8 +534,14 @@
             + '<strong>' + escapeHtml(meta.title) + '</strong><small>' + (enabled ? escapeHtml(meta.description) : 'Скрыта на сайте') + '</small>'
             + '</div></div>'
             + '<div class="sb-layout2-zone__tools"><span class="sb-layout2-zone__count">' + blocks.length + '</span>'
-            + '<div class="sb-layout2-add-wrap"><button type="button" class="sb-layout2-zone__add" data-layout-add-toggle="' + escapeHtml(zone) + '">＋ Добавить</button>'
-            + renderAddMenu(zone) + '</div></div>'
+            + '<div class="sb-layout2-add-wrap"><button'
+            + ' type="button"'
+            + ' class="sb-layout2-zone__add"'
+            + ' data-layout-add-toggle="' + escapeHtml(headerKey) + '"'
+            + ' data-layout-zone="' + escapeHtml(zone) + '"'
+            + ' data-layout-target-index="' + blocks.length + '">＋ Добавить</button>'
+            + renderAddMenu(zone, blocks.length, headerKey)
+            + '</div></div>'
             + '</header>'
             + (specialNote ? '<div class="sb-layout2-zone__note">' + escapeHtml(specialNote) + '</div>' : '')
             + '<div class="sb-layout2-zone__body">' + body + '</div>'
@@ -519,9 +588,9 @@
             + '</div>';
     }
 
-    function closeAddMenus(exceptZone) {
+    function closeAddMenus(exceptKey) {
         document.querySelectorAll('[data-layout-add-menu]').forEach(function (menu) {
-            var keep = exceptZone && menu.getAttribute('data-layout-add-menu') === exceptZone;
+            var keep = exceptKey && menu.getAttribute('data-layout-add-menu') === exceptKey;
             menu.hidden = !keep;
         });
     }
@@ -763,19 +832,24 @@
         }
     }
 
-    async function addBlock(zone, type) {
+    async function addBlock(zone, type, targetIndex) {
         if (state.busy || ZONES.indexOf(zone) === -1) return;
 
-        if (
-            state.blockDirty
-            && !window.confirm(
-                'У выбранного блока есть несохранённые изменения. Добавить новый блок и потерять их?'
-            )
-        ) {
+        if (state.blockDirty) {
+            notice(
+                'Сначала сохраните или закройте несохранённые изменения текущего блока.',
+                'error',
+                3200
+            );
+            closeAddMenus();
             return;
         }
 
-        state.blockDirty = false;
+        var blocks = zoneBlocks(zone);
+        targetIndex = targetIndex == null
+            ? blocks.length
+            : clamp(targetIndex, 0, blocks.length);
+
         state.busy = true;
         closeAddMenus();
 
@@ -784,23 +858,27 @@
                 siteId: SITE_ID,
                 expectedVersion: version(),
                 zone: zone,
-                type: type
+                type: type,
+                targetIndex: targetIndex
             });
 
             state.layout = response.layout || state.layout;
             var newId = Number(response.block && response.block.id || 0);
 
             renderVersion();
-            renderCanvas();
 
             if (newId > 0) {
                 state.currentBlockId = newId;
-                renderCanvas();
+            }
+
+            renderCanvas();
+
+            if (newId > 0) {
                 renderInspector();
                 node('layoutInspector').scrollIntoView({behavior: 'smooth', block: 'nearest'});
             }
 
-            notice('Блок добавлен.', 'success', 1800);
+            notice('Блок добавлен в выбранное место.', 'success', 1800);
         } catch (error) {
             handleError(error, 'Не удалось добавить layout-блок.');
         } finally {
@@ -930,6 +1008,514 @@
         }
     }
 
+    function refreshInspectorLocationOnly() {
+        if (!state.currentBlockId) return;
+
+        var found = findBlock(state.currentBlockId);
+        if (!found) return;
+
+        var zone = zoneMeta(found.zone);
+
+        if (node('inspectorZone')) {
+            node('inspectorZone').textContent = zone.title;
+        }
+
+        if (node('inspectorMeta')) {
+            node('inspectorMeta').textContent = '#'
+                + Number(found.block.id || 0)
+                + ' · '
+                + (zoneEnabled(found.zone) ? 'зона включена' : 'зона скрыта на сайте');
+        }
+    }
+
+    async function relocateBlock(blockId, targetZone, targetIndex) {
+        blockId = Number(blockId || 0);
+
+        if (
+            blockId <= 0
+            || state.busy
+            || ZONES.indexOf(targetZone) === -1
+        ) {
+            return;
+        }
+
+        var source = findBlock(blockId);
+        if (!source) return;
+
+        targetIndex = Math.max(0, Number(targetIndex || 0));
+        state.busy = true;
+
+        try {
+            var response = await api('layout.block.relocate', {
+                siteId: SITE_ID,
+                id: blockId,
+                targetZone: targetZone,
+                targetIndex: targetIndex,
+                expectedVersion: version()
+            });
+
+            state.layout = response.layout || state.layout;
+
+            /*
+             * A dragged selected block remains selected. If another block
+             * is currently being edited with unsaved content, its inspector
+             * is left untouched.
+             */
+            if (!state.blockDirty || Number(state.currentBlockId) === blockId) {
+                state.currentBlockId = blockId;
+            }
+
+            renderVersion();
+            renderCanvas();
+
+            if (state.blockDirty) {
+                refreshInspectorLocationOnly();
+            } else {
+                renderInspector();
+            }
+
+            var targetMeta = zoneMeta(targetZone);
+            notice(
+                'Блок перемещён: ' + targetMeta.title + '.',
+                'success',
+                1800
+            );
+        } catch (error) {
+            handleError(error, 'Не удалось переместить layout-блок.');
+        } finally {
+            state.busy = false;
+        }
+    }
+
+    async function duplicateBlock(blockId) {
+        blockId = Number(blockId || 0);
+        if (blockId <= 0 || state.busy) return;
+
+        var source = findBlock(blockId);
+        if (!source) return;
+
+        if (
+            state.blockDirty
+            && Number(state.currentBlockId) === blockId
+        ) {
+            notice(
+                'Сначала сохраните изменения этого блока — дублируется только сохранённая версия.',
+                'error',
+                3200
+            );
+            return;
+        }
+
+        state.busy = true;
+
+        try {
+            var response = await api('layout.block.duplicate', {
+                siteId: SITE_ID,
+                id: blockId,
+                targetZone: source.zone,
+                targetIndex: source.index + 1,
+                expectedVersion: version()
+            });
+
+            state.layout = response.layout || state.layout;
+
+            var copyId = Number(
+                response.block
+                && response.block.id
+                || 0
+            );
+
+            if (!state.blockDirty && copyId > 0) {
+                state.currentBlockId = copyId;
+            }
+
+            renderVersion();
+            renderCanvas();
+
+            if (!state.blockDirty && copyId > 0) {
+                renderInspector();
+            }
+
+            notice('Блок продублирован.', 'success', 1800);
+        } catch (error) {
+            handleError(error, 'Не удалось продублировать layout-блок.');
+        } finally {
+            state.busy = false;
+        }
+    }
+
+    function dragGhostHtml(block) {
+        var meta = blockMeta(block && block.type);
+
+        return ''
+            + '<span class="sb-layout2-drag-ghost__icon">'
+            + escapeHtml(meta.icon)
+            + '</span>'
+            + '<span class="sb-layout2-drag-ghost__copy">'
+            + '<strong>' + escapeHtml(meta.title) + '</strong>'
+            + '<small data-layout-drag-destination>Перемещение…</small>'
+            + '</span>';
+    }
+
+    function beginDrag(pending) {
+        if (!pending || state.busy) return false;
+
+        var found = findBlock(pending.blockId);
+        if (!found) return false;
+
+        drag.pending = pending;
+        drag.active = true;
+        drag.sourceId = Number(pending.blockId || 0);
+        drag.sourceZone = found.zone;
+        drag.sourceIndex = found.index;
+        drag.targetZone = '';
+        drag.targetSlotIndex = -1;
+        drag.targetIndex = -1;
+        drag.noOp = false;
+
+        var ghost = document.createElement('div');
+        ghost.className = 'sb-layout2-drag-ghost';
+        ghost.innerHTML = dragGhostHtml(found.block);
+        document.body.appendChild(ghost);
+        drag.ghost = ghost;
+
+        document.body.classList.add('sb-layout2-dragging');
+
+        var sourceCard = document.querySelector(
+            '[data-layout-block-id="' + drag.sourceId + '"]'
+        );
+
+        if (sourceCard) {
+            sourceCard.classList.add('is-drag-source');
+        }
+
+        return true;
+    }
+
+    function clearDragTargets() {
+        document.querySelectorAll('.is-drag-target').forEach(function (item) {
+            item.classList.remove('is-drag-target');
+        });
+
+        document.querySelectorAll('.is-drag-over').forEach(function (item) {
+            item.classList.remove('is-drag-over');
+        });
+    }
+
+    function endDragVisuals() {
+        clearDragTargets();
+
+        document.querySelectorAll('.is-drag-source').forEach(function (item) {
+            item.classList.remove('is-drag-source');
+        });
+
+        document.body.classList.remove('sb-layout2-dragging');
+
+        if (drag.ghost && drag.ghost.parentNode) {
+            drag.ghost.parentNode.removeChild(drag.ghost);
+        }
+
+        drag.ghost = null;
+        drag.pending = null;
+        drag.active = false;
+        drag.targetZone = '';
+        drag.targetSlotIndex = -1;
+        drag.targetIndex = -1;
+        drag.noOp = false;
+    }
+
+    function moveGhost(clientX, clientY) {
+        if (!drag.ghost) return;
+
+        drag.ghost.style.transform =
+            'translate3d('
+            + Math.round(clientX + 14)
+            + 'px,'
+            + Math.round(clientY + 14)
+            + 'px,0)';
+    }
+
+    function zoneAtPoint(clientX, clientY) {
+        var element = document.elementFromPoint(clientX, clientY);
+        var direct = element && element.closest
+            ? element.closest('[data-layout-zone-card]')
+            : null;
+
+        if (direct) return direct;
+
+        var cards = Array.prototype.slice.call(
+            document.querySelectorAll('[data-layout-zone-card]')
+        );
+
+        return cards.find(function (card) {
+            var rect = card.getBoundingClientRect();
+
+            return (
+                clientX >= rect.left
+                && clientX <= rect.right
+                && clientY >= rect.top
+                && clientY <= rect.bottom
+            );
+        }) || null;
+    }
+
+    function nearestSlot(zoneCard, clientY) {
+        var slots = Array.prototype.slice.call(
+            zoneCard.querySelectorAll('[data-layout-drop-slot]')
+        );
+
+        if (!slots.length) return null;
+
+        var best = slots[0];
+        var bestDistance = Infinity;
+
+        slots.forEach(function (slot) {
+            var rect = slot.getBoundingClientRect();
+            var center = rect.top + rect.height / 2;
+            var distance = Math.abs(clientY - center);
+
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = slot;
+            }
+        });
+
+        return best;
+    }
+
+    function finalDropIndex(targetZone, slotIndex) {
+        var count = zoneBlocks(targetZone).length;
+        var finalCount = targetZone === drag.sourceZone
+            ? Math.max(0, count - 1)
+            : count;
+
+        var targetIndex = Number(slotIndex || 0);
+
+        /*
+         * Slot indexes are rendered before removing the source block.
+         * Backend targetIndex is defined in the final target array after
+         * the source has been removed.
+         */
+        if (
+            targetZone === drag.sourceZone
+            && targetIndex > drag.sourceIndex
+        ) {
+            targetIndex--;
+        }
+
+        return clamp(targetIndex, 0, finalCount);
+    }
+
+    function updateDragDestination(clientX, clientY) {
+        clearDragTargets();
+
+        var zoneCard = zoneAtPoint(clientX, clientY);
+
+        if (!zoneCard) {
+            drag.targetZone = '';
+            drag.targetSlotIndex = -1;
+            drag.targetIndex = -1;
+            drag.noOp = false;
+
+            if (drag.ghost) {
+                var noTarget = drag.ghost.querySelector('[data-layout-drag-destination]');
+                if (noTarget) noTarget.textContent = 'Наведите на область сайта';
+            }
+
+            return;
+        }
+
+        var targetZone = String(
+            zoneCard.getAttribute('data-layout-zone-card')
+            || ''
+        );
+
+        if (ZONES.indexOf(targetZone) === -1) return;
+
+        var slot = nearestSlot(zoneCard, clientY);
+        if (!slot) return;
+
+        var slotIndex = Number(
+            slot.getAttribute('data-layout-index')
+            || 0
+        );
+
+        var targetIndex = finalDropIndex(
+            targetZone,
+            slotIndex
+        );
+
+        drag.targetZone = targetZone;
+        drag.targetSlotIndex = slotIndex;
+        drag.targetIndex = targetIndex;
+        drag.noOp = (
+            targetZone === drag.sourceZone
+            && targetIndex === drag.sourceIndex
+        );
+
+        zoneCard.classList.add('is-drag-over');
+        slot.classList.add('is-drag-target');
+
+        var destination = drag.ghost
+            ? drag.ghost.querySelector('[data-layout-drag-destination]')
+            : null;
+
+        if (destination) {
+            var meta = zoneMeta(targetZone);
+
+            destination.textContent = drag.noOp
+                ? 'Текущее место'
+                : meta.title + ' · позиция ' + (targetIndex + 1);
+        }
+    }
+
+    function autoScrollDrag(clientX, clientY) {
+        var canvas = node('layoutCanvas');
+
+        if (canvas) {
+            var rect = canvas.getBoundingClientRect();
+            var edge = 54;
+            var dx = 0;
+
+            if (clientX < rect.left + edge) dx = -16;
+            if (clientX > rect.right - edge) dx = 16;
+
+            if (dx !== 0) {
+                canvas.scrollLeft += dx;
+            }
+        }
+
+        var viewportEdge = 76;
+        var dy = 0;
+
+        if (clientY < viewportEdge) dy = -14;
+        if (clientY > window.innerHeight - viewportEdge) dy = 14;
+
+        if (dy !== 0) {
+            window.scrollBy(0, dy);
+        }
+    }
+
+    function cancelPendingPointer(pointerId) {
+        if (
+            drag.pending
+            && Number(drag.pending.pointerId) === Number(pointerId)
+        ) {
+            drag.pending = null;
+        }
+    }
+
+    document.addEventListener('pointerdown', function (event) {
+        var handle = event.target.closest('[data-layout-drag-handle]');
+        if (!handle) return;
+
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        if (state.busy) return;
+
+        var blockId = Number(
+            handle.getAttribute('data-layout-drag-handle')
+            || 0
+        );
+
+        var found = findBlock(blockId);
+        if (!found) return;
+
+        drag.pending = {
+            pointerId: event.pointerId,
+            blockId: blockId,
+            startX: event.clientX,
+            startY: event.clientY,
+            lastX: event.clientX,
+            lastY: event.clientY,
+            handle: handle
+        };
+
+        try {
+            handle.setPointerCapture(event.pointerId);
+        } catch (error) {
+            /* Pointer capture is an enhancement, not a requirement. */
+        }
+
+        event.preventDefault();
+    }, true);
+
+    document.addEventListener('pointermove', function (event) {
+        if (
+            !drag.pending
+            || Number(drag.pending.pointerId) !== Number(event.pointerId)
+        ) {
+            return;
+        }
+
+        drag.pending.lastX = event.clientX;
+        drag.pending.lastY = event.clientY;
+
+        if (!drag.active) {
+            var dx = event.clientX - drag.pending.startX;
+            var dy = event.clientY - drag.pending.startY;
+
+            if (Math.sqrt(dx * dx + dy * dy) < 6) {
+                return;
+            }
+
+            if (!beginDrag(drag.pending)) {
+                cancelPendingPointer(event.pointerId);
+                return;
+            }
+        }
+
+        event.preventDefault();
+
+        moveGhost(event.clientX, event.clientY);
+        autoScrollDrag(event.clientX, event.clientY);
+        updateDragDestination(event.clientX, event.clientY);
+    }, true);
+
+    document.addEventListener('pointerup', function (event) {
+        if (
+            !drag.pending
+            || Number(drag.pending.pointerId) !== Number(event.pointerId)
+        ) {
+            return;
+        }
+
+        var wasActive = drag.active;
+        var sourceId = drag.sourceId;
+        var targetZone = drag.targetZone;
+        var targetIndex = drag.targetIndex;
+        var noOp = drag.noOp;
+
+        endDragVisuals();
+
+        if (!wasActive) return;
+
+        event.preventDefault();
+
+        if (!targetZone || noOp) {
+            if (sourceId > 0 && !state.blockDirty) {
+                selectBlock(sourceId);
+            }
+            return;
+        }
+
+        relocateBlock(
+            sourceId,
+            targetZone,
+            targetIndex
+        );
+    }, true);
+
+    document.addEventListener('pointercancel', function (event) {
+        if (
+            !drag.pending
+            || Number(drag.pending.pointerId) !== Number(event.pointerId)
+        ) {
+            return;
+        }
+
+        endDragVisuals();
+    }, true);
+
     [
         ['showHeader', 'showHeader'],
         ['showFooter', 'showFooter'],
@@ -972,20 +1558,29 @@
             event.preventDefault();
             event.stopPropagation();
 
-            var zone = addToggle.getAttribute('data-layout-add-toggle');
-            var menu = document.querySelector('[data-layout-add-menu="' + zone + '"]');
+            var menuKey = String(
+                addToggle.getAttribute('data-layout-add-toggle')
+                || ''
+            );
+
+            var menu = document.querySelector(
+                '[data-layout-add-menu="' + menuKey + '"]'
+            );
+
             var open = menu && menu.hidden;
 
-            closeAddMenus(open ? zone : '');
+            closeAddMenus(open ? menuKey : '');
             return;
         }
 
         var addType = event.target.closest('[data-layout-add-type]');
         if (addType) {
             event.preventDefault();
+
             addBlock(
                 String(addType.getAttribute('data-layout-zone') || ''),
-                String(addType.getAttribute('data-layout-add-type') || 'text')
+                String(addType.getAttribute('data-layout-add-type') || 'text'),
+                Number(addType.getAttribute('data-layout-target-index') || 0)
             );
             return;
         }
@@ -1005,6 +1600,20 @@
             moveBlock(
                 Number(move.getAttribute('data-layout-id') || 0),
                 String(move.getAttribute('data-layout-move') || '')
+            );
+            return;
+        }
+
+        var duplicate = event.target.closest('[data-layout-duplicate]');
+        if (duplicate) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            duplicateBlock(
+                Number(
+                    duplicate.getAttribute('data-layout-duplicate')
+                    || 0
+                )
             );
             return;
         }

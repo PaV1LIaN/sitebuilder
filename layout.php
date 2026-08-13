@@ -72,7 +72,7 @@ $h = static function ($value): string {
     <title><?= $h($siteName) ?> · Каркас сайта</title>
     <?php $APPLICATION->ShowHead(); ?>
     <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/admin.css">
-    <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/layout2.css?v=1">
+    <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/layout2.css?v=2">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page sb-layout2-page">
@@ -278,6 +278,6 @@ window.SB_LAYOUT_CONFIG = {
     sessid: '<?= CUtil::JSEscape(bitrix_sessid()) ?>'
 };
 </script>
-<script src="<?= $h($basePath) ?>/assets/admin/layout2.js?v=1"></script>
+<script src="<?= $h($basePath) ?>/assets/admin/layout2.js?v=2"></script>
 </body>
 </html>

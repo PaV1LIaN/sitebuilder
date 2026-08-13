@@ -157,7 +157,9 @@ if (
     $action === 'layout.block.create' ||
     $action === 'layout.block.update' ||
     $action === 'layout.block.delete' ||
-    $action === 'layout.block.move'
+    $action === 'layout.block.move' ||
+    $action === 'layout.block.relocate' ||
+    $action === 'layout.block.duplicate'
 ) {
     require __DIR__ . '/handlers/layout.php';
     exit;
