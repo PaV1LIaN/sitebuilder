@@ -1,5 +1,5 @@
 /* =========================================================
-   SITEBUILDER DRAG & DROP 2.0 / STAGE 2 HOTFIX v2
+   SITEBUILDER DRAG & DROP 2.0 / STAGE 2 HOTFIX v3
    Reliable pointer-driven drag from component library.
    Native HTML5 drag on <button> is intentionally not used.
    ========================================================= */
@@ -1440,6 +1440,14 @@
             ) {
                 return;
             }
+
+            /*
+             * A browser may synthesize click immediately after pointerup.
+             * Refresh the suppression window HERE, not only when the drag
+             * starts: a user can hold a component for several seconds.
+             */
+            suppressClickUntil =
+                Date.now() + 1500;
 
             event.preventDefault();
             event.stopImmediatePropagation();
