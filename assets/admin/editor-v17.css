@@ -1,0 +1,291 @@
+/* =========================================================
+   SITEBUILDER / BLOCK TOOLBAR 2.0 / STAGE 1
+   ========================================================= */
+
+.sb-editor-block.sb-bt-enhanced {
+    position: relative !important;
+    overflow: visible !important;
+    z-index: 14;
+    box-shadow:
+        0 0 0 2px rgba(37, 99, 235, .14),
+        0 9px 24px rgba(15, 23, 42, .08) !important;
+}
+
+/* Hide the old technical button cluster only for the selected block.
+   Non-selected blocks keep the familiar hover controls. */
+.sb-editor-block.sb-bt-enhanced
+> .sb-editor-block-head
+.sb-editor-block-actions {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+.sb-bt-toolbar {
+    position: absolute;
+    top: 0;
+    left: 12px;
+    z-index: 160;
+    max-width: calc(100% - 24px);
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 4px;
+    border: 1px solid #cbd5e1;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, .98);
+    color: #334155;
+    box-shadow:
+        0 13px 34px rgba(15, 23, 42, .18),
+        0 2px 5px rgba(15, 23, 42, .06);
+    backdrop-filter: blur(12px);
+    transform: translateY(-58%);
+    white-space: nowrap;
+}
+
+.sb-bt-toolbar button,
+.sb-bt-drag {
+    width: 28px;
+    height: 27px;
+    flex: 0 0 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    font: 800 12px/1 inherit;
+}
+
+.sb-bt-toolbar button:hover,
+.sb-bt-toolbar button:focus-visible,
+.sb-bt-drag:hover {
+    background: #eef2f7;
+    color: #0f172a;
+    outline: none;
+}
+
+.sb-bt-drag {
+    cursor: grab;
+    user-select: none;
+    letter-spacing: -2px;
+}
+
+.sb-bt-drag:active {
+    cursor: grabbing;
+}
+
+.sb-bt-type {
+    min-width: 0;
+    max-width: 132px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px 0 3px;
+    color: #334155;
+}
+
+.sb-bt-type i {
+    width: 23px;
+    height: 23px;
+    flex: 0 0 23px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 7px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 9px;
+    font-style: normal;
+    font-weight: 900;
+}
+
+.sb-bt-type strong {
+    overflow: hidden;
+    font-size: 10px;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sb-bt-separator {
+    width: 1px;
+    height: 18px;
+    flex: 0 0 1px;
+    margin: 0 2px;
+    background: #e2e8f0;
+}
+
+.sb-bt-toolbar
+button.sb-bt-mode {
+    color: #475569;
+}
+
+.sb-bt-toolbar
+button.sb-bt-danger {
+    color: #b42318;
+}
+
+.sb-bt-toolbar
+button.sb-bt-danger:hover,
+.sb-bt-toolbar
+button.sb-bt-danger:focus-visible {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.sb-bt-insert-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.sb-bt-insert-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 190;
+    width: 174px;
+    display: grid;
+    gap: 3px;
+    padding: 5px;
+    border: 1px solid #dbe4ef;
+    border-radius: 11px;
+    background: #fff;
+    box-shadow:
+        0 16px 38px rgba(15, 23, 42, .18);
+}
+
+.sb-bt-insert-menu[hidden] {
+    display: none !important;
+}
+
+.sb-bt-insert-menu button {
+    width: 100%;
+    height: auto;
+    min-height: 34px;
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 5px;
+    padding: 5px 7px;
+    text-align: left;
+}
+
+.sb-bt-insert-menu button span {
+    display: inline-grid;
+    place-items: center;
+    color: #2563eb;
+}
+
+.sb-bt-insert-menu button strong {
+    overflow: hidden;
+    font-size: 10px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/*
+ * Keep insertion/drop feedback above the toolbar when a block itself
+ * is being dragged. The toolbar vanishes with the source card anyway.
+ */
+body.sb-dnd2-active
+.sb-bt-toolbar {
+    opacity: .16;
+    pointer-events: none;
+}
+
+/* Dark editor */
+body.sb-editor-theme-dark
+.sb-bt-toolbar,
+body.sb-editor-theme-dark
+.sb-bt-insert-menu {
+    border-color: #334155;
+    background: rgba(15, 23, 42, .98);
+    color: #e2e8f0;
+}
+
+body.sb-editor-theme-dark
+.sb-bt-toolbar button,
+body.sb-editor-theme-dark
+.sb-bt-drag {
+    color: #94a3b8;
+}
+
+body.sb-editor-theme-dark
+.sb-bt-toolbar button:hover,
+body.sb-editor-theme-dark
+.sb-bt-toolbar button:focus-visible,
+body.sb-editor-theme-dark
+.sb-bt-drag:hover {
+    background: #1e293b;
+    color: #f8fafc;
+}
+
+body.sb-editor-theme-dark
+.sb-bt-type {
+    color: #e2e8f0;
+}
+
+body.sb-editor-theme-dark
+.sb-bt-type i {
+    background: #172554;
+    color: #93c5fd;
+}
+
+body.sb-editor-theme-dark
+.sb-bt-separator {
+    background: #334155;
+}
+
+body.sb-editor-theme-dark
+.sb-bt-toolbar
+button.sb-bt-danger {
+    color: #fca5a5;
+}
+
+body.sb-editor-theme-dark
+.sb-bt-toolbar
+button.sb-bt-danger:hover {
+    background: rgba(127, 29, 29, .35);
+    color: #fecaca;
+}
+
+/* Narrow preview: keep the toolbar usable without stretching the block. */
+.sb-editor-viewport.is-mobile
+.sb-bt-toolbar,
+.sb-editor-viewport.is-tablet
+.sb-editor-section-preview__column
+.sb-bt-toolbar {
+    max-width: calc(100% - 12px);
+    left: 6px;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: none;
+}
+
+.sb-editor-viewport.is-mobile
+.sb-bt-toolbar::-webkit-scrollbar,
+.sb-editor-viewport.is-tablet
+.sb-bt-toolbar::-webkit-scrollbar {
+    display: none;
+}
+
+.sb-editor-viewport.is-mobile
+.sb-bt-type strong {
+    display: none;
+}
+
+.sb-editor-viewport.is-mobile
+.sb-bt-type {
+    width: 28px;
+    flex: 0 0 28px;
+    padding: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sb-bt-toolbar,
+    .sb-bt-toolbar button {
+        transition: none !important;
+    }
+}
