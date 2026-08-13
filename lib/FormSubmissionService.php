@@ -615,57 +615,217 @@ final class FormSubmissionService
         array $filters = [],
         int $limit = 100
     ): array {
-        $limit =
+        return self::listInternal(
+            $siteId,
+            $filters,
             max(
                 1,
                 min(
                     500,
                     $limit
                 )
-            );
-
-        $where = [
-            'site_id=:site_id',
-        ];
-
-        $params = [
-            ':site_id' => $siteId,
-        ];
-
-        $status =
-            trim(
-                (string)(
-                    $filters['status']
-                    ?? ''
-                )
-            );
-
-        if (
-            $status !== ''
-            && in_array(
-                $status,
-                self::STATUSES,
-                true
             )
-        ) {
-            $where[] =
-                'status=:status';
-            $params[':status'] =
-                $status;
-        }
+        );
+    }
 
-        $blockId =
-            (int)(
-                $filters['blockId']
-                ?? 0
+    public static function listForExport(
+        int $siteId,
+        array $filters = [],
+        int $limit = 5000
+    ): array {
+        return self::listInternal(
+            $siteId,
+            $filters,
+            max(
+                1,
+                min(
+                    5000,
+                    $limit
+                )
+            )
+        );
+    }
+
+    public static function summary(
+        int $siteId,
+        array $filters = []
+    ): array {
+        [$where, $params] =
+            self::buildWhere(
+                $siteId,
+                $filters,
+                false
             );
 
-        if ($blockId > 0) {
-            $where[] =
-                'block_id=:block_id';
-            $params[':block_id'] =
-                $blockId;
+        $row =
+            sb_db_fetch_one(
+                "SELECT
+                    COUNT(*) AS total_count,
+                    COUNT(*) FILTER (
+                        WHERE status='new'
+                    ) AS new_count,
+                    COUNT(*) FILTER (
+                        WHERE status='in_progress'
+                    ) AS in_progress_count,
+                    COUNT(*) FILTER (
+                        WHERE status='done'
+                    ) AS done_count,
+                    COUNT(*) FILTER (
+                        WHERE status='spam'
+                    ) AS spam_count
+                 FROM sitebuilder.form_submission
+                 WHERE "
+                . implode(
+                    ' AND ',
+                    $where
+                ),
+                $params
+            ) ?: [];
+
+        return [
+            'total' =>
+                (int)(
+                    $row['total_count']
+                    ?? 0
+                ),
+            'new' =>
+                (int)(
+                    $row['new_count']
+                    ?? 0
+                ),
+            'in_progress' =>
+                (int)(
+                    $row[
+                        'in_progress_count'
+                    ]
+                    ?? 0
+                ),
+            'done' =>
+                (int)(
+                    $row['done_count']
+                    ?? 0
+                ),
+            'spam' =>
+                (int)(
+                    $row['spam_count']
+                    ?? 0
+                ),
+        ];
+    }
+
+    public static function formsForSite(
+        int $siteId
+    ): array {
+        if ($siteId <= 0) {
+            return [];
         }
+
+        $rows =
+            sb_db_fetch_all(
+                "SELECT
+                    b.id AS block_id,
+                    b.page_id,
+                    p.title AS page_title,
+                    p.status AS page_status,
+                    b.content_json
+                 FROM sitebuilder.block b
+                 INNER JOIN sitebuilder.page p
+                    ON p.id=b.page_id
+                 WHERE
+                    p.site_id=:site_id
+                    AND b.type='form'
+                 ORDER BY
+                    LOWER(p.title) ASC,
+                    b.id ASC",
+                [
+                    ':site_id' =>
+                        $siteId,
+                ]
+            );
+
+        $result = [];
+
+        foreach ($rows as $row) {
+            $content =
+                sb_json_decode_assoc(
+                    $row['content_json']
+                    ?? '{}'
+                );
+
+            $blockId =
+                (int)(
+                    $row['block_id']
+                    ?? 0
+                );
+
+            if ($blockId <= 0) {
+                continue;
+            }
+
+            $title =
+                trim(
+                    (string)(
+                        $content['title']
+                        ?? ''
+                    )
+                );
+
+            if ($title === '') {
+                $title =
+                    'Форма #'
+                    . $blockId;
+            }
+
+            $pageTitle =
+                trim(
+                    (string)(
+                        $row['page_title']
+                        ?? ''
+                    )
+                );
+
+            $result[] = [
+                'id' => $blockId,
+                'pageId' =>
+                    (int)(
+                        $row['page_id']
+                        ?? 0
+                    ),
+                'title' => $title,
+                'pageTitle' =>
+                    $pageTitle !== ''
+                        ? $pageTitle
+                        : 'Страница',
+                'pageStatus' =>
+                    (string)(
+                        $row['page_status']
+                        ?? 'draft'
+                    ),
+                'label' =>
+                    $title
+                    . ' · '
+                    . (
+                        $pageTitle !== ''
+                            ? $pageTitle
+                            : 'Страница'
+                    ),
+            ];
+        }
+
+        return $result;
+    }
+
+    private static function listInternal(
+        int $siteId,
+        array $filters,
+        int $limit
+    ): array {
+        [$where, $params] =
+            self::buildWhere(
+                $siteId,
+                $filters,
+                true
+            );
 
         $rows =
             sb_db_fetch_all(
@@ -683,6 +843,112 @@ final class FormSubmissionService
             [self::class, 'mapRow'],
             $rows
         );
+    }
+
+    private static function buildWhere(
+        int $siteId,
+        array $filters,
+        bool $includeStatus
+    ): array {
+        if ($siteId <= 0) {
+            throw new InvalidArgumentException(
+                'SITE_ID_REQUIRED'
+            );
+        }
+
+        $where = [
+            'site_id=:site_id',
+        ];
+
+        $params = [
+            ':site_id' => $siteId,
+        ];
+
+        if ($includeStatus) {
+            $status =
+                trim(
+                    (string)(
+                        $filters['status']
+                        ?? ''
+                    )
+                );
+
+            if (
+                $status !== ''
+                && in_array(
+                    $status,
+                    self::STATUSES,
+                    true
+                )
+            ) {
+                $where[] =
+                    'status=:status';
+                $params[':status'] =
+                    $status;
+            }
+        }
+
+        $blockId =
+            (int)(
+                $filters['blockId']
+                ?? 0
+            );
+
+        if ($blockId > 0) {
+            $where[] =
+                'block_id=:block_id';
+            $params[':block_id'] =
+                $blockId;
+        }
+
+        $search =
+            mb_substr(
+                trim(
+                    (string)(
+                        $filters['search']
+                        ?? ''
+                    )
+                ),
+                0,
+                200
+            );
+
+        if ($search !== '') {
+            /*
+             * ESCAPE '!' makes the user query literal:
+             * % and _ are not treated as SQL wildcards.
+             */
+            $needle =
+                str_replace(
+                    ['!', '%', '_'],
+                    ['!!', '!%', '!_'],
+                    $search
+                );
+
+            $where[] =
+                "(
+                    CAST(id AS TEXT)
+                        ILIKE :search ESCAPE '!'
+                    OR CAST(page_id AS TEXT)
+                        ILIKE :search ESCAPE '!'
+                    OR CAST(block_id AS TEXT)
+                        ILIKE :search ESCAPE '!'
+                    OR payload_json::text
+                        ILIKE :search ESCAPE '!'
+                    OR meta_json::text
+                        ILIKE :search ESCAPE '!'
+                )";
+
+            $params[':search'] =
+                '%'
+                . $needle
+                . '%';
+        }
+
+        return [
+            $where,
+            $params,
+        ];
     }
 
     public static function updateStatus(

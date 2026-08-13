@@ -1,5 +1,5 @@
 /* =========================================================
-   SITEBUILDER / FORMS 2.0 / STAGE 1
+   SITEBUILDER / FORMS 2.0 / STAGE 1 + ADMIN LINK v2
    Enhances the existing form field builder without replacing it.
    - Russian field type labels
    - number + radio
@@ -686,6 +686,54 @@
         );
     }
 
+    function updateSubmissionsLink() {
+        var link =
+            document.querySelector(
+                '#formBlockForm a[href*="forms.php?siteId="]'
+            );
+
+        if (!link) {
+            return;
+        }
+
+        var block =
+            currentFormBlock();
+        var blockId =
+            Number(
+                block
+                && block.id
+                || 0
+            );
+
+        var href =
+            'forms.php?siteId='
+            + encodeURIComponent(
+                Number(
+                    window.SB_EDITOR_CONFIG.siteId
+                    || 0
+                )
+            );
+
+        if (blockId > 0) {
+            href +=
+                '&blockId='
+                + encodeURIComponent(
+                    blockId
+                );
+
+            link.textContent =
+                'Открыть заявки этой формы ↗';
+        } else {
+            link.textContent =
+                'Открыть все заявки ↗';
+        }
+
+        link.setAttribute(
+            'href',
+            href
+        );
+    }
+
     function decorateAll() {
         if (decorating) {
             return;
@@ -730,6 +778,8 @@
                 add.textContent =
                     '+ Добавить поле';
             }
+
+            updateSubmissionsLink();
         } finally {
             decorating = false;
         }
