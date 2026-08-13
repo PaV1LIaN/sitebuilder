@@ -1,8 +1,7 @@
 /* =========================================================
-   SITEBUILDER DRAG & DROP 2.0 / STAGE 2
-   Drag new components from the block library directly to
-   section / column / insertion position.
-   No autosave. Existing click-to-create behavior is preserved.
+   SITEBUILDER DRAG & DROP 2.0 / STAGE 2 HOTFIX v2
+   Reliable pointer-driven drag from component library.
+   Native HTML5 drag on <button> is intentionally not used.
    ========================================================= */
 (function () {
     'use strict';
@@ -25,19 +24,22 @@
         'blocksList'
     );
 
-    if (!libraryModal || !libraryGrid || !blocksList) {
+    if (
+        !libraryModal
+        || !libraryGrid
+        || !blocksList
+        || typeof window.createBlock !== 'function'
+    ) {
         return;
     }
 
     var originalCreateBlock = window.createBlock;
-    var draggedLibraryType = '';
-    var draggedLibraryTitle = '';
+    var pointerCandidate = null;
+    var pointerDrag = null;
+    var pointerTargetSlot = null;
     var suppressClickUntil = 0;
     var isCreating = false;
-
-    if (typeof originalCreateBlock !== 'function') {
-        return;
-    }
+    var DRAG_THRESHOLD = 7;
 
     function escape(value) {
         if (typeof escapeHtml === 'function') {
@@ -75,12 +77,10 @@
                     Number(a.sort || 0)
                     - Number(b.sort || 0);
 
-                if (bySort !== 0) {
-                    return bySort;
-                }
-
-                return Number(a.id || 0)
-                    - Number(b.id || 0);
+                return bySort !== 0
+                    ? bySort
+                    : Number(a.id || 0)
+                        - Number(b.id || 0);
             });
     }
 
@@ -89,7 +89,9 @@
 
         (items || []).forEach(function (item) {
             var id = Number(item.id || 0);
-            var version = Number(item.version || 1);
+            var version = Number(
+                item.version || 1
+            );
 
             if (id > 0 && version > 0) {
                 result[id] = version;
@@ -100,12 +102,10 @@
     }
 
     function normalizePlacement(placement) {
-        placement = placement
-            && typeof placement === 'object'
-                ? placement
-                : null;
-
-        if (!placement) {
+        if (
+            !placement
+            || typeof placement !== 'object'
+        ) {
             return null;
         }
 
@@ -120,34 +120,45 @@
             placement.beforeBlockId || 0
         );
 
-        if (state.pageSections && state.pageSections.length) {
-            var section = (state.pageSections || [])
-                .find(function (item) {
-                    return Number(item.id || 0)
-                        === sectionId;
-                });
+        if ((state.pageSections || []).length) {
+            var section =
+                (state.pageSections || [])
+                    .find(function (item) {
+                        return Number(
+                            item.id || 0
+                        ) === sectionId;
+                    });
 
             if (!section) {
                 sectionId =
-                    typeof getDefaultSectionId === 'function'
+                    typeof getDefaultSectionId
+                    === 'function'
                         ? Number(
-                            getDefaultSectionId() || 0
+                            getDefaultSectionId()
+                            || 0
                         )
                         : Number(
-                            state.currentSectionId || 0
+                            state.currentSectionId
+                            || 0
                         );
             }
 
             var columns =
-                typeof getSectionColumns === 'function'
+                typeof getSectionColumns
+                === 'function'
                     ? Number(
-                        getSectionColumns(sectionId) || 1
+                        getSectionColumns(
+                            sectionId
+                        ) || 1
                     )
                     : 1;
 
             column = Math.max(
                 1,
-                Math.min(columns, column)
+                Math.min(
+                    columns,
+                    column
+                )
             );
         } else {
             sectionId = 0;
@@ -155,24 +166,32 @@
         }
 
         if (beforeBlockId > 0) {
-            var beforeBlock = (state.blocks || [])
-                .find(function (block) {
-                    return Number(block.id || 0)
-                        === beforeBlockId;
-                });
+            var beforeBlock =
+                (state.blocks || [])
+                    .find(function (block) {
+                        return Number(
+                            block.id || 0
+                        ) === beforeBlockId;
+                    });
 
             if (!beforeBlock) {
                 beforeBlockId = 0;
             } else if (
                 sectionId > 0
-                && typeof getBlockSectionId === 'function'
-                && typeof getBlockColumn === 'function'
+                && typeof getBlockSectionId
+                    === 'function'
+                && typeof getBlockColumn
+                    === 'function'
                 && (
                     Number(
-                        getBlockSectionId(beforeBlock) || 0
+                        getBlockSectionId(
+                            beforeBlock
+                        ) || 0
                     ) !== sectionId
                     || Number(
-                        getBlockColumn(beforeBlock) || 1
+                        getBlockColumn(
+                            beforeBlock
+                        ) || 1
                     ) !== column
                 )
             ) {
@@ -188,27 +207,30 @@
     }
 
     function findCreatedBlock(beforeIds) {
-        var currentId = Number(
+        var selected = Number(
             state.currentBlockId || 0
         );
 
         if (
-            currentId > 0
-            && !beforeIds[currentId]
+            selected > 0
+            && !beforeIds[selected]
         ) {
-            return currentId;
+            return selected;
         }
 
-        var fresh = currentBlocksSorted()
-            .filter(function (block) {
-                return !beforeIds[
-                    Number(block.id || 0)
-                ];
-            });
+        var fresh =
+            currentBlocksSorted()
+                .filter(function (block) {
+                    return !beforeIds[
+                        Number(block.id || 0)
+                    ];
+                });
 
         return fresh.length
             ? Number(
-                fresh[fresh.length - 1].id || 0
+                fresh[
+                    fresh.length - 1
+                ].id || 0
             )
             : 0;
     }
@@ -227,23 +249,29 @@
         if (
             createdBlockId <= 0
             || beforeBlockId <= 0
-            || createdBlockId === beforeBlockId
+            || createdBlockId
+                === beforeBlockId
         ) {
             return;
         }
 
-        var order = currentBlocksSorted()
-            .map(function (block) {
-                return Number(block.id || 0);
-            })
-            .filter(function (id) {
-                return id > 0
-                    && id !== createdBlockId;
-            });
+        var order =
+            currentBlocksSorted()
+                .map(function (block) {
+                    return Number(
+                        block.id || 0
+                    );
+                })
+                .filter(function (id) {
+                    return id > 0
+                        && id
+                            !== createdBlockId;
+                });
 
-        var insertAt = order.indexOf(
-            beforeBlockId
-        );
+        var insertAt =
+            order.indexOf(
+                beforeBlockId
+            );
 
         if (insertAt < 0) {
             return;
@@ -260,29 +288,35 @@
                 state.currentPageId || 0
             ),
             order: JSON.stringify(order),
-            expectedVersions: JSON.stringify(
-                localVersionMap(state.blocks)
-            )
+            expectedVersions:
+                JSON.stringify(
+                    localVersionMap(
+                        state.blocks
+                    )
+                )
         });
 
-        if (typeof loadBlocks === 'function') {
+        if (
+            typeof loadBlocks
+            === 'function'
+        ) {
             await loadBlocks();
         }
     }
 
     /*
-     * Extends the final createBlock wrapper installed by
-     * visual/business modules. A normal click calls createBlock(type)
-     * and follows the old path. Library DnD passes placement as the
-     * second argument.
+     * Existing createBlock wrappers already know how to generate the
+     * correct default content for basic, visual and business blocks.
+     * We only temporarily set their default placement.
      */
     window.createBlock = async function (
         type,
         placement
     ) {
-        placement = normalizePlacement(
-            placement
-        );
+        placement =
+            normalizePlacement(
+                placement
+            );
 
         if (!placement) {
             return originalCreateBlock.apply(
@@ -292,7 +326,10 @@
         }
 
         if (!state.currentPageId) {
-            if (typeof showEditorToast === 'function') {
+            if (
+                typeof showEditorToast
+                === 'function'
+            ) {
                 showEditorToast(
                     'Сначала выберите страницу',
                     'error'
@@ -305,7 +342,9 @@
 
         (state.blocks || []).forEach(
             function (block) {
-                var id = Number(block.id || 0);
+                var id = Number(
+                    block.id || 0
+                );
 
                 if (id > 0) {
                     beforeIds[id] = true;
@@ -313,18 +352,15 @@
             }
         );
 
-        var previousSectionId = Number(
-            state.currentSectionId || 0
-        );
-        var previousColumn = Number(
-            state.currentColumn || 1
-        );
+        var previousSectionId =
+            Number(
+                state.currentSectionId || 0
+            );
+        var previousColumn =
+            Number(
+                state.currentColumn || 1
+            );
 
-        /*
-         * Existing createBlock implementations use
-         * getDefaultSectionId/getDefaultColumn. Setting the target here
-         * means block.create receives target placement immediately.
-         */
         state.currentSectionId =
             placement.sectionId;
         state.currentColumn =
@@ -346,7 +382,9 @@
                 );
             }
 
-            if (placement.beforeBlockId > 0) {
+            if (
+                placement.beforeBlockId > 0
+            ) {
                 await reorderCreatedBlock(
                     createdBlockId,
                     placement.beforeBlockId
@@ -394,7 +432,6 @@
                 previousSectionId;
             state.currentColumn =
                 previousColumn;
-
             throw error;
         }
     };
@@ -407,15 +444,22 @@
             return [];
         }
 
-        return Array.prototype.slice.call(
-            container.querySelectorAll(selector)
-        ).filter(function (item) {
-            return item.parentElement
-                === container;
-        });
+        return Array.prototype.slice
+            .call(
+                container.querySelectorAll(
+                    selector
+                )
+            )
+            .filter(function (item) {
+                return item.parentElement
+                    === container;
+            });
     }
 
-    function nearestSlot(slots, clientY) {
+    function nearestSlot(
+        slots,
+        clientY
+    ) {
         if (!slots || !slots.length) {
             return null;
         }
@@ -427,13 +471,16 @@
             var rect =
                 slot.getBoundingClientRect();
             var center =
-                rect.top + rect.height / 2;
+                rect.top
+                + rect.height / 2;
             var distance = Math.abs(
                 Number(clientY || 0)
                 - center
             );
 
-            if (distance < bestDistance) {
+            if (
+                distance < bestDistance
+            ) {
                 best = slot;
                 bestDistance = distance;
             }
@@ -442,18 +489,20 @@
         return best;
     }
 
-    function resolveBlockSlot(event) {
-        if (
-            !event
-            || !event.target
-            || !blocksList
-        ) {
+    function resolveBlockSlotFromElement(
+        element,
+        clientY
+    ) {
+        if (!element || !blocksList) {
             return null;
         }
 
-        var direct = event.target.closest(
-            '[data-block-drop-slot]'
-        );
+        var direct =
+            element.closest
+                ? element.closest(
+                    '[data-block-drop-slot]'
+                )
+                : null;
 
         if (
             direct
@@ -462,10 +511,13 @@
             return direct;
         }
 
-        var column = event.target.closest(
-            '.sb-editor-section-preview__column'
-            + '[data-section-id][data-column]'
-        );
+        var column =
+            element.closest
+                ? element.closest(
+                    '.sb-editor-section-preview__column'
+                    + '[data-section-id][data-column]'
+                )
+                : null;
 
         if (
             column
@@ -476,24 +528,40 @@
                     column,
                     '[data-block-drop-slot]'
                 ),
-                event.clientY
+                clientY
             );
         }
 
         if (
             !(state.pageSections || []).length
-            && blocksList.contains(event.target)
+            && blocksList.contains(element)
         ) {
             return nearestSlot(
                 directChildren(
                     blocksList,
                     '[data-block-drop-slot]'
                 ),
-                event.clientY
+                clientY
             );
         }
 
         return null;
+    }
+
+    function resolveBlockSlotAtPoint(
+        clientX,
+        clientY
+    ) {
+        var element =
+            document.elementFromPoint(
+                Number(clientX || 0),
+                Number(clientY || 0)
+            );
+
+        return resolveBlockSlotFromElement(
+            element,
+            clientY
+        );
     }
 
     function clearDropTarget() {
@@ -542,35 +610,40 @@
         result =
             document.createElement('div');
         result.id = 'sbDnd2Hud';
-        result.className = 'sb-dnd2-hud';
+        result.className =
+            'sb-dnd2-hud';
         result.hidden = true;
         result.setAttribute(
             'aria-hidden',
             'true'
         );
-        document.body.appendChild(result);
+
+        document.body.appendChild(
+            result
+        );
 
         return result;
     }
 
-    function showHud(text, event) {
+    function showHud(
+        text,
+        clientX,
+        clientY
+    ) {
         var result = hud();
 
         result.textContent =
             String(text || '');
         result.hidden = false;
-
         result.style.left =
             (
-                Number(
-                    event.clientX || 0
-                ) + 18
+                Number(clientX || 0)
+                + 18
             ) + 'px';
         result.style.top =
             (
-                Number(
-                    event.clientY || 0
-                ) + 18
+                Number(clientY || 0)
+                + 18
             ) + 'px';
 
         var rect =
@@ -596,9 +669,7 @@
             result.style.top =
                 Math.max(
                     10,
-                    Number(
-                        event.clientY || 0
-                    )
+                    Number(clientY || 0)
                     - rect.height
                     - 18
                 ) + 'px';
@@ -606,9 +677,8 @@
     }
 
     function sectionTitle(sectionId) {
-        sectionId = Number(
-            sectionId || 0
-        );
+        sectionId =
+            Number(sectionId || 0);
 
         if (sectionId <= 0) {
             return 'Страница';
@@ -625,15 +695,17 @@
         return section
             ? String(
                 section.title
-                || ('Секция #' + sectionId)
+                || (
+                    'Секция #'
+                    + sectionId
+                )
             )
             : 'Секция #' + sectionId;
     }
 
     function blockTitle(blockId) {
-        blockId = Number(
-            blockId || 0
-        );
+        blockId =
+            Number(blockId || 0);
 
         var block =
             (state.blocks || [])
@@ -654,10 +726,17 @@
         );
     }
 
-    function markTarget(slot, event) {
-        clearDropTarget();
+    function markTarget(
+        slot,
+        clientX,
+        clientY
+    ) {
+        if (pointerTargetSlot !== slot) {
+            clearDropTarget();
+            pointerTargetSlot = slot;
+        }
 
-        if (!slot) {
+        if (!slot || !pointerDrag) {
             return;
         }
 
@@ -677,23 +756,21 @@
             ) || 0
         );
 
-        var label =
-            'Добавить «'
-            + draggedLibraryTitle
-            + '»';
-
         slot.classList.add(
             'is-drag-over',
             'is-dnd2-library-target'
         );
         slot.setAttribute(
             'data-dnd2-label',
-            label
+            'Добавить «'
+            + pointerDrag.title
+            + '»'
         );
 
-        var targetColumn = slot.closest(
-            '.sb-editor-section-preview__column'
-        );
+        var targetColumn =
+            slot.closest(
+                '.sb-editor-section-preview__column'
+            );
 
         if (targetColumn) {
             targetColumn.classList.add(
@@ -712,22 +789,26 @@
             }
         }
 
-        var position = beforeBlockId > 0
-            ? 'перед «'
-                + blockTitle(beforeBlockId)
-                + '»'
-            : 'в конец';
+        var position =
+            beforeBlockId > 0
+                ? 'перед «'
+                    + blockTitle(
+                        beforeBlockId
+                    )
+                    + '»'
+                : 'в конец';
 
         showHud(
             'Добавить «'
-            + draggedLibraryTitle
+            + pointerDrag.title
             + '» · '
             + sectionTitle(sectionId)
             + ' · Колонка '
             + column
             + ' · '
             + position,
-            event
+            clientX,
+            clientY
         );
     }
 
@@ -750,10 +831,13 @@
                 rect.height * 0.14
             )
         );
-        var y = Number(clientY || 0);
+        var y =
+            Number(clientY || 0);
         var delta = 0;
 
-        if (y < rect.top + threshold) {
+        if (
+            y < rect.top + threshold
+        ) {
             delta = -Math.ceil(
                 (
                     rect.top
@@ -784,55 +868,73 @@
         }
     }
 
-    function createDragGhost(
-        event,
-        type,
-        title
+    function pointerGhost() {
+        var ghost =
+            document.getElementById(
+                'sbDnd2LibraryPointerGhost'
+            );
+
+        if (ghost) {
+            return ghost;
+        }
+
+        ghost =
+            document.createElement('div');
+        ghost.id =
+            'sbDnd2LibraryPointerGhost';
+        ghost.className =
+            'sb-dnd2-library-pointer-ghost';
+        ghost.hidden = true;
+        document.body.appendChild(ghost);
+
+        return ghost;
+    }
+
+    function renderPointerGhost(
+        clientX,
+        clientY
     ) {
-        if (
-            !event.dataTransfer
-            || typeof event.dataTransfer
-                .setDragImage !== 'function'
-        ) {
+        if (!pointerDrag) {
             return;
         }
 
-        var meta = blockMeta(type);
-        var ghost =
-            document.createElement('div');
+        var meta =
+            blockMeta(pointerDrag.type);
+        var ghost = pointerGhost();
 
-        ghost.className =
-            'sb-dnd2-ghost sb-dnd2-library-ghost';
         ghost.innerHTML = ''
-            + '<strong>'
-            + '<span class="sb-dnd2-library-ghost__icon">'
+            + '<span class="sb-dnd2-library-pointer-ghost__icon">'
             + escape(meta.icon || '◆')
             + '</span>'
-            + escape(title)
+            + '<span class="sb-dnd2-library-pointer-ghost__copy">'
+            + '<strong>'
+            + escape(pointerDrag.title)
             + '</strong>'
-            + '<span>'
-            + 'Новый компонент'
+            + '<small>Новый компонент</small>'
             + '</span>';
 
-        document.body.appendChild(ghost);
+        ghost.hidden = false;
+        ghost.style.left =
+            (
+                Number(clientX || 0)
+                + 16
+            ) + 'px';
+        ghost.style.top =
+            (
+                Number(clientY || 0)
+                + 16
+            ) + 'px';
+    }
 
-        try {
-            event.dataTransfer.setDragImage(
-                ghost,
-                26,
-                20
+    function hidePointerGhost() {
+        var ghost =
+            document.getElementById(
+                'sbDnd2LibraryPointerGhost'
             );
-        } catch (error) {
-            // Browser native drag image is acceptable.
-        }
 
-        window.setTimeout(function () {
-            if (ghost.parentNode) {
-                ghost.parentNode.removeChild(
-                    ghost
-                );
-            }
-        }, 0);
+        if (ghost) {
+            ghost.hidden = true;
+        }
     }
 
     function prepareLibraryCards(root) {
@@ -841,94 +943,139 @@
         root.querySelectorAll(
             '[data-library-block]'
         ).forEach(function (card) {
-            card.setAttribute(
-                'draggable',
-                'true'
+            /*
+             * Disable the unreliable native draggable behavior on
+             * <button>. Pointer events below own the gesture.
+             */
+            card.draggable = false;
+            card.removeAttribute(
+                'draggable'
             );
             card.setAttribute(
                 'data-dnd2-library-ready',
-                '1'
+                '2'
             );
 
             if (!card.title) {
                 card.title =
                     'Нажмите для добавления'
-                    + ' или перетащите на холст';
+                    + ' или зажмите и перетащите на холст';
+            }
+
+            if (
+                !card.querySelector(
+                    '.sb-dnd2-library-card-grip'
+                )
+            ) {
+                var grip =
+                    document.createElement(
+                        'span'
+                    );
+                grip.className =
+                    'sb-dnd2-library-card-grip';
+                grip.setAttribute(
+                    'aria-hidden',
+                    'true'
+                );
+                grip.textContent = '⋮⋮';
+                card.appendChild(grip);
             }
         });
     }
 
-    function startLibraryDrag(
+    function beginPointerCandidate(
         card,
         event
     ) {
+        if (
+            isCreating
+            || !event.isPrimary
+            || (
+                event.pointerType
+                    === 'mouse'
+                && event.button !== 0
+            )
+        ) {
+            return;
+        }
+
         var type = String(
             card.getAttribute(
                 'data-library-block'
             ) || ''
         );
 
-        if (!type || isCreating) {
-            event.preventDefault();
+        if (!type) {
             return;
         }
 
         var meta = blockMeta(type);
 
-        draggedLibraryType = type;
-        draggedLibraryTitle =
-            String(
+        pointerCandidate = {
+            pointerId: event.pointerId,
+            card: card,
+            type: type,
+            title: String(
                 meta.title
                 || type
                 || 'Блок'
-            );
+            ),
+            startX: Number(
+                event.clientX || 0
+            ),
+            startY: Number(
+                event.clientY || 0
+            )
+        };
 
+        try {
+            card.setPointerCapture(
+                event.pointerId
+            );
+        } catch (error) {
+            // Capture is a convenience, not a requirement.
+        }
+    }
+
+    function activatePointerDrag(event) {
+        if (
+            !pointerCandidate
+            || pointerDrag
+        ) {
+            return;
+        }
+
+        pointerDrag =
+            pointerCandidate;
+        pointerCandidate = null;
+        pointerTargetSlot = null;
         suppressClickUntil =
-            Date.now() + 700;
+            Date.now() + 900;
 
         document.body.classList.add(
             'sb-dnd2-active',
             'sb-dnd2-block-dragging',
-            'sb-dnd2-library-dragging'
+            'sb-dnd2-library-dragging',
+            'sb-dnd2-library-pointer-dragging'
         );
 
         libraryModal.classList.add(
             'is-dnd2-library-dragging'
         );
 
-        card.classList.add(
+        pointerDrag.card.classList.add(
             'is-dnd2-library-source'
         );
 
-        if (event.dataTransfer) {
-            event.dataTransfer.effectAllowed =
-                'copy';
-
-            event.dataTransfer.setData(
-                'text/plain',
-                'library:'
-                + draggedLibraryType
-            );
-
-            try {
-                event.dataTransfer.setData(
-                    'application/x-sitebuilder-block',
-                    draggedLibraryType
-                );
-            } catch (error) {
-                // Custom MIME types may be blocked.
-            }
-
-            createDragGhost(
-                event,
-                draggedLibraryType,
-                draggedLibraryTitle
-            );
-        }
+        renderPointerGhost(
+            event.clientX,
+            event.clientY
+        );
     }
 
-    function finishLibraryDrag() {
+    function finishPointerVisuals() {
         clearDropTarget();
+        pointerTargetSlot = null;
 
         libraryModal.classList.remove(
             'is-dnd2-library-dragging'
@@ -945,18 +1092,50 @@
         document.body.classList.remove(
             'sb-dnd2-active',
             'sb-dnd2-block-dragging',
-            'sb-dnd2-library-dragging'
+            'sb-dnd2-library-dragging',
+            'sb-dnd2-library-pointer-dragging'
         );
 
-        draggedLibraryType = '';
-        draggedLibraryTitle = '';
+        hidePointerGhost();
+    }
+
+    function cancelPointerGesture() {
+        if (pointerCandidate) {
+            try {
+                pointerCandidate.card
+                    .releasePointerCapture(
+                        pointerCandidate.pointerId
+                    );
+            } catch (error) {
+                // Ignore missing capture.
+            }
+        }
+
+        if (pointerDrag) {
+            try {
+                pointerDrag.card
+                    .releasePointerCapture(
+                        pointerDrag.pointerId
+                    );
+            } catch (error) {
+                // Ignore missing capture.
+            }
+        }
+
+        pointerCandidate = null;
+        pointerDrag = null;
+        finishPointerVisuals();
     }
 
     async function createFromDrop(
         type,
         slot
     ) {
-        if (isCreating || !type || !slot) {
+        if (
+            isCreating
+            || !type
+            || !slot
+        ) {
             return;
         }
 
@@ -1061,10 +1240,6 @@
         }
     }
 
-    /*
-     * Business block cards are injected after 25-visual-builder.js.
-     * Observe the library so every current/future card becomes draggable.
-     */
     prepareLibraryCards();
 
     if ('MutationObserver' in window) {
@@ -1082,7 +1257,8 @@
                                     function (added) {
                                         if (
                                             !added
-                                            || added.nodeType !== 1
+                                            || added.nodeType
+                                                !== 1
                                         ) {
                                             return;
                                         }
@@ -1120,8 +1296,12 @@
         );
     }
 
+    /*
+     * Capture phase lets us detect the gesture before the legacy
+     * click-to-create handler. A simple press/release is untouched.
+     */
     document.addEventListener(
-        'dragstart',
+        'pointerdown',
         function (event) {
             var card =
                 event.target
@@ -1138,7 +1318,7 @@
                 return;
             }
 
-            startLibraryDrag(
+            beginPointerCandidate(
                 card,
                 event
             );
@@ -1147,44 +1327,117 @@
     );
 
     document.addEventListener(
-        'dragover',
+        'pointermove',
         function (event) {
-            if (!draggedLibraryType) {
+            var active =
+                pointerDrag
+                && pointerDrag.pointerId
+                    === event.pointerId;
+
+            var candidate =
+                pointerCandidate
+                && pointerCandidate.pointerId
+                    === event.pointerId;
+
+            if (!active && !candidate) {
                 return;
             }
 
-            var slot =
-                resolveBlockSlot(event);
+            if (!pointerDrag) {
+                var dx =
+                    Number(event.clientX || 0)
+                    - pointerCandidate.startX;
+                var dy =
+                    Number(event.clientY || 0)
+                    - pointerCandidate.startY;
 
-            if (!slot) {
+                if (
+                    Math.sqrt(
+                        dx * dx + dy * dy
+                    ) < DRAG_THRESHOLD
+                ) {
+                    return;
+                }
+
+                activatePointerDrag(
+                    event
+                );
+            }
+
+            if (!pointerDrag) {
                 return;
             }
 
             event.preventDefault();
-            event.stopImmediatePropagation();
 
-            if (event.dataTransfer) {
-                event.dataTransfer.dropEffect =
-                    'copy';
+            renderPointerGhost(
+                event.clientX,
+                event.clientY
+            );
+
+            autoScroll(
+                event.clientY
+            );
+
+            /*
+             * The modal is pointer-events:none while dragging, so
+             * elementFromPoint sees the real canvas beneath it.
+             */
+            var slot =
+                resolveBlockSlotAtPoint(
+                    event.clientX,
+                    event.clientY
+                );
+
+            if (slot) {
+                markTarget(
+                    slot,
+                    event.clientX,
+                    event.clientY
+                );
+            } else {
+                clearDropTarget();
+                pointerTargetSlot = null;
+
+                showHud(
+                    'Перетащите «'
+                    + pointerDrag.title
+                    + '» на секцию или колонку',
+                    event.clientX,
+                    event.clientY
+                );
             }
-
-            autoScroll(event.clientY);
-            markTarget(slot, event);
         },
         true
     );
 
     document.addEventListener(
-        'drop',
+        'pointerup',
         function (event) {
-            if (!draggedLibraryType) {
+            if (
+                pointerCandidate
+                && pointerCandidate.pointerId
+                    === event.pointerId
+                && !pointerDrag
+            ) {
+                try {
+                    pointerCandidate.card
+                        .releasePointerCapture(
+                            event.pointerId
+                        );
+                } catch (error) {
+                    // Ignore.
+                }
+
+                pointerCandidate = null;
                 return;
             }
 
-            var slot =
-                resolveBlockSlot(event);
-
-            if (!slot) {
+            if (
+                !pointerDrag
+                || pointerDrag.pointerId
+                    !== event.pointerId
+            ) {
                 return;
             }
 
@@ -1192,37 +1445,64 @@
             event.stopImmediatePropagation();
 
             var type =
-                draggedLibraryType;
+                pointerDrag.type;
+            var slot =
+                pointerTargetSlot
+                || resolveBlockSlotAtPoint(
+                    event.clientX,
+                    event.clientY
+                );
 
-            finishLibraryDrag();
+            try {
+                pointerDrag.card
+                    .releasePointerCapture(
+                        event.pointerId
+                    );
+            } catch (error) {
+                // Ignore.
+            }
 
-            createFromDrop(
-                type,
-                slot
-            );
+            pointerDrag = null;
+            pointerCandidate = null;
+            finishPointerVisuals();
+
+            if (slot) {
+                createFromDrop(
+                    type,
+                    slot
+                );
+            }
         },
         true
     );
 
     document.addEventListener(
-        'dragend',
-        function () {
-            if (
-                draggedLibraryType
-                || document.body.classList.contains(
-                    'sb-dnd2-library-dragging'
+        'pointercancel',
+        function (event) {
+            var matches =
+                (
+                    pointerCandidate
+                    && pointerCandidate.pointerId
+                        === event.pointerId
                 )
-            ) {
-                finishLibraryDrag();
+                || (
+                    pointerDrag
+                    && pointerDrag.pointerId
+                        === event.pointerId
+                );
+
+            if (matches) {
+                suppressClickUntil =
+                    Date.now() + 400;
+                cancelPointerGesture();
             }
         },
         true
     );
 
     /*
-     * Browsers can emit click immediately after an HTML5 drag.
-     * Capture it before the old library click handler so DnD never
-     * creates a second block at the default target.
+     * Prevent the click that browsers emit after a completed drag.
+     * Normal click without movement still reaches the original handler.
      */
     document.addEventListener(
         'click',
@@ -1255,9 +1535,14 @@
         function (event) {
             if (
                 event.key === 'Escape'
-                && draggedLibraryType
+                && (
+                    pointerCandidate
+                    || pointerDrag
+                )
             ) {
-                finishLibraryDrag();
+                suppressClickUntil =
+                    Date.now() + 400;
+                cancelPointerGesture();
             }
         },
         true
