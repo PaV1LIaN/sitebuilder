@@ -73,6 +73,7 @@ $h = static function ($value): string {
     <?php $APPLICATION->ShowHead(); ?>
     <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/admin.css">
     <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/layout2.css?v=2">
+    <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/layout2-preview.css?v=1">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page sb-layout2-page">
@@ -201,6 +202,170 @@ $h = static function ($value): string {
         </div>
     </section>
 
+
+    <section
+        class="sb-panel sb-layout2-real-preview-panel"
+        id="layoutRealPreviewPanel"
+    >
+        <div class="sb-layout2-real-preview-head">
+            <div>
+                <div class="sb-layout2-eyebrow">
+                    Реальный предпросмотр
+                </div>
+
+                <h2 class="sb-panel-title">
+                    Как выглядит сайт
+                </h2>
+
+                <p>
+                    Используется тот же публичный шаблон, компоненты,
+                    логотип, меню, секции и адаптивные стили, что и в
+                    <code>public.php</code>.
+                </p>
+            </div>
+        </div>
+
+        <div class="sb-layout2-real-preview-toolbar">
+            <label class="sb-field">
+                <span>Страница для предпросмотра</span>
+
+                <div class="sb-layout2-real-preview-page-row">
+                    <select
+                        class="sb-select"
+                        id="layoutPreviewPage"
+                        disabled
+                    >
+                        <option value="0">
+                            Загружаю страницы…
+                        </option>
+                    </select>
+
+                    <span
+                        class="sb-layout2-preview-status"
+                        id="layoutPreviewPageStatus"
+                        data-status="none"
+                    >
+                        —
+                    </span>
+                </div>
+            </label>
+
+            <div
+                class="sb-layout2-preview-devices"
+                role="group"
+                aria-label="Размер предпросмотра"
+            >
+                <button
+                    type="button"
+                    class="is-active"
+                    data-layout-preview-device="desktop"
+                >
+                    Desktop
+                </button>
+
+                <button
+                    type="button"
+                    data-layout-preview-device="tablet"
+                >
+                    Tablet
+                </button>
+
+                <button
+                    type="button"
+                    data-layout-preview-device="mobile"
+                >
+                    Mobile
+                </button>
+            </div>
+
+            <div class="sb-layout2-preview-actions">
+                <button
+                    type="button"
+                    class="sb-btn sb-btn-light"
+                    id="layoutPreviewReload"
+                >
+                    Обновить preview
+                </button>
+
+                <a
+                    class="sb-btn sb-btn-light"
+                    id="layoutPreviewOpen"
+                    href="#"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    Открыть отдельно ↗
+                </a>
+            </div>
+        </div>
+
+        <div class="sb-layout2-real-preview-meta">
+            <div class="sb-layout2-real-preview-meta__left">
+                <strong>Preview</strong>
+                <span id="layoutPreviewNote">
+                    Загружаю…
+                </span>
+            </div>
+
+            <div class="sb-layout2-real-preview-meta__right">
+                <span
+                    class="sb-layout2-preview-size"
+                    id="layoutPreviewSize"
+                >
+                    1280 px
+                </span>
+
+                <span id="layoutPreviewLoaded">
+                    —
+                </span>
+            </div>
+        </div>
+
+        <div
+            class="sb-layout2-real-preview-viewport"
+            id="layoutPreviewViewport"
+            data-device="desktop"
+        >
+            <div
+                class="sb-layout2-preview-empty"
+                id="layoutPreviewEmpty"
+                hidden
+            >
+                Нет страницы для предпросмотра.
+            </div>
+
+            <div class="sb-layout2-preview-frame-stage">
+                <div
+                    class="sb-layout2-preview-frame-shell"
+                    id="layoutPreviewFrameShell"
+                    style="width:1280px"
+                >
+                    <div class="sb-layout2-preview-device-cap"></div>
+
+                    <div
+                        class="sb-layout2-preview-loading"
+                        id="layoutPreviewLoading"
+                    >
+                        Загружаю публичный вид…
+                    </div>
+
+                    <iframe
+                        class="sb-layout2-preview-frame is-loading"
+                        id="layoutPreviewFrame"
+                        title="Предпросмотр сайта"
+                        sandbox="allow-scripts"
+                        referrerpolicy="same-origin"
+                    ></iframe>
+                </div>
+            </div>
+        </div>
+
+        <div class="sb-layout2-preview-hint">
+            Черновую страницу можно просматривать здесь до публикации.
+            Ссылки, кнопки и отправка форм внутри iframe отключены.
+        </div>
+    </section>
+
     <section class="sb-layout2-workspace">
         <div class="sb-panel sb-layout2-canvas-panel">
             <div class="sb-layout2-canvas-head">
@@ -275,9 +440,12 @@ window.SB_LAYOUT_CONFIG = {
     basePath: '<?= CUtil::JSEscape($basePath) ?>',
     apiUrl: '<?= CUtil::JSEscape($basePath) ?>/api.php',
     siteId: <?= $siteId ?>,
+    homePageId: <?= (int)($site['homePageId'] ?? 0) ?>,
+    previewUrl: '<?= CUtil::JSEscape($basePath) ?>/layout_preview.php',
     sessid: '<?= CUtil::JSEscape(bitrix_sessid()) ?>'
 };
 </script>
 <script src="<?= $h($basePath) ?>/assets/admin/layout2.js?v=3"></script>
+<script src="<?= $h($basePath) ?>/assets/admin/layout2-preview.js?v=1"></script>
 </body>
 </html>
