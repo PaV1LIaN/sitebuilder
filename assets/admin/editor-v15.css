@@ -1,0 +1,186 @@
+/* =========================================================
+   SITEBUILDER DRAG & DROP 2.0 / STAGE 2
+   Drag new components from library to canvas.
+   ========================================================= */
+
+/* Every library card keeps normal click behavior but advertises DnD. */
+.sb-library-card[data-dnd2-library-ready="1"] {
+    cursor: grab;
+}
+
+.sb-library-card[data-dnd2-library-ready="1"]:active {
+    cursor: grabbing;
+}
+
+.sb-library-card[data-dnd2-library-ready="1"]::after {
+    content: "Перетащить";
+    position: absolute;
+    right: 9px;
+    bottom: 8px;
+    z-index: 3;
+    padding: 3px 6px;
+    border: 1px solid #dbeafe;
+    border-radius: 999px;
+    background: rgba(239, 246, 255, .94);
+    color: #2563eb;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(2px);
+    transition:
+        opacity .14s ease,
+        transform .14s ease;
+    font-size: 8px;
+    font-weight: 850;
+    line-height: 1;
+}
+
+.sb-library-card[data-dnd2-library-ready="1"]:hover::after {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.sb-library-card.is-dnd2-library-source {
+    border-color: #60a5fa !important;
+    box-shadow:
+        0 0 0 3px rgba(37, 99, 235, .12),
+        0 14px 28px rgba(37, 99, 235, .14) !important;
+}
+
+/*
+ * Once drag starts, the modal stops intercepting hit-testing.
+ * Keeping it faintly visible makes the transition understandable,
+ * while the actual canvas becomes the active drop surface.
+ */
+.sb-block-library.is-dnd2-library-dragging {
+    pointer-events: none !important;
+}
+
+.sb-block-library.is-dnd2-library-dragging
+.sb-block-library__backdrop {
+    opacity: 0 !important;
+    backdrop-filter: none !important;
+}
+
+.sb-block-library.is-dnd2-library-dragging
+.sb-block-library__dialog {
+    opacity: .12;
+    filter: saturate(.45);
+    transform: scale(.985);
+    transition:
+        opacity .12s ease,
+        transform .12s ease,
+        filter .12s ease;
+}
+
+/* Instruction strip shown only during library drag. */
+body.sb-dnd2-library-dragging::after {
+    content: "Перетащите новый блок в нужную секцию и колонку";
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    z-index: 12500;
+    max-width: calc(100vw - 32px);
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 255, 255, .9);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, .94);
+    color: #fff;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, .22);
+    pointer-events: none;
+    transform: translateX(-50%);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+/* Reuse Stage 1 insertion target but distinguish creation from move. */
+body.sb-dnd2-library-dragging
+.sb-editor-block-drop-slot.is-dnd2-library-target::after {
+    background: #16a34a !important;
+    box-shadow:
+        0 0 0 4px rgba(22, 163, 74, .12) !important;
+}
+
+body.sb-dnd2-library-dragging
+.sb-editor-block-drop-slot.is-dnd2-library-target::before {
+    background: #16a34a !important;
+    box-shadow:
+        0 5px 16px rgba(22, 163, 74, .25) !important;
+}
+
+body.sb-dnd2-library-dragging
+.sb-editor-section-preview__column.is-dnd2-target {
+    border-color: #4ade80 !important;
+    background: rgba(240, 253, 244, .76) !important;
+    box-shadow:
+        inset 0 0 0 2px rgba(22, 163, 74, .12),
+        0 0 0 3px rgba(22, 163, 74, .05) !important;
+}
+
+body.sb-dnd2-library-dragging
+.sb-editor-section-preview.is-dnd2-target-section {
+    border-color: rgba(22, 163, 74, .58) !important;
+    box-shadow:
+        inset 0 0 0 1px rgba(22, 163, 74, .08),
+        0 12px 28px rgba(22, 163, 74, .08) !important;
+}
+
+body.sb-dnd2-library-dragging
+.sb-editor-section-preview__column.is-dnd2-target
+.sb-editor-section-preview__empty {
+    border-color: #4ade80;
+    background: rgba(220, 252, 231, .48);
+    color: #15803d;
+}
+
+/* Library drag image reuses the Stage 1 ghost card. */
+.sb-dnd2-library-ghost strong {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sb-dnd2-library-ghost__icon {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 7px;
+    background: #dcfce7;
+    color: #15803d;
+    font-size: 10px;
+}
+
+/* Dark editor */
+body.sb-editor-theme-dark
+.sb-library-card[data-dnd2-library-ready="1"]::after {
+    border-color: #334155;
+    background: rgba(30, 41, 59, .96);
+    color: #93c5fd;
+}
+
+body.sb-editor-theme-dark.sb-dnd2-library-dragging
+.sb-editor-section-preview__column.is-dnd2-target {
+    border-color: #4ade80 !important;
+    background: rgba(20, 83, 45, .18) !important;
+}
+
+@media (max-width: 760px) {
+    /*
+     * Native HTML5 DnD is not reliable on touch-only browsers.
+     * Stage 3 will provide pointer/touch handling.
+     */
+    .sb-library-card[data-dnd2-library-ready="1"]::after {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sb-block-library.is-dnd2-library-dragging
+    .sb-block-library__dialog,
+    .sb-library-card[data-dnd2-library-ready="1"]::after {
+        transition: none !important;
+    }
+}
