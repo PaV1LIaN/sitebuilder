@@ -65,6 +65,27 @@
         return Math.max(min, Math.min(max, value));
     }
 
+    function jsonObjectForEditor(value) {
+        if (
+            value
+            && typeof value === 'object'
+            && !Array.isArray(value)
+        ) {
+            return value;
+        }
+
+        /*
+         * PHP associative arrays lose the object/list distinction when
+         * they are empty. An empty JSON object can therefore reach the
+         * browser as []. For Content/Props the editor treats [] as {}.
+         */
+        if (Array.isArray(value) && value.length === 0) {
+            return {};
+        }
+
+        return {};
+    }
+
     function debug(value) {
         var output = node('layoutDebug');
         if (!output) return;
@@ -695,8 +716,16 @@
             + (zoneEnabled(found.zone) ? 'зона включена' : 'зона скрыта на сайте');
 
         node('layoutBlockFields').innerHTML = blockFieldsHtml(block);
-        node('blockAdvancedContent').value = JSON.stringify(block.content || {}, null, 2);
-        node('blockAdvancedProps').value = JSON.stringify(block.props || {}, null, 2);
+        node('blockAdvancedContent').value = JSON.stringify(
+            jsonObjectForEditor(block.content),
+            null,
+            2
+        );
+        node('blockAdvancedProps').value = JSON.stringify(
+            jsonObjectForEditor(block.props),
+            null,
+            2
+        );
 
         state.blockDirty = false;
         setBlockState('Без изменений', false);
@@ -737,7 +766,19 @@
 
         try {
             var parsed = JSON.parse(raw);
-            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('NOT_OBJECT');
+
+            if (Array.isArray(parsed)) {
+                if (parsed.length === 0) {
+                    return {};
+                }
+
+                throw new Error('NOT_OBJECT');
+            }
+
+            if (!parsed || typeof parsed !== 'object') {
+                throw new Error('NOT_OBJECT');
+            }
+
             return parsed;
         } catch (error) {
             throw new Error(label + ' должен быть валидным JSON-объектом');

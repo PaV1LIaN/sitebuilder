@@ -278,6 +278,6 @@ window.SB_LAYOUT_CONFIG = {
     sessid: '<?= CUtil::JSEscape(bitrix_sessid()) ?>'
 };
 </script>
-<script src="<?= $h($basePath) ?>/assets/admin/layout2.js?v=2"></script>
+<script src="<?= $h($basePath) ?>/assets/admin/layout2.js?v=3"></script>
 </body>
 </html>
