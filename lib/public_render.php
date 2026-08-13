@@ -817,6 +817,26 @@ if (!function_exists('sb_public_render_page_sections')) {
                 'start'
             );
 
+            $columnRatio = sb_public_safe_choice(
+                $layout['columnRatio'] ?? 'equal',
+                ['equal', '33-67', '67-33', '25-75', '75-25'],
+                'equal'
+            );
+
+            $columnTemplate = 'repeat('
+                . $columns
+                . ',minmax(0,1fr))';
+
+            if ($columns === 2) {
+                $columnTemplate = match ($columnRatio) {
+                    '33-67' => 'minmax(0,1fr) minmax(0,2fr)',
+                    '67-33' => 'minmax(0,2fr) minmax(0,1fr)',
+                    '25-75' => 'minmax(0,1fr) minmax(0,3fr)',
+                    '75-25' => 'minmax(0,3fr) minmax(0,1fr)',
+                    default => 'minmax(0,1fr) minmax(0,1fr)',
+                };
+            }
+
             $paddingTop = sb_public_clamp_int($props['paddingTop'] ?? 32, 0, 240);
             $paddingBottom = sb_public_clamp_int($props['paddingBottom'] ?? 32, 0, 240);
             $paddingX = sb_public_clamp_int($props['paddingX'] ?? 24, 0, 160);
@@ -844,6 +864,7 @@ if (!function_exists('sb_public_render_page_sections')) {
 
             $sectionStyles = [
                 '--sb-section-columns:' . $columns,
+                '--sb-section-grid-template:' . $columnTemplate,
                 '--sb-section-tablet-columns:' . $tabletColumns,
                 '--sb-section-mobile-columns:' . $mobileColumns,
                 '--sb-section-gap:' . $gap . 'px',
