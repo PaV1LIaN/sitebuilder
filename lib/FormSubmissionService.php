@@ -971,11 +971,18 @@ final class FormSubmissionService
 
         $row =
             sb_db_fetch_one(
-                "UPDATE sitebuilder.form_submission SET status=:status,handled_by=:user_id,
-                 handled_at=CASE WHEN :status IN ('done','spam') THEN NOW() ELSE handled_at END,
+                "UPDATE sitebuilder.form_submission SET status=:status_value,handled_by=:user_id,
+                 handled_at=CASE WHEN :status_terminal IN ('done','spam') THEN NOW() ELSE handled_at END,
                  updated_at=NOW() WHERE id=:id AND site_id=:site_id RETURNING *",
                 [
-                    ':status' =>
+                    /*
+                     * PostgreSQL must infer these placeholders independently.
+                     * Reusing one placeholder both for VARCHAR assignment and
+                     * text comparison causes SQLSTATE 42P08.
+                     */
+                    ':status_value' =>
+                        $status,
+                    ':status_terminal' =>
                         $status,
                     ':user_id' =>
                         $userId
