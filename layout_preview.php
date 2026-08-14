@@ -569,6 +569,270 @@ if (!function_exists('sb_layout_preview_resolve_layout')) {
     function sb_layout_preview_resolve_layout(
         int $siteId
     ): array {
+        /*
+         * Always start from the saved layout.
+         * Never call this function recursively.
+         */
+        $layout =
+            sb_public_layout_for_site(
+                $siteId
+            );
+
+        $raw =
+            $_POST['draftLayout']
+            ?? null;
+
+        if (
+            is_string($raw)
+            && $raw !== ''
+            && strlen($raw)
+                <= 2 * 1024 * 1024
+        ) {
+            $decoded =
+                json_decode(
+                    $raw,
+                    true
+                );
+
+            if (is_array($decoded)) {
+                $savedSettings =
+                    is_array(
+                        $layout['settings']
+                        ?? null
+                    )
+                        ? $layout['settings']
+                        : [];
+
+                $draftSettings =
+                    is_array(
+                        $decoded['settings']
+                        ?? null
+                    )
+                        ? $decoded['settings']
+                        : [];
+
+                $layout['settings'] =
+                    sb_layout_preview_normalize_settings(
+                        $savedSettings,
+                        $draftSettings
+                    );
+
+                $savedZones =
+                    is_array(
+                        $layout['zones']
+                        ?? null
+                    )
+                        ? $layout['zones']
+                        : [];
+
+                $draftZones =
+                    is_array(
+                        $decoded['zones']
+                        ?? null
+                    )
+                        ? $decoded['zones']
+                        : [];
+
+                $layout['zones'] =
+                    sb_layout_preview_normalize_zones(
+                        $savedZones,
+                        $draftZones
+                    );
+
+                return $layout;
+            }
+        }
+
+        /*
+         * Keep the original Stage 3 GET overrides for a direct/manual
+         * opening of layout_preview.php without posted draftLayout.
+         */
+        $layoutSettings =
+            is_array(
+                $layout['settings']
+                ?? null
+            )
+                ? $layout['settings']
+                : [];
+
+        $layoutSettings['showHeader'] =
+            sb_layout_preview_bool(
+                'showHeader',
+                !empty(
+                    $layoutSettings[
+                        'showHeader'
+                    ]
+                )
+            );
+
+        $layoutSettings['showFooter'] =
+            sb_layout_preview_bool(
+                'showFooter',
+                !empty(
+                    $layoutSettings[
+                        'showFooter'
+                    ]
+                )
+            );
+
+        $layoutSettings['showLeft'] =
+            sb_layout_preview_bool(
+                'showLeft',
+                !empty(
+                    $layoutSettings[
+                        'showLeft'
+                    ]
+                )
+            );
+
+        $layoutSettings['showRight'] =
+            sb_layout_preview_bool(
+                'showRight',
+                !empty(
+                    $layoutSettings[
+                        'showRight'
+                    ]
+                )
+            );
+
+        if (
+            array_key_exists(
+                'leftWidth',
+                $_GET
+            )
+        ) {
+            $layoutSettings[
+                'leftWidth'
+            ] =
+                max(
+                    120,
+                    min(
+                        800,
+                        (int)$_GET[
+                            'leftWidth'
+                        ]
+                    )
+                );
+        }
+
+        if (
+            array_key_exists(
+                'rightWidth',
+                $_GET
+            )
+        ) {
+            $layoutSettings[
+                'rightWidth'
+            ] =
+                max(
+                    120,
+                    min(
+                        800,
+                        (int)$_GET[
+                            'rightWidth'
+                        ]
+                    )
+                );
+        }
+
+        if (
+            array_key_exists(
+                'leftMode',
+                $_GET
+            )
+        ) {
+            $leftMode =
+                trim(
+                    (string)$_GET[
+                        'leftMode'
+                    ]
+                );
+
+            $layoutSettings[
+                'leftMode'
+            ] =
+                in_array(
+                    $leftMode,
+                    [
+                        'blocks',
+                        'menu',
+                    ],
+                    true
+                )
+                    ? $leftMode
+                    : 'blocks';
+        }
+
+        $layout['settings'] =
+            $layoutSettings;
+
+        return $layout;
+    }
+}
+
+if (!function_exists('sb_layout_preview_view_model')) {
+    function sb_layout_preview_view_model(
+        int $siteId,
+        int $requestedPageId,
+        string $basePath
+    ): ?array {
+        $site =
+            sb_public_find_site(
+                $siteId
+            );
+
+        if (!$site) {
+            return null;
+        }
+
+        $allPages =
+            sb_layout_preview_all_pages(
+                $siteId
+            );
+
+        $currentPage =
+            $requestedPageId > 0
+                ? sb_layout_preview_find_page(
+                    $allPages,
+                    $requestedPageId
+                )
+                : null;
+
+        if (!$currentPage) {
+            $homePageId =
+                (int)(
+                    $site['homePageId']
+                    ?? 0
+                );
+
+            if ($homePageId > 0) {
+                $currentPage =
+                    sb_layout_preview_find_page(
+                        $allPages,
+                        $homePageId
+                    );
+            }
+        }
+
+        if (
+            !$currentPage
+            && $allPages
+        ) {
+            $currentPage =
+                $allPages[0];
+        }
+
+        if (!$currentPage) {
+            return null;
+        }
+
+        $pages =
+            sb_layout_preview_navigation_pages(
+                $siteId,
+                $allPages,
+                $currentPage
+            );
+
         $layout =
             sb_layout_preview_resolve_layout(
                 $siteId
