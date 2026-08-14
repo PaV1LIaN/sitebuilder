@@ -1072,7 +1072,129 @@ include __DIR__
 
 $html =
     (string)ob_get_clean();
+if (!function_exists('sb_layout_preview_strip_scripts')) {
+    /**
+     * Removes <script> elements without running a whole-document PCRE.
+     * This is deliberately linear so a large Bitrix-generated <head>
+     * cannot hit PREG_BACKTRACK_LIMIT_ERROR and silently restore scripts.
+     */
+    function sb_layout_preview_strip_scripts(
+        string $html
+    ): string {
+        $offset = 0;
+        $length = strlen($html);
 
+        while ($offset < $length) {
+            $start =
+                stripos(
+                    $html,
+                    '<script',
+                    $offset
+                );
+
+            if ($start === false) {
+                break;
+            }
+
+            $afterName =
+                $start + 7;
+
+            $nextChar =
+                $afterName < strlen($html)
+                    ? $html[$afterName]
+                    : '';
+
+            /*
+             * Do not treat custom text such as <scripture> as a script tag.
+             */
+            if (
+                $nextChar !== ''
+                && !ctype_space($nextChar)
+                && $nextChar !== '>'
+                && $nextChar !== '/'
+            ) {
+                $offset =
+                    $afterName;
+
+                continue;
+            }
+
+            $openEnd =
+                strpos(
+                    $html,
+                    '>',
+                    $afterName
+                );
+
+            if ($openEnd === false) {
+                $html =
+                    substr(
+                        $html,
+                        0,
+                        $start
+                    );
+
+                break;
+            }
+
+            $closeStart =
+                stripos(
+                    $html,
+                    '</script',
+                    $openEnd + 1
+                );
+
+            if ($closeStart === false) {
+                /*
+                 * In HTML an unterminated script consumes the remaining
+                 * document as script text. Drop that unsafe tail.
+                 */
+                $html =
+                    substr(
+                        $html,
+                        0,
+                        $start
+                    );
+
+                break;
+            }
+
+            $closeEnd =
+                strpos(
+                    $html,
+                    '>',
+                    $closeStart + 8
+                );
+
+            if ($closeEnd === false) {
+                $html =
+                    substr(
+                        $html,
+                        0,
+                        $start
+                    );
+
+                break;
+            }
+
+            $html =
+                substr_replace(
+                    $html,
+                    '',
+                    $start,
+                    $closeEnd - $start + 1
+                );
+
+            $offset =
+                $start;
+
+            $length =
+                strlen($html);
+        }
+
+        return $html;
+    }
+}
 $previewCss = <<<'HTML'
 <style id="sb-layout-preview-guard">
 html {
@@ -1163,10 +1285,8 @@ $html =
  * arbitrary <script> from an HTML layout/page block from executing.
  */
 $html =
-    preg_replace(
-        '#<script\b[^>]*>.*?</script\s*>#is',
-        '',
+    sb_layout_preview_strip_scripts(
         $html
-    ) ?? $html;
+    );
 
 echo $html;

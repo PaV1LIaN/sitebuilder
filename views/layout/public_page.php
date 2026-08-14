@@ -9,6 +9,7 @@ $layout = $vm['layout'];
 $menu = $vm['menu'];
 $basePath = $vm['basePath'];
 $siteId = (int)$vm['siteId'];
+$isLayoutPreview = !empty($vm['layoutPreview']);
 
 if (!function_exists('sb_public_appearance_file_url')) {
     function sb_public_appearance_file_url(int $fileId): string
@@ -523,7 +524,7 @@ $renderRightSidebar = !empty($vm['showRight'])
 
 global $APPLICATION;
 
-if ($pageHasDiskBlock) {
+if ($pageHasDiskBlock && !$isLayoutPreview) {
     \CJSCore::Init([
         'viewer',
         'ui.viewer',
@@ -541,7 +542,7 @@ if ($pageHasDiskBlock) {
 <head>
     <meta charset="UTF-8">
 
-    <?php $APPLICATION->ShowHead(); ?>
+    <?php if (!$isLayoutPreview) { $APPLICATION->ShowHead(); } ?>
 
     <title><?= sb_public_h($pageSeoTitle) ?></title>
     <meta name="robots" content="<?= sb_public_h($pageSeoRobots) ?>">
@@ -693,7 +694,7 @@ if ($pageHasDiskBlock) {
 </div>
 
 
-<?php if ($pageHasDiskBlock): ?>
+<?php if ($pageHasDiskBlock && !$isLayoutPreview): ?>
     <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=9"></script>
 <?php endif; ?>
 
@@ -709,7 +710,9 @@ $isPublicEditMode = (
 ?>
 
 <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/table/styles.css">
-<script src="<?= sb_public_h($basePath) ?>/components/table/view.js"></script>
+<?php if (!$isLayoutPreview): ?>
+    <script src="<?= sb_public_h($basePath) ?>/components/table/view.js"></script>
+<?php endif; ?>
 
 <?php if ($isPublicEditMode): ?>
     <script>
@@ -722,7 +725,9 @@ $isPublicEditMode = (
     <script src="<?= sb_public_h($basePath) ?>/components/table/edit.js"></script>
 <?php endif; ?>
 
-<script src="<?= sb_public_h($basePath) ?>/assets/public/public-interactions.js?v=20"></script>
-<script src="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.js?v=21"></script>
+<?php if (!$isLayoutPreview): ?>
+    <script src="<?= sb_public_h($basePath) ?>/assets/public/public-interactions.js?v=20"></script>
+    <script src="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.js?v=21"></script>
+<?php endif; ?>
 </body>
 </html>
