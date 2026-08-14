@@ -353,7 +353,7 @@ $h = static function ($value): string {
                         class="sb-layout2-preview-frame is-loading"
                         id="layoutPreviewFrame"
                         title="Предпросмотр сайта"
-                        sandbox="allow-scripts"
+                        sandbox="allow-same-origin"
                         referrerpolicy="same-origin"
                     ></iframe>
                 </div>

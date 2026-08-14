@@ -1092,8 +1092,11 @@ button,
 input,
 select,
 textarea,
-label {
+label,
+form,
+[role="button"] {
     cursor: default !important;
+    pointer-events: none !important;
 }
 </style>
 HTML;
@@ -1150,6 +1153,20 @@ $html =
         . "\n</body>",
         $html,
         1
+    ) ?? $html;
+
+/*
+ * srcdoc is a visual preview, not an interactive copy of Bitrix.
+ *
+ * Removing scripts before sending the document prevents Bitrix core from
+ * touching localStorage/cookies/XHR inside the sandbox and also prevents
+ * arbitrary <script> from an HTML layout/page block from executing.
+ */
+$html =
+    preg_replace(
+        '#<script\b[^>]*>.*?</script\s*>#is',
+        '',
+        $html
     ) ?? $html;
 
 echo $html;
