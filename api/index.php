@@ -153,6 +153,7 @@ if (
 if (
     $action === 'layout.get' ||
     $action === 'layout.updateSettings' ||
+    $action === 'layout.save' ||
     $action === 'layout.block.list' ||
     $action === 'layout.block.create' ||
     $action === 'layout.block.update' ||

@@ -72,7 +72,7 @@ $h = static function ($value): string {
     <title><?= $h($siteName) ?> · Каркас сайта</title>
     <?php $APPLICATION->ShowHead(); ?>
     <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/admin.css">
-    <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/layout2.css?v=2">
+    <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/layout2.css?v=3">
     <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/layout2-preview.css?v=1">
 </head>
 <body class="sb-admin-body">
@@ -105,7 +105,7 @@ $h = static function ($value): string {
                 <div class="sb-layout2-eyebrow">Общий каркас</div>
                 <h2 class="sb-panel-title">Области сайта</h2>
                 <p class="sb-layout2-help">
-                    Эти области общие для страниц сайта. Изменения настроек применяются только после нажатия «Сохранить каркас».
+                    Все изменения layout сначала живут только в черновике и preview. Оригинальный сайт изменится только после нажатия «Сохранить каркас».
                 </p>
             </div>
 
@@ -421,7 +421,7 @@ $h = static function ($value): string {
                 <div class="sb-layout2-inspector-actions">
                     <span class="sb-layout2-block-state" id="layoutBlockState">Без изменений</span>
                     <div>
-                        <button type="button" class="sb-btn sb-btn-primary" id="saveLayoutBlockBtn" disabled>Сохранить блок</button>
+                        <button type="button" class="sb-btn sb-btn-primary" id="saveLayoutBlockBtn" disabled>Применить блок</button>
                         <button type="button" class="sb-btn sb-btn-danger" id="deleteLayoutBlockBtn">Удалить</button>
                     </div>
                 </div>
@@ -445,7 +445,7 @@ window.SB_LAYOUT_CONFIG = {
     sessid: '<?= CUtil::JSEscape(bitrix_sessid()) ?>'
 };
 </script>
-<script src="<?= $h($basePath) ?>/assets/admin/layout2.js?v=3"></script>
-<script src="<?= $h($basePath) ?>/assets/admin/layout2-preview.js?v=1"></script>
+<script src="<?= $h($basePath) ?>/assets/admin/layout2.js?v=4"></script>
+<script src="<?= $h($basePath) ?>/assets/admin/layout2-preview.js?v=2"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 /* =========================================================
-   SITEBUILDER / LAYOUT 2.0 / STAGE 3
-   Real public preview inside the layout editor.
+   SITEBUILDER / LAYOUT 2.0 / DRAFT PREVIEW HOTFIX
+   Real public preview of the local unsaved layout draft.
    ========================================================= */
 (function () {
     'use strict';
@@ -39,8 +39,9 @@
         device: 'desktop',
         timer: 0,
         serial: 0,
-        loadedUrl: '',
-        loadingPages: false
+        loadingPages: false,
+        requestSerial: 0,
+        objectUrl: ''
     };
 
     function node(id) {
@@ -650,83 +651,7 @@
         };
     }
 
-    function previewUrl() {
-        if (state.pageId <= 0) {
-            return '';
-        }
-
-        var settings =
-            currentSettings();
-
-        var params =
-            new URLSearchParams();
-
-        params.set(
-            'siteId',
-            String(SITE_ID)
-        );
-
-        params.set(
-            'pageId',
-            String(
-                state.pageId
-            )
-        );
-
-        params.set(
-            'showHeader',
-            settings.showHeader
-                ? '1'
-                : '0'
-        );
-
-        params.set(
-            'showFooter',
-            settings.showFooter
-                ? '1'
-                : '0'
-        );
-
-        params.set(
-            'showLeft',
-            settings.showLeft
-                ? '1'
-                : '0'
-        );
-
-        params.set(
-            'showRight',
-            settings.showRight
-                ? '1'
-                : '0'
-        );
-
-        params.set(
-            'leftWidth',
-            String(
-                settings.leftWidth
-            )
-        );
-
-        params.set(
-            'rightWidth',
-            String(
-                settings.rightWidth
-            )
-        );
-
-        params.set(
-            'leftMode',
-            settings.leftMode
-        );
-
-        params.set(
-            '_preview',
-            String(
-                ++state.serial
-            )
-        );
-
+    function previewEndpoint() {
         return String(
             config.previewUrl
             || (
@@ -736,9 +661,107 @@
                 )
                 + '/layout_preview.php'
             )
-        )
-            + '?'
-            + params.toString();
+        );
+    }
+
+    function draftSnapshot() {
+        if (
+            window.SBLayoutEditorDraft
+            && typeof window
+                .SBLayoutEditorDraft
+                .getSnapshot
+                === 'function'
+        ) {
+            return window
+                .SBLayoutEditorDraft
+                .getSnapshot();
+        }
+
+        return {
+            siteId: SITE_ID,
+            version: 1,
+            settings:
+                currentSettings(),
+            zones: {}
+        };
+    }
+
+    function previewBody() {
+        var body =
+            new URLSearchParams();
+
+        body.set(
+            'siteId',
+            String(SITE_ID)
+        );
+
+        body.set(
+            'pageId',
+            String(
+                state.pageId
+            )
+        );
+
+        body.set(
+            'draftLayout',
+            JSON.stringify(
+                draftSnapshot()
+            )
+        );
+
+        body.set(
+            '_preview',
+            String(
+                ++state.serial
+            )
+        );
+
+        return body;
+    }
+
+    function replaceOpenBlob(html) {
+        if (state.objectUrl) {
+            try {
+                URL.revokeObjectURL(
+                    state.objectUrl
+                );
+            } catch (error) {
+                /* Nothing to revoke. */
+            }
+
+            state.objectUrl = '';
+        }
+
+        var link =
+            node(
+                'layoutPreviewOpen'
+            );
+
+        if (
+            !link
+            || typeof Blob
+                === 'undefined'
+            || !URL
+            || typeof URL
+                .createObjectURL
+                !== 'function'
+        ) {
+            return;
+        }
+
+        state.objectUrl =
+            URL.createObjectURL(
+                new Blob(
+                    [html],
+                    {
+                        type:
+                            'text/html;charset=UTF-8'
+                    }
+                )
+            );
+
+        link.href =
+            state.objectUrl;
     }
 
     function updatePreviewNote() {
@@ -751,51 +774,42 @@
             return;
         }
 
-        var saveState =
-            node(
-                'layoutSaveState'
-            );
-
-        var hasDraftSettings =
-            !!(
-                saveState
-                && saveState.getAttribute(
-                    'data-state'
-                ) === 'dirty'
-            );
-
         var blockState =
             node(
                 'layoutBlockState'
             );
 
-        var hasDraftBlock =
+        var inspectorDirty =
             !!(
                 blockState
-                && blockState.getAttribute(
-                    'data-state'
-                ) === 'dirty'
+                && blockState
+                    .getAttribute(
+                        'data-state'
+                    )
+                    === 'dirty'
             );
 
-        if (
-            hasDraftSettings
-            && hasDraftBlock
-        ) {
+        var layoutDirty =
+            !!(
+                window.SBLayoutEditorDraft
+                && typeof window
+                    .SBLayoutEditorDraft
+                    .isDirty
+                    === 'function'
+                && window
+                    .SBLayoutEditorDraft
+                    .isDirty()
+            );
+
+        if (inspectorDirty) {
             note.textContent =
-                'Черновые параметры каркаса показаны сразу. Несохранённые изменения layout-блока появятся после «Сохранить блок».';
-        } else if (
-            hasDraftSettings
-        ) {
+                'Текст в inspector ещё не применён к черновику. Нажмите «Применить блок» — оригинальный сайт всё равно не изменится.';
+        } else if (layoutDirty) {
             note.textContent =
-                'Предпросмотр использует текущие несохранённые параметры каркаса. На сайте они изменятся только после «Сохранить каркас».';
-        } else if (
-            hasDraftBlock
-        ) {
-            note.textContent =
-                'Предпросмотр показывает сохранённую версию выбранного layout-блока. Сохраните блок, чтобы обновить preview.';
+                'Предпросмотр показывает локальный черновик layout. Оригинальный сайт изменится только после «Сохранить каркас».';
         } else {
             note.textContent =
-                'Это тот же публичный рендерер. Ссылки и формы внутри preview отключены.';
+                'Предпросмотр совпадает с сохранённым layout. Ссылки и формы внутри preview отключены.';
         }
     }
 
@@ -822,7 +836,7 @@
         }
     }
 
-    function refreshPreview(
+    async function refreshPreview(
         force
     ) {
         window.clearTimeout(
@@ -866,57 +880,89 @@
                 true;
         }
 
-        var url =
-            previewUrl();
-
-        if (!url) {
-            return;
-        }
-
         var iframeNode =
             node(
                 'layoutPreviewFrame'
             );
 
-        var openLink =
-            node(
-                'layoutPreviewOpen'
-            );
-
-        if (openLink) {
-            openLink.href =
-                url;
-        }
-
-        if (
-            !force
-            && state.loadedUrl
-            && state.loadedUrl
-                .replace(
-                    /&_preview=\d+$/,
-                    ''
-                )
-                === url.replace(
-                    /&_preview=\d+$/,
-                    ''
-                )
-        ) {
-            updatePreviewNote();
-            return;
-        }
-
-        state.loadedUrl =
-            url;
-
-        setLoading(true);
-
         iframeNode.hidden =
             false;
-        iframeNode.src =
-            url;
 
+        setLoading(true);
         updatePageBadge();
         updatePreviewNote();
+
+        var requestId =
+            ++state.requestSerial;
+
+        try {
+            var response =
+                await fetch(
+                    previewEndpoint(),
+                    {
+                        method: 'POST',
+                        credentials:
+                            'same-origin',
+                        headers: {
+                            'Content-Type':
+                                'application/x-www-form-urlencoded;charset=UTF-8',
+                            'X-Requested-With':
+                                'XMLHttpRequest'
+                        },
+                        body:
+                            previewBody()
+                                .toString()
+                    }
+                );
+
+            var html =
+                await response.text();
+
+            if (
+                requestId
+                !== state.requestSerial
+            ) {
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    'PREVIEW_HTTP_'
+                    + response.status
+                );
+            }
+
+            replaceOpenBlob(
+                html
+            );
+
+            iframeNode.srcdoc =
+                html;
+        } catch (error) {
+            console.error(error);
+
+            if (
+                requestId
+                !== state.requestSerial
+            ) {
+                return;
+            }
+
+            setLoading(false);
+
+            var empty =
+                node(
+                    'layoutPreviewEmpty'
+                );
+
+            if (empty) {
+                empty.hidden =
+                    false;
+
+                empty.textContent =
+                    'Не удалось построить предпросмотр черновика.';
+            }
+        }
     }
 
     function schedulePreview(
@@ -1234,6 +1280,15 @@
         }
     );
 
+    document.addEventListener(
+        'sb-layout-draft-change',
+        function () {
+            schedulePreview(
+                140
+            );
+        }
+    );
+
     var versionBadge =
         node(
             'layoutVersionBadge'
@@ -1247,9 +1302,8 @@
         new MutationObserver(
             function () {
                 /*
-                 * Block create/save/delete/DnD and layout settings save all
-                 * advance the layout version. Refreshing here keeps Stage 3
-                 * independent from private state inside layout2.js.
+                 * A real server save advances the version. Local draft
+                 * mutations are handled by sb-layout-draft-change below.
                  */
                 schedulePreview(160);
             }
@@ -1306,6 +1360,21 @@
             }
         );
     }
+
+    window.addEventListener(
+        'beforeunload',
+        function () {
+            if (state.objectUrl) {
+                try {
+                    URL.revokeObjectURL(
+                        state.objectUrl
+                    );
+                } catch (error) {
+                    /* Ignore cleanup failures. */
+                }
+            }
+        }
+    );
 
     setDevice('desktop');
     updatePreviewNote();

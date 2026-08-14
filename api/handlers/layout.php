@@ -266,6 +266,162 @@ if (!function_exists('sb_layout_handler_insert_block')) {
     }
 }
 
+if (!function_exists('sb_layout_handler_normalize_settings')) {
+    function sb_layout_handler_normalize_settings(
+        array $current,
+        array $input
+    ): array {
+        $result =
+            $current;
+
+        foreach (
+            [
+                'showHeader',
+                'showFooter',
+                'showLeft',
+                'showRight',
+            ]
+            as $key
+        ) {
+            if (
+                array_key_exists(
+                    $key,
+                    $input
+                )
+            ) {
+                $result[$key] =
+                    (bool)$input[$key];
+            }
+        }
+
+        if (
+            array_key_exists(
+                'leftWidth',
+                $input
+            )
+        ) {
+            $result['leftWidth'] =
+                max(
+                    120,
+                    min(
+                        800,
+                        (int)$input[
+                            'leftWidth'
+                        ]
+                    )
+                );
+        }
+
+        if (
+            array_key_exists(
+                'rightWidth',
+                $input
+            )
+        ) {
+            $result['rightWidth'] =
+                max(
+                    120,
+                    min(
+                        800,
+                        (int)$input[
+                            'rightWidth'
+                        ]
+                    )
+                );
+        }
+
+        if (
+            array_key_exists(
+                'leftMode',
+                $input
+            )
+        ) {
+            $mode =
+                trim(
+                    (string)$input[
+                        'leftMode'
+                    ]
+                );
+
+            $result['leftMode'] =
+                in_array(
+                    $mode,
+                    [
+                        'blocks',
+                        'menu',
+                    ],
+                    true
+                )
+                    ? $mode
+                    : 'blocks';
+        }
+
+        return $result;
+    }
+}
+
+if (!function_exists('sb_layout_handler_existing_blocks')) {
+    function sb_layout_handler_existing_blocks(
+        array $layout
+    ): array {
+        $result = [];
+
+        foreach (
+            [
+                'header',
+                'footer',
+                'left',
+                'right',
+            ]
+            as $zone
+        ) {
+            foreach (
+                is_array(
+                    $layout['zones'][$zone]
+                    ?? null
+                )
+                    ? $layout['zones'][$zone]
+                    : []
+                as $block
+            ) {
+                $id =
+                    (int)(
+                        $block['id']
+                        ?? 0
+                    );
+
+                if ($id > 0) {
+                    $result[$id] =
+                        $block;
+                }
+            }
+        }
+
+        return $result;
+    }
+}
+
+if (!function_exists('sb_layout_handler_next_draft_block_id')) {
+    function sb_layout_handler_next_draft_block_id(
+        array $existing
+    ): int {
+        $max = 0;
+
+        foreach (
+            array_keys($existing)
+            as $id
+        ) {
+            $max =
+                max(
+                    $max,
+                    (int)$id
+                );
+        }
+
+        return $max + 1;
+    }
+}
+
 if ($action === 'layout.get') {
     $siteId =
         (int)(
@@ -456,6 +612,347 @@ if ($action === 'layout.updateSettings') {
                 $saved
             ),
         'handler' => 'layout',
+    ]);
+}
+
+if ($action === 'layout.save') {
+    $siteId =
+        (int)(
+            $_POST['siteId']
+            ?? 0
+        );
+
+    $layout =
+        sb_layout_handler_require(
+            $siteId
+        );
+
+    $settingsRaw =
+        $_POST['settings']
+        ?? null;
+
+    $zonesRaw =
+        $_POST['zones']
+        ?? null;
+
+    if (
+        $settingsRaw === null
+        || $zonesRaw === null
+    ) {
+        sb_json_error(
+            'LAYOUT_DRAFT_REQUIRED',
+            422
+        );
+    }
+
+    if (
+        is_string($zonesRaw)
+        && strlen($zonesRaw)
+            > 2 * 1024 * 1024
+    ) {
+        sb_json_error(
+            'LAYOUT_DRAFT_TOO_LARGE',
+            413
+        );
+    }
+
+    $settings =
+        is_array($settingsRaw)
+            ? $settingsRaw
+            : json_decode(
+                (string)$settingsRaw,
+                true
+            );
+
+    $zones =
+        is_array($zonesRaw)
+            ? $zonesRaw
+            : json_decode(
+                (string)$zonesRaw,
+                true
+            );
+
+    if (!is_array($settings)) {
+        sb_json_error(
+            'BAD_SETTINGS_JSON',
+            422
+        );
+    }
+
+    if (!is_array($zones)) {
+        sb_json_error(
+            'BAD_ZONES_JSON',
+            422
+        );
+    }
+
+    $layout['settings'] =
+        sb_layout_handler_normalize_settings(
+            is_array(
+                $layout['settings']
+                ?? null
+            )
+                ? $layout['settings']
+                : [],
+            $settings
+        );
+
+    $existing =
+        sb_layout_handler_existing_blocks(
+            $layout
+        );
+
+    $nextId =
+        sb_layout_handler_next_draft_block_id(
+            $existing
+        );
+
+    $usedExisting = [];
+    $usedClientIds = [];
+    $idMap = [];
+    $normalizedZones = [];
+    $totalBlocks = 0;
+    $now = date('c');
+    $userId =
+        (int)$USER->GetID();
+
+    foreach (
+        [
+            'header',
+            'footer',
+            'left',
+            'right',
+        ]
+        as $zone
+    ) {
+        $items =
+            is_array(
+                $zones[$zone]
+                ?? null
+            )
+                ? array_values(
+                    $zones[$zone]
+                )
+                : [];
+
+        if (
+            count($items)
+            > 200
+        ) {
+            sb_json_error(
+                'LAYOUT_ZONE_BLOCK_LIMIT',
+                422,
+                [
+                    'zone' => $zone,
+                ]
+            );
+        }
+
+        $normalizedZones[$zone] = [];
+
+        foreach (
+            $items
+            as $index => $item
+        ) {
+            if (!is_array($item)) {
+                sb_json_error(
+                    'BAD_LAYOUT_BLOCK',
+                    422,
+                    [
+                        'zone' => $zone,
+                        'index' => $index,
+                    ]
+                );
+            }
+
+            $clientId =
+                (int)(
+                    $item['id']
+                    ?? 0
+                );
+
+            if (
+                $clientId !== 0
+                && isset(
+                    $usedClientIds[
+                        (string)$clientId
+                    ]
+                )
+            ) {
+                sb_json_error(
+                    'DUPLICATE_LAYOUT_BLOCK_ID',
+                    422,
+                    [
+                        'id' => $clientId,
+                    ]
+                );
+            }
+
+            if ($clientId !== 0) {
+                $usedClientIds[
+                    (string)$clientId
+                ] = true;
+            }
+
+            $type =
+                preg_replace(
+                    '/[^a-z0-9_-]/i',
+                    '',
+                    trim(
+                        (string)(
+                            $item['type']
+                            ?? 'text'
+                        )
+                    )
+                ) ?? '';
+
+            $type =
+                mb_substr(
+                    $type !== ''
+                        ? $type
+                        : 'text',
+                    0,
+                    64
+                );
+
+            $content =
+                is_array(
+                    $item['content']
+                    ?? null
+                )
+                    ? $item['content']
+                    : [];
+
+            $props =
+                is_array(
+                    $item['props']
+                    ?? null
+                )
+                    ? $item['props']
+                    : [];
+
+            if ($clientId > 0) {
+                if (
+                    !isset(
+                        $existing[$clientId]
+                    )
+                    || isset(
+                        $usedExisting[
+                            $clientId
+                        ]
+                    )
+                ) {
+                    sb_json_error(
+                        'LAYOUT_BLOCK_NOT_FOUND',
+                        404,
+                        [
+                            'id' => $clientId,
+                        ]
+                    );
+                }
+
+                $original =
+                    $existing[$clientId];
+
+                $realId =
+                    $clientId;
+
+                $usedExisting[
+                    $clientId
+                ] = true;
+
+                $createdBy =
+                    (int)(
+                        $original[
+                            'createdBy'
+                        ]
+                        ?? 0
+                    );
+
+                $createdAt =
+                    (string)(
+                        $original[
+                            'createdAt'
+                        ]
+                        ?? $now
+                    );
+            } else {
+                $realId =
+                    $nextId++;
+
+                if ($clientId < 0) {
+                    $idMap[
+                        (string)$clientId
+                    ] =
+                        $realId;
+                }
+
+                $createdBy =
+                    $userId;
+
+                $createdAt =
+                    $now;
+            }
+
+            $normalizedZones[$zone][] = [
+                'id' =>
+                    $realId,
+                'type' =>
+                    $type,
+                'sort' =>
+                    ($index + 1)
+                    * 10,
+                'content' =>
+                    $content,
+                'props' =>
+                    $props,
+                'createdBy' =>
+                    $createdBy,
+                'createdAt' =>
+                    $createdAt,
+                'updatedBy' =>
+                    $userId,
+                'updatedAt' =>
+                    $now,
+            ];
+
+            $totalBlocks++;
+
+            if (
+                $totalBlocks
+                > 500
+            ) {
+                sb_json_error(
+                    'LAYOUT_BLOCK_LIMIT',
+                    422
+                );
+            }
+        }
+    }
+
+    $layout['zones'] =
+        $normalizedZones;
+
+    $saved =
+        RevisionService::saveLayout(
+            $layout,
+            RevisionService::requireExpectedVersion(
+                $_POST['expectedVersion']
+                ?? null
+            ),
+            $userId,
+            'layout_save'
+        );
+
+    sb_json_ok([
+        'layout' =>
+            sb_normalize_layout_record(
+                $saved
+            ),
+        'idMap' =>
+            $idMap,
+        'handler' =>
+            'layout',
     ]);
 }
 

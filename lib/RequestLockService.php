@@ -315,6 +315,7 @@ final class RequestLockService
                 break;
 
             case 'layout.updateSettings':
+            case 'layout.save':
             case 'layout.block.create':
             case 'layout.block.update':
             case 'layout.block.delete':

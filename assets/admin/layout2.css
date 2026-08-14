@@ -1,5 +1,5 @@
 /* =========================================================
-   SITEBUILDER / LAYOUT 2.0 / STAGE 2
+   SITEBUILDER / LAYOUT 2.0 / DRAFT HOTFIX
    ========================================================= */
 
 .sb-layout2-page {max-width:1560px}
@@ -464,5 +464,91 @@ body.sb-layout2-dragging
     .sb-layout2-insert-line,
     .sb-layout2-inline-add__button {
         transition: none !important;
+    }
+}
+
+
+/* =========================================================
+   DRAFT HOTFIX / INSPECTOR VISIBILITY + FIT TO SCREEN
+   ========================================================= */
+
+.sb-layout2-inspector-empty[hidden],
+#layoutInspectorForm[hidden] {
+    display: none !important;
+}
+
+.sb-layout2-frame {
+    width: 100%;
+    min-width: 0;
+}
+
+.sb-layout2-middle {
+    grid-template-columns:
+        var(--sb-layout2-left-preview)
+        minmax(160px, 1fr)
+        var(--sb-layout2-right-preview);
+}
+
+.sb-layout2-middle.no-left {
+    grid-template-columns:
+        58px
+        minmax(160px, 1fr)
+        var(--sb-layout2-right-preview);
+}
+
+.sb-layout2-middle.no-right {
+    grid-template-columns:
+        var(--sb-layout2-left-preview)
+        minmax(160px, 1fr)
+        58px;
+}
+
+.sb-layout2-middle.no-left.no-right {
+    grid-template-columns:
+        58px
+        minmax(160px, 1fr)
+        58px;
+}
+
+.sb-layout2-canvas {
+    overflow-x: hidden;
+}
+
+.sb-layout2-block__copy small,
+.sb-layout2-zone__identity small {
+    min-width: 0;
+}
+
+@media (max-width: 800px) {
+    .sb-layout2-frame {
+        min-width: 0;
+    }
+
+    .sb-layout2-middle {
+        grid-template-columns:
+            minmax(68px, .75fr)
+            minmax(140px, 2fr)
+            minmax(68px, .75fr);
+    }
+
+    .sb-layout2-middle.no-left {
+        grid-template-columns:
+            46px
+            minmax(140px, 1fr)
+            minmax(68px, .75fr);
+    }
+
+    .sb-layout2-middle.no-right {
+        grid-template-columns:
+            minmax(68px, .75fr)
+            minmax(140px, 1fr)
+            46px;
+    }
+
+    .sb-layout2-middle.no-left.no-right {
+        grid-template-columns:
+            46px
+            minmax(140px, 1fr)
+            46px;
     }
 }

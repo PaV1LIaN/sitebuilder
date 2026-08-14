@@ -1,6 +1,6 @@
 /* =========================================================
-   SITEBUILDER / LAYOUT 2.0 / STAGE 2
-   Visual site shell editor + DnD/relocate/duplicate.
+   SITEBUILDER / LAYOUT 2.0 / DRAFT HOTFIX
+   All layout mutations are local drafts until Save layout.
    No autosave.
    ========================================================= */
 (function () {
@@ -30,10 +30,13 @@
         layout: null,
         draftSettings: null,
         settingsDirty: false,
+        structureDirty: false,
         currentBlockId: 0,
         blockDirty: false,
         syncing: false,
-        busy: false
+        busy: false,
+        baseVersion: 1,
+        nextTempId: -1
     };
 
     var drag = {
@@ -210,12 +213,187 @@
     }
 
     function version() {
-        return Math.max(1, Number(state.layout && state.layout.version || 1));
+        return Math.max(
+            1,
+            Number(
+                state.baseVersion
+                || (
+                    state.layout
+                    && state.layout.version
+                )
+                || 1
+            )
+        );
+    }
+
+    function hasDraftChanges() {
+        return !!(
+            state.settingsDirty
+            || state.structureDirty
+            || state.blockDirty
+        );
+    }
+
+    function notifyDraftChanged() {
+        try {
+            document.dispatchEvent(
+                new CustomEvent(
+                    'sb-layout-draft-change',
+                    {
+                        detail: {
+                            dirty:
+                                hasDraftChanges()
+                        }
+                    }
+                )
+            );
+        } catch (error) {
+            /* CustomEvent is only an enhancement for Stage 3 preview. */
+        }
+    }
+
+    function updateTopSaveUi() {
+        var dirty =
+            hasDraftChanges();
+
+        var save =
+            node(
+                'saveSettingsBtn'
+            );
+
+        if (save) {
+            save.disabled =
+                !dirty
+                || state.busy;
+        }
+
+        if (dirty) {
+            setSaveState(
+                'Черновик не сохранён на сайт',
+                'dirty'
+            );
+        } else {
+            setSaveState(
+                'Сохранено',
+                'ready'
+            );
+        }
+
+        renderVersion();
+        notifyDraftChanged();
+    }
+
+    function markStructureDirty() {
+        state.structureDirty =
+            true;
+
+        updateTopSaveUi();
+    }
+
+    function nextDraftId() {
+        var id =
+            Number(
+                state.nextTempId
+                || -1
+            );
+
+        state.nextTempId =
+            id - 1;
+
+        return id;
+    }
+
+    function cloneValue(value) {
+        return JSON.parse(
+            JSON.stringify(
+                value
+            )
+        );
+    }
+
+    function defaultDraftContent(type) {
+        switch (
+            String(type || 'text')
+        ) {
+            case 'heading':
+                return {
+                    text:
+                        'Новый заголовок',
+                    level: 'h2',
+                    align: 'left',
+                    color: '',
+                    size: 0,
+                    maxWidth: ''
+                };
+
+            case 'button':
+                return {
+                    text: 'Кнопка',
+                    label: 'Кнопка',
+                    href: '#',
+                    target: '_self'
+                };
+
+            case 'html':
+                return {
+                    html:
+                        '<div>Новый HTML-блок</div>'
+                };
+
+            case 'text':
+            default:
+                return {
+                    text:
+                        'Новый текстовый блок'
+                };
+        }
+    }
+
+    function setZoneBlocks(
+        zone,
+        blocks
+    ) {
+        if (
+            !state.layout
+            || !state.layout.zones
+        ) {
+            return;
+        }
+
+        blocks =
+            Array.isArray(blocks)
+                ? blocks
+                : [];
+
+        blocks.forEach(
+            function (block, index) {
+                block.sort =
+                    (index + 1) * 10;
+            }
+        );
+
+        state.layout.zones[zone] =
+            blocks;
     }
 
     function renderVersion() {
-        var badge = node('layoutVersionBadge');
-        if (badge) badge.textContent = 'версия ' + version();
+        var badge =
+            node(
+                'layoutVersionBadge'
+            );
+
+        if (!badge) {
+            return;
+        }
+
+        badge.textContent =
+            'версия '
+            + version()
+            + (
+                hasDraftChanges()
+                    ? ' · черновик'
+                    : ''
+            );
     }
 
     function totalBlocks() {
@@ -241,7 +419,7 @@
 
     function findBlock(blockId) {
         blockId = Number(blockId || 0);
-        if (blockId <= 0) return null;
+        if (blockId === 0) return null;
 
         for (var i = 0; i < ZONES.length; i++) {
             var zone = ZONES[i];
@@ -391,19 +569,17 @@
         }
 
         state.settingsDirty = false;
-        node('saveSettingsBtn').disabled = true;
-        setSaveState('Сохранено', 'ready');
+        updateTopSaveUi();
     }
 
     function settingsChanged() {
         if (state.syncing || !state.draftSettings) return;
 
         state.settingsDirty = true;
-        node('saveSettingsBtn').disabled = !!state.busy;
-        setSaveState('Есть несохранённые изменения', 'dirty');
         updateSettingsDisabled();
         updateLeftModeUi();
         renderCanvas();
+        updateTopSaveUi();
     }
 
     function readToggle(id, key) {
@@ -572,7 +748,13 @@
     function previewSideWidth(side) {
         var settings = state.draftSettings;
         var value = side === 'left' ? settings.leftWidth : settings.rightWidth;
-        return Math.round(clamp(value * 0.55, 118, 310));
+        return Math.round(
+            clamp(
+                value * 0.35,
+                76,
+                220
+            )
+        );
     }
 
     function renderPagePlaceholder() {
@@ -757,8 +939,15 @@
 
     function markBlockDirty() {
         if (!state.currentBlockId || state.syncing) return;
+
         state.blockDirty = true;
-        setBlockState('Есть несохранённые изменения', true);
+
+        setBlockState(
+            'Изменения ещё не применены к черновику',
+            true
+        );
+
+        updateTopSaveUi();
     }
 
     function parseJsonField(id, label) {
@@ -817,235 +1006,576 @@
         return {content: content, props: props};
     }
 
-    async function loadLayout(force) {
-        if (!force && (state.settingsDirty || state.blockDirty)) {
-            if (!window.confirm('Обновить данные с сервера и потерять несохранённые изменения?')) return;
+    function applyCurrentBlockToDraft(
+        silent
+    ) {
+        if (
+            !state.currentBlockId
+            || !state.blockDirty
+        ) {
+            return true;
         }
-
-        state.busy = true;
-        setSaveState('Загрузка…', 'working');
-
-        try {
-            var response = await api('layout.get', {siteId: SITE_ID});
-            state.layout = response.layout || null;
-            state.currentBlockId = 0;
-            state.blockDirty = false;
-
-            renderVersion();
-            renderSettings();
-            renderCanvas();
-            renderInspector();
-            notice('', 'info');
-            setSaveState('Сохранено', 'ready');
-        } catch (error) {
-            handleError(error, 'Не удалось загрузить каркас сайта.');
-            node('layoutCanvas').innerHTML = '<div class="sb-layout2-loading is-error">Не удалось загрузить каркас.</div>';
-        } finally {
-            state.busy = false;
-            node('saveSettingsBtn').disabled = !state.settingsDirty;
-        }
-    }
-
-    async function saveSettings() {
-        if (!state.layout || !state.draftSettings || !state.settingsDirty || state.busy) return;
-
-        state.busy = true;
-        node('saveSettingsBtn').disabled = true;
-        setSaveState('Сохраняю…', 'working');
-
-        try {
-            var response = await api('layout.updateSettings', {
-                siteId: SITE_ID,
-                expectedVersion: version(),
-                settings: JSON.stringify(state.draftSettings)
-            });
-
-            state.layout = response.layout || state.layout;
-            renderVersion();
-            renderSettings();
-            renderCanvas();
-            notice('Каркас сайта сохранён.', 'success', 2200);
-        } catch (error) {
-            handleError(error, 'Не удалось сохранить настройки каркаса.');
-            node('saveSettingsBtn').disabled = false;
-        } finally {
-            state.busy = false;
-        }
-    }
-
-    async function addBlock(zone, type, targetIndex) {
-        if (state.busy || ZONES.indexOf(zone) === -1) return;
-
-        if (state.blockDirty) {
-            notice(
-                'Сначала сохраните или закройте несохранённые изменения текущего блока.',
-                'error',
-                3200
-            );
-            closeAddMenus();
-            return;
-        }
-
-        var blocks = zoneBlocks(zone);
-        targetIndex = targetIndex == null
-            ? blocks.length
-            : clamp(targetIndex, 0, blocks.length);
-
-        state.busy = true;
-        closeAddMenus();
-
-        try {
-            var response = await api('layout.block.create', {
-                siteId: SITE_ID,
-                expectedVersion: version(),
-                zone: zone,
-                type: type,
-                targetIndex: targetIndex
-            });
-
-            state.layout = response.layout || state.layout;
-            var newId = Number(response.block && response.block.id || 0);
-
-            renderVersion();
-
-            if (newId > 0) {
-                state.currentBlockId = newId;
-            }
-
-            renderCanvas();
-
-            if (newId > 0) {
-                renderInspector();
-                node('layoutInspector').scrollIntoView({behavior: 'smooth', block: 'nearest'});
-            }
-
-            notice('Блок добавлен в выбранное место.', 'success', 1800);
-        } catch (error) {
-            handleError(error, 'Не удалось добавить layout-блок.');
-        } finally {
-            state.busy = false;
-        }
-    }
-
-    async function saveBlock() {
-        if (!state.currentBlockId || !state.blockDirty || state.busy) return;
 
         var payload = null;
 
         try {
-            payload = buildBlockPayload();
+            payload =
+                buildBlockPayload();
         } catch (error) {
-            notice(error.message, 'error');
+            notice(
+                error.message,
+                'error'
+            );
+
+            return false;
+        }
+
+        var found =
+            findBlock(
+                state.currentBlockId
+            );
+
+        if (!found) {
+            notice(
+                'Выбранный layout-блок больше не найден.',
+                'error'
+            );
+
+            return false;
+        }
+
+        found.block.content =
+            payload.content;
+
+        found.block.props =
+            payload.props;
+
+        found.block.updatedAt =
+            new Date()
+                .toISOString();
+
+        state.blockDirty =
+            false;
+
+        state.structureDirty =
+            true;
+
+        renderCanvas();
+        renderInspector();
+        updateTopSaveUi();
+
+        if (!silent) {
+            notice(
+                'Изменения блока применены к черновику. Оригинальный сайт не изменён.',
+                'success',
+                2600
+            );
+        }
+
+        return true;
+    }
+
+    async function loadLayout(force) {
+        if (
+            !force
+            && hasDraftChanges()
+        ) {
+            if (
+                !window.confirm(
+                    'Обновить данные с сервера и потерять весь черновик layout?'
+                )
+            ) {
+                return;
+            }
+        }
+
+        state.busy = true;
+
+        setSaveState(
+            'Загрузка…',
+            'working'
+        );
+
+        try {
+            var response =
+                await api(
+                    'layout.get',
+                    {
+                        siteId:
+                            SITE_ID
+                    }
+                );
+
+            state.layout =
+                response.layout
+                || null;
+
+            state.baseVersion =
+                Math.max(
+                    1,
+                    Number(
+                        state.layout
+                        && state.layout.version
+                        || 1
+                    )
+                );
+
+            state.settingsDirty =
+                false;
+            state.structureDirty =
+                false;
+            state.currentBlockId =
+                0;
+            state.blockDirty =
+                false;
+            state.nextTempId =
+                -1;
+
+            renderSettings();
+            renderCanvas();
+            renderInspector();
+
+            notice(
+                '',
+                'info'
+            );
+
+            updateTopSaveUi();
+        } catch (error) {
+            handleError(
+                error,
+                'Не удалось загрузить каркас сайта.'
+            );
+
+            node(
+                'layoutCanvas'
+            ).innerHTML =
+                '<div class="sb-layout2-loading is-error">Не удалось загрузить каркас.</div>';
+        } finally {
+            state.busy =
+                false;
+
+            updateTopSaveUi();
+        }
+    }
+
+    async function saveSettings() {
+        if (
+            !state.layout
+            || !state.draftSettings
+            || !hasDraftChanges()
+            || state.busy
+        ) {
             return;
         }
 
-        if (!payload) return;
+        if (
+            state.blockDirty
+            && !applyCurrentBlockToDraft(
+                true
+            )
+        ) {
+            return;
+        }
 
-        state.busy = true;
-        setBlockState('Сохраняю…', true);
+        state.busy =
+            true;
+
+        updateTopSaveUi();
+
+        setSaveState(
+            'Сохраняю весь каркас…',
+            'working'
+        );
 
         try {
-            var currentId = Number(state.currentBlockId);
-            var response = await api('layout.block.update', {
-                siteId: SITE_ID,
-                id: currentId,
-                expectedVersion: version(),
-                content: JSON.stringify(payload.content),
-                props: JSON.stringify(payload.props)
-            });
+            var selectedBefore =
+                Number(
+                    state.currentBlockId
+                    || 0
+                );
 
-            state.layout = response.layout || state.layout;
-            state.blockDirty = false;
+            var response =
+                await api(
+                    'layout.save',
+                    {
+                        siteId:
+                            SITE_ID,
+                        expectedVersion:
+                            version(),
+                        settings:
+                            JSON.stringify(
+                                state.draftSettings
+                            ),
+                        zones:
+                            JSON.stringify(
+                                state.layout.zones
+                                || {}
+                            )
+                    }
+                );
 
-            renderVersion();
+            state.layout =
+                response.layout
+                || state.layout;
+
+            state.baseVersion =
+                Math.max(
+                    1,
+                    Number(
+                        state.layout
+                        && state.layout.version
+                        || version()
+                    )
+                );
+
+            var idMap =
+                response.idMap
+                && typeof response.idMap
+                    === 'object'
+                    ? response.idMap
+                    : {};
+
+            if (
+                selectedBefore < 0
+                && Object.prototype
+                    .hasOwnProperty.call(
+                        idMap,
+                        String(
+                            selectedBefore
+                        )
+                    )
+            ) {
+                state.currentBlockId =
+                    Number(
+                        idMap[
+                            String(
+                                selectedBefore
+                            )
+                        ]
+                        || 0
+                    );
+            } else if (
+                selectedBefore > 0
+            ) {
+                state.currentBlockId =
+                    selectedBefore;
+            } else {
+                state.currentBlockId =
+                    0;
+            }
+
+            state.settingsDirty =
+                false;
+            state.structureDirty =
+                false;
+            state.blockDirty =
+                false;
+            state.nextTempId =
+                -1;
+
+            renderSettings();
             renderCanvas();
             renderInspector();
-            notice('Блок сохранён.', 'success', 1800);
+            updateTopSaveUi();
+
+            notice(
+                'Каркас сохранён. Только теперь изменения применены к оригинальному сайту.',
+                'success',
+                3200
+            );
         } catch (error) {
-            handleError(error, 'Не удалось сохранить layout-блок.');
-            setBlockState('Не сохранено', true);
+            handleError(
+                error,
+                'Не удалось сохранить каркас сайта.'
+            );
+
+            updateTopSaveUi();
         } finally {
-            state.busy = false;
+            state.busy =
+                false;
+
+            updateTopSaveUi();
         }
     }
 
-    async function deleteBlock(blockId) {
-        blockId = Number(blockId || 0);
-        if (blockId <= 0 || state.busy) return;
-
-        var found = findBlock(blockId);
-        if (!found) return;
-
-        var meta = blockMeta(found.block.type);
-        if (!window.confirm('Удалить «' + meta.title + '» #' + blockId + '?')) return;
-
-        state.busy = true;
-
-        try {
-            var response = await api('layout.block.delete', {
-                siteId: SITE_ID,
-                id: blockId,
-                expectedVersion: version()
-            });
-
-            state.layout = response.layout || state.layout;
-
-            if (Number(state.currentBlockId) === blockId) {
-                state.currentBlockId = 0;
-                state.blockDirty = false;
-            }
-
-            renderVersion();
-            renderCanvas();
-
-            if (
-                !state.blockDirty
-                || Number(state.currentBlockId) === 0
-            ) {
-                renderInspector();
-            }
-
-            notice('Блок удалён.', 'success', 1800);
-        } catch (error) {
-            handleError(error, 'Не удалось удалить layout-блок.');
-        } finally {
-            state.busy = false;
+    function addBlock(
+        zone,
+        type,
+        targetIndex
+    ) {
+        if (
+            state.busy
+            || ZONES.indexOf(
+                zone
+            ) === -1
+        ) {
+            return;
         }
+
+        if (
+            state.blockDirty
+            && !applyCurrentBlockToDraft(
+                true
+            )
+        ) {
+            return;
+        }
+
+        var blocks =
+            zoneBlocks(
+                zone
+            );
+
+        targetIndex =
+            targetIndex == null
+                ? blocks.length
+                : clamp(
+                    targetIndex,
+                    0,
+                    blocks.length
+                );
+
+        var now =
+            new Date()
+                .toISOString();
+
+        var block = {
+            id:
+                nextDraftId(),
+            type:
+                String(
+                    type || 'text'
+                ),
+            sort: 0,
+            content:
+                defaultDraftContent(
+                    type
+                ),
+            props: {},
+            createdBy: 0,
+            createdAt: now,
+            updatedBy: 0,
+            updatedAt: now
+        };
+
+        blocks.splice(
+            targetIndex,
+            0,
+            block
+        );
+
+        setZoneBlocks(
+            zone,
+            blocks
+        );
+
+        state.currentBlockId =
+            Number(
+                block.id
+            );
+
+        state.blockDirty =
+            false;
+
+        markStructureDirty();
+        closeAddMenus();
+
+        renderCanvas();
+        renderInspector();
+
+        node(
+            'layoutInspector'
+        ).scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest'
+        });
+
+        notice(
+            'Блок добавлен только в черновик.',
+            'success',
+            1800
+        );
     }
 
-    async function moveBlock(blockId, direction) {
-        blockId = Number(blockId || 0);
+    function saveBlock() {
+        if (
+            !state.currentBlockId
+            || !state.blockDirty
+            || state.busy
+        ) {
+            return;
+        }
 
-        if (blockId <= 0 || state.busy || ['up', 'down'].indexOf(direction) === -1) return;
+        applyCurrentBlockToDraft(
+            false
+        );
+    }
 
-        state.busy = true;
+    function deleteBlock(blockId) {
+        blockId =
+            Number(
+                blockId || 0
+            );
 
-        try {
-            var response = await api('layout.block.move', {
-                siteId: SITE_ID,
-                id: blockId,
-                dir: direction,
-                expectedVersion: version()
-            });
+        if (
+            blockId === 0
+            || state.busy
+        ) {
+            return;
+        }
 
-            state.layout = response.layout || state.layout;
-            renderVersion();
-            renderCanvas();
+        if (
+            state.blockDirty
+            && !applyCurrentBlockToDraft(
+                true
+            )
+        ) {
+            return;
+        }
 
-            /*
-             * Moving another layout block must not wipe unsaved
-             * inspector edits of the currently selected block.
-             */
-            if (
+        var found =
+            findBlock(
+                blockId
+            );
+
+        if (!found) {
+            return;
+        }
+
+        var meta =
+            blockMeta(
+                found.block.type
+            );
+
+        if (
+            !window.confirm(
+                'Удалить «'
+                + meta.title
+                + '» из черновика?'
+            )
+        ) {
+            return;
+        }
+
+        var blocks =
+            zoneBlocks(
+                found.zone
+            );
+
+        blocks.splice(
+            found.index,
+            1
+        );
+
+        setZoneBlocks(
+            found.zone,
+            blocks
+        );
+
+        if (
+            Number(
                 state.currentBlockId
-                && !state.blockDirty
-            ) {
-                renderInspector();
-            }
-        } catch (error) {
-            handleError(error, 'Не удалось переместить layout-блок.');
-        } finally {
-            state.busy = false;
+            ) === blockId
+        ) {
+            state.currentBlockId =
+                0;
+            state.blockDirty =
+                false;
+        }
+
+        markStructureDirty();
+
+        renderCanvas();
+        renderInspector();
+
+        notice(
+            'Блок удалён из черновика. Оригинальный сайт пока не изменён.',
+            'success',
+            2200
+        );
+    }
+
+    function moveBlock(
+        blockId,
+        direction
+    ) {
+        blockId =
+            Number(
+                blockId || 0
+            );
+
+        if (
+            blockId === 0
+            || state.busy
+            || [
+                'up',
+                'down'
+            ].indexOf(
+                direction
+            ) === -1
+        ) {
+            return;
+        }
+
+        if (
+            state.blockDirty
+            && !applyCurrentBlockToDraft(
+                true
+            )
+        ) {
+            return;
+        }
+
+        var found =
+            findBlock(
+                blockId
+            );
+
+        if (!found) {
+            return;
+        }
+
+        var targetIndex =
+            direction === 'up'
+                ? found.index - 1
+                : found.index + 1;
+
+        if (
+            targetIndex < 0
+            || targetIndex
+                >= found.total
+        ) {
+            return;
+        }
+
+        var blocks =
+            zoneBlocks(
+                found.zone
+            );
+
+        var block =
+            blocks.splice(
+                found.index,
+                1
+            )[0];
+
+        blocks.splice(
+            targetIndex,
+            0,
+            block
+        );
+
+        setZoneBlocks(
+            found.zone,
+            blocks
+        );
+
+        markStructureDirty();
+        renderCanvas();
+
+        if (!state.blockDirty) {
+            renderInspector();
         }
     }
 
@@ -1069,120 +1599,194 @@
         }
     }
 
-    async function relocateBlock(blockId, targetZone, targetIndex) {
-        blockId = Number(blockId || 0);
+    function relocateBlock(
+        blockId,
+        targetZone,
+        targetIndex
+    ) {
+        blockId =
+            Number(
+                blockId || 0
+            );
 
         if (
-            blockId <= 0
+            blockId === 0
             || state.busy
-            || ZONES.indexOf(targetZone) === -1
+            || ZONES.indexOf(
+                targetZone
+            ) === -1
         ) {
             return;
         }
-
-        var source = findBlock(blockId);
-        if (!source) return;
-
-        targetIndex = Math.max(0, Number(targetIndex || 0));
-        state.busy = true;
-
-        try {
-            var response = await api('layout.block.relocate', {
-                siteId: SITE_ID,
-                id: blockId,
-                targetZone: targetZone,
-                targetIndex: targetIndex,
-                expectedVersion: version()
-            });
-
-            state.layout = response.layout || state.layout;
-
-            /*
-             * A dragged selected block remains selected. If another block
-             * is currently being edited with unsaved content, its inspector
-             * is left untouched.
-             */
-            if (!state.blockDirty || Number(state.currentBlockId) === blockId) {
-                state.currentBlockId = blockId;
-            }
-
-            renderVersion();
-            renderCanvas();
-
-            if (state.blockDirty) {
-                refreshInspectorLocationOnly();
-            } else {
-                renderInspector();
-            }
-
-            var targetMeta = zoneMeta(targetZone);
-            notice(
-                'Блок перемещён: ' + targetMeta.title + '.',
-                'success',
-                1800
-            );
-        } catch (error) {
-            handleError(error, 'Не удалось переместить layout-блок.');
-        } finally {
-            state.busy = false;
-        }
-    }
-
-    async function duplicateBlock(blockId) {
-        blockId = Number(blockId || 0);
-        if (blockId <= 0 || state.busy) return;
-
-        var source = findBlock(blockId);
-        if (!source) return;
 
         if (
             state.blockDirty
-            && Number(state.currentBlockId) === blockId
+            && !applyCurrentBlockToDraft(
+                true
+            )
         ) {
-            notice(
-                'Сначала сохраните изменения этого блока — дублируется только сохранённая версия.',
-                'error',
-                3200
-            );
             return;
         }
 
-        state.busy = true;
-
-        try {
-            var response = await api('layout.block.duplicate', {
-                siteId: SITE_ID,
-                id: blockId,
-                targetZone: source.zone,
-                targetIndex: source.index + 1,
-                expectedVersion: version()
-            });
-
-            state.layout = response.layout || state.layout;
-
-            var copyId = Number(
-                response.block
-                && response.block.id
-                || 0
+        var source =
+            findBlock(
+                blockId
             );
 
-            if (!state.blockDirty && copyId > 0) {
-                state.currentBlockId = copyId;
-            }
-
-            renderVersion();
-            renderCanvas();
-
-            if (!state.blockDirty && copyId > 0) {
-                renderInspector();
-            }
-
-            notice('Блок продублирован.', 'success', 1800);
-        } catch (error) {
-            handleError(error, 'Не удалось продублировать layout-блок.');
-        } finally {
-            state.busy = false;
+        if (!source) {
+            return;
         }
+
+        var sourceBlocks =
+            zoneBlocks(
+                source.zone
+            );
+
+        var block =
+            sourceBlocks.splice(
+                source.index,
+                1
+            )[0];
+
+        setZoneBlocks(
+            source.zone,
+            sourceBlocks
+        );
+
+        var targetBlocks =
+            source.zone === targetZone
+                ? sourceBlocks
+                : zoneBlocks(
+                    targetZone
+                );
+
+        targetIndex =
+            clamp(
+                targetIndex,
+                0,
+                targetBlocks.length
+            );
+
+        targetBlocks.splice(
+            targetIndex,
+            0,
+            block
+        );
+
+        setZoneBlocks(
+            targetZone,
+            targetBlocks
+        );
+
+        state.currentBlockId =
+            blockId;
+
+        markStructureDirty();
+        renderCanvas();
+
+        if (state.blockDirty) {
+            refreshInspectorLocationOnly();
+        } else {
+            renderInspector();
+        }
+
+        var targetMeta =
+            zoneMeta(
+                targetZone
+            );
+
+        notice(
+            'Блок перемещён в черновике: '
+            + targetMeta.title
+            + '.',
+            'success',
+            1800
+        );
+    }
+
+    function duplicateBlock(blockId) {
+        blockId =
+            Number(
+                blockId || 0
+            );
+
+        if (
+            blockId === 0
+            || state.busy
+        ) {
+            return;
+        }
+
+        if (
+            state.blockDirty
+            && !applyCurrentBlockToDraft(
+                true
+            )
+        ) {
+            return;
+        }
+
+        var source =
+            findBlock(
+                blockId
+            );
+
+        if (!source) {
+            return;
+        }
+
+        var copy =
+            cloneValue(
+                source.block
+            );
+
+        var now =
+            new Date()
+                .toISOString();
+
+        copy.id =
+            nextDraftId();
+
+        copy.sort = 0;
+        copy.createdBy = 0;
+        copy.createdAt = now;
+        copy.updatedBy = 0;
+        copy.updatedAt = now;
+
+        var blocks =
+            zoneBlocks(
+                source.zone
+            );
+
+        blocks.splice(
+            source.index + 1,
+            0,
+            copy
+        );
+
+        setZoneBlocks(
+            source.zone,
+            blocks
+        );
+
+        state.currentBlockId =
+            Number(
+                copy.id
+            );
+
+        state.blockDirty =
+            false;
+
+        markStructureDirty();
+
+        renderCanvas();
+        renderInspector();
+
+        notice(
+            'Копия добавлена только в черновик.',
+            'success',
+            1800
+        );
     }
 
     function dragGhostHtml(block) {
@@ -1533,7 +2137,7 @@
         event.preventDefault();
 
         if (!targetZone || noOp) {
-            if (sourceId > 0 && !state.blockDirty) {
+            if (sourceId !== 0 && !state.blockDirty) {
                 selectBlock(sourceId);
             }
             return;
@@ -1684,10 +2288,39 @@
     node('closeInspectorBtn').addEventListener('click', clearSelection);
 
     window.addEventListener('beforeunload', function (event) {
-        if (!state.settingsDirty && !state.blockDirty) return;
+        if (!hasDraftChanges()) return;
+
         event.preventDefault();
         event.returnValue = '';
     });
+
+    window.SBLayoutEditorDraft = {
+        getSnapshot: function () {
+            return {
+                siteId: SITE_ID,
+                version: version(),
+                settings:
+                    cloneValue(
+                        state.draftSettings
+                        || {}
+                    ),
+                zones:
+                    cloneValue(
+                        state.layout
+                        && state.layout.zones
+                        || {}
+                    )
+            };
+        },
+        isDirty:
+            hasDraftChanges,
+        applyCurrentBlock:
+            function () {
+                return applyCurrentBlockToDraft(
+                    true
+                );
+            }
+    };
 
     loadLayout(true);
 })();

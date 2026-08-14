@@ -38,13 +38,15 @@ $basePath =
 
 $siteId =
     (int)(
-        $_GET['siteId']
+        $_POST['siteId']
+        ?? $_GET['siteId']
         ?? 0
     );
 
 $pageId =
     (int)(
-        $_GET['pageId']
+        $_POST['pageId']
+        ?? $_GET['pageId']
         ?? 0
     );
 
@@ -332,71 +334,243 @@ if (!function_exists('sb_layout_preview_navigation_pages')) {
     }
 }
 
-if (!function_exists('sb_layout_preview_view_model')) {
-    function sb_layout_preview_view_model(
-        int $siteId,
-        int $requestedPageId,
-        string $basePath
-    ): ?array {
-        $site =
-            sb_public_find_site(
-                $siteId
-            );
+if (!function_exists('sb_layout_preview_normalize_settings')) {
+    function sb_layout_preview_normalize_settings(
+        array $saved,
+        array $draft
+    ): array {
+        $result =
+            $saved;
 
-        if (!$site) {
-            return null;
-        }
-
-        $allPages =
-            sb_layout_preview_all_pages(
-                $siteId
-            );
-
-        $currentPage =
-            $requestedPageId > 0
-                ? sb_layout_preview_find_page(
-                    $allPages,
-                    $requestedPageId
+        foreach (
+            [
+                'showHeader',
+                'showFooter',
+                'showLeft',
+                'showRight',
+            ]
+            as $key
+        ) {
+            if (
+                array_key_exists(
+                    $key,
+                    $draft
                 )
-                : null;
-
-        if (!$currentPage) {
-            $homePageId =
-                (int)(
-                    $site['homePageId']
-                    ?? 0
-                );
-
-            if ($homePageId > 0) {
-                $currentPage =
-                    sb_layout_preview_find_page(
-                        $allPages,
-                        $homePageId
-                    );
+            ) {
+                $result[$key] =
+                    (bool)$draft[$key];
             }
         }
 
         if (
-            !$currentPage
-            && $allPages
+            array_key_exists(
+                'leftWidth',
+                $draft
+            )
         ) {
-            $currentPage =
-                $allPages[0];
+            $result['leftWidth'] =
+                max(
+                    120,
+                    min(
+                        800,
+                        (int)$draft[
+                            'leftWidth'
+                        ]
+                    )
+                );
         }
 
-        if (!$currentPage) {
-            return null;
+        if (
+            array_key_exists(
+                'rightWidth',
+                $draft
+            )
+        ) {
+            $result['rightWidth'] =
+                max(
+                    120,
+                    min(
+                        800,
+                        (int)$draft[
+                            'rightWidth'
+                        ]
+                    )
+                );
         }
 
-        $pages =
-            sb_layout_preview_navigation_pages(
-                $siteId,
-                $allPages,
-                $currentPage
-            );
+        if (
+            array_key_exists(
+                'leftMode',
+                $draft
+            )
+        ) {
+            $mode =
+                trim(
+                    (string)$draft[
+                        'leftMode'
+                    ]
+                );
 
+            $result['leftMode'] =
+                in_array(
+                    $mode,
+                    [
+                        'blocks',
+                        'menu',
+                    ],
+                    true
+                )
+                    ? $mode
+                    : 'blocks';
+        }
+
+        return $result;
+    }
+}
+
+if (!function_exists('sb_layout_preview_normalize_zones')) {
+    function sb_layout_preview_normalize_zones(
+        array $savedZones,
+        array $draftZones
+    ): array {
+        $result = [];
+
+        foreach (
+            [
+                'header',
+                'footer',
+                'left',
+                'right',
+            ]
+            as $zone
+        ) {
+            if (
+                !array_key_exists(
+                    $zone,
+                    $draftZones
+                )
+            ) {
+                $result[$zone] =
+                    array_values(
+                        is_array(
+                            $savedZones[$zone]
+                            ?? null
+                        )
+                            ? $savedZones[$zone]
+                            : []
+                    );
+
+                continue;
+            }
+
+            $items =
+                is_array(
+                    $draftZones[$zone]
+                )
+                    ? array_slice(
+                        $draftZones[$zone],
+                        0,
+                        200
+                    )
+                    : [];
+
+            $result[$zone] = [];
+
+            foreach (
+                $items
+                as $index => $item
+            ) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $type =
+                    preg_replace(
+                        '/[^a-z0-9_-]/i',
+                        '',
+                        trim(
+                            (string)(
+                                $item['type']
+                                ?? 'text'
+                            )
+                        )
+                    ) ?? '';
+
+                if ($type === '') {
+                    $type = 'text';
+                }
+
+                $content =
+                    is_array(
+                        $item['content']
+                        ?? null
+                    )
+                        ? $item['content']
+                        : [];
+
+                $props =
+                    is_array(
+                        $item['props']
+                        ?? null
+                    )
+                        ? $item['props']
+                        : [];
+
+                $result[$zone][] = [
+                    'id' =>
+                        (int)(
+                            $item['id']
+                            ?? 0
+                        ),
+                    'pageId' => 0,
+                    'type' =>
+                        mb_substr(
+                            $type,
+                            0,
+                            64
+                        ),
+                    'sort' =>
+                        ($index + 1)
+                        * 10,
+                    'content' =>
+                        $content,
+                    'props' =>
+                        $props,
+                    'createdBy' =>
+                        (int)(
+                            $item['createdBy']
+                            ?? 0
+                        ),
+                    'createdAt' =>
+                        (string)(
+                            $item['createdAt']
+                            ?? date('c')
+                        ),
+                    'updatedBy' =>
+                        (int)(
+                            $item['updatedBy']
+                            ?? 0
+                        ),
+                    'updatedAt' =>
+                        (string)(
+                            $item['updatedAt']
+                            ?? date('c')
+                        ),
+                    'version' => 1,
+                ];
+            }
+        }
+
+        return $result;
+    }
+}
+
+if (!function_exists('sb_layout_preview_resolve_layout')) {
+    function sb_layout_preview_resolve_layout(
+        int $siteId
+    ): array {
         $layout =
-            sb_public_layout_for_site(
+            sb_layout_preview_resolve_layout(
                 $siteId
             );
 
@@ -407,122 +581,6 @@ if (!function_exists('sb_layout_preview_view_model')) {
             )
                 ? $layout['settings']
                 : [];
-
-        /*
-         * Draft layout settings are passed from layout.php only for this
-         * authenticated iframe. They are validated independently and never
-         * written to the database by the preview endpoint.
-         */
-        $layoutSettings['showHeader'] =
-            sb_layout_preview_bool(
-                'showHeader',
-                !empty(
-                    $layoutSettings[
-                        'showHeader'
-                    ]
-                )
-            );
-
-        $layoutSettings['showFooter'] =
-            sb_layout_preview_bool(
-                'showFooter',
-                !empty(
-                    $layoutSettings[
-                        'showFooter'
-                    ]
-                )
-            );
-
-        $layoutSettings['showLeft'] =
-            sb_layout_preview_bool(
-                'showLeft',
-                !empty(
-                    $layoutSettings[
-                        'showLeft'
-                    ]
-                )
-            );
-
-        $layoutSettings['showRight'] =
-            sb_layout_preview_bool(
-                'showRight',
-                !empty(
-                    $layoutSettings[
-                        'showRight'
-                    ]
-                )
-            );
-
-        if (
-            array_key_exists(
-                'leftWidth',
-                $_GET
-            )
-        ) {
-            $layoutSettings[
-                'leftWidth'
-            ] =
-                max(
-                    120,
-                    min(
-                        800,
-                        (int)$_GET[
-                            'leftWidth'
-                        ]
-                    )
-                );
-        }
-
-        if (
-            array_key_exists(
-                'rightWidth',
-                $_GET
-            )
-        ) {
-            $layoutSettings[
-                'rightWidth'
-            ] =
-                max(
-                    120,
-                    min(
-                        800,
-                        (int)$_GET[
-                            'rightWidth'
-                        ]
-                    )
-                );
-        }
-
-        if (
-            array_key_exists(
-                'leftMode',
-                $_GET
-            )
-        ) {
-            $leftMode =
-                trim(
-                    (string)$_GET[
-                        'leftMode'
-                    ]
-                );
-
-            $layoutSettings[
-                'leftMode'
-            ] =
-                in_array(
-                    $leftMode,
-                    [
-                        'blocks',
-                        'menu',
-                    ],
-                    true
-                )
-                    ? $leftMode
-                    : 'blocks';
-        }
-
-        $layout['settings'] =
-            $layoutSettings;
 
         $menu =
             sb_public_filter_menu_pages(
