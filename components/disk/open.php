@@ -45,7 +45,7 @@ try {
         'file',
         $fileId,
         (int)$rootInfo['rootFolderId'],
-        $mode === 'edit' ? 'canUpload' : 'canView'
+        $mode === 'edit' ? 'canEditFile' : 'canView'
     );
 
     $file = File::loadById($fileId);

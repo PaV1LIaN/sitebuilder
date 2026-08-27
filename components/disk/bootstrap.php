@@ -39,6 +39,8 @@ if (!defined('SITEBUILDER_DISK_BOOTSTRAP')) {
     require_once __DIR__ . '/lib/DiskSettingsRepository.php';
     require_once __DIR__ . '/lib/DiskRootResolver.php';
     require_once __DIR__ . '/lib/DiskValidator.php';
+    require_once __DIR__ . '/lib/DiskPageUserRepository.php';
+    require_once __DIR__ . '/lib/BitrixDiskRightsService.php';
     require_once __DIR__ . '/lib/DiskPermissionService.php';
     require_once __DIR__ . '/lib/SiteDiskInitializer.php';
     require_once __DIR__ . '/lib/BlockDiskInitializer.php';

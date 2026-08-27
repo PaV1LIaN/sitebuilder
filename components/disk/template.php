@@ -260,9 +260,10 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
                                         <label class="sb-disk-form__label">Режим прав</label>
                                         <select class="sb-disk-form__select" name="permissionMode">
                                             <option value="inherit_site">Наследовать права сайта</option>
-                                            <option value="custom">Индивидуальные права папок</option>
+                                            <option value="custom">Индивидуальные права папок SiteBuilder</option>
+                                            <option value="bitrix_disk">Точные права Битрикс24.Диск</option>
                                         </select>
-                                        <div class="sb-disk-form__hint">Индивидуальный режим позволяет назначать права на отдельные папки.</div>
+                                        <div class="sb-disk-form__hint">Точный режим записывает штатный ACL выбранной папки Битрикс24.Диск.</div>
                                     </div>
 
                                     <div class="sb-disk-settings-native__quick-presets">

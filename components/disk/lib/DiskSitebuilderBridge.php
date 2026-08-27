@@ -221,7 +221,7 @@ class DiskSitebuilderBridge
             'defaultSortDirection' => strtolower((string)($props['defaultSortDirection'] ?? 'desc')) === 'asc' ? 'asc' : 'desc',
             'allowedExtensions' => is_array($props['allowedExtensions'] ?? null) ? array_values($props['allowedExtensions']) : [],
             'maxFileSize' => max(0, (int)($props['maxFileSize'] ?? 52428800)),
-            'permissionMode' => in_array((string)($props['permissionMode'] ?? 'inherit_site'), ['inherit_site', 'custom'], true)
+            'permissionMode' => in_array((string)($props['permissionMode'] ?? 'inherit_site'), ['inherit_site', 'custom', 'bitrix_disk'], true)
                 ? (string)$props['permissionMode']
                 : 'inherit_site',
             'useSiteRootFallback' => !array_key_exists('useSiteRootFallback', $props) || !empty($props['useSiteRootFallback']),
