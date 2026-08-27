@@ -87,12 +87,26 @@ $expectedVersion = RevisionService::requireExpectedVersion(
     $data['expectedVersion'] ?? null
 );
 
-DiskSettingsRepository::save(
-    $context->blockId,
-    $normalized,
-    $expectedVersion,
-    $currentUserId
-);
+$startedHere = sb_db_transaction_scope_begin();
+try {
+    DiskSettingsRepository::save(
+        $context->blockId,
+        $normalized,
+        $expectedVersion,
+        $currentUserId
+    );
+
+    $accessReconcileJob = OutboxService::enqueueUnifiedAccessReconcile(
+        $context->siteId,
+        'repair',
+        $currentUserId,
+        1
+    );
+    sb_db_transaction_scope_commit($startedHere);
+} catch (Throwable $exception) {
+    sb_db_transaction_scope_rollback($startedHere);
+    throw $exception;
+}
 
 $updatedSettings = DiskSettingsRepository::getByBlockId($context->blockId);
 $updatedBlock = BlockRepository::getById($context->blockId);
@@ -100,4 +114,5 @@ $updatedBlock = BlockRepository::getById($context->blockId);
 DiskResponse::success([
     'settings' => $updatedSettings,
     'blockVersion' => max(1, (int)($updatedBlock['version'] ?? 1)),
+    'accessReconcileJob' => $accessReconcileJob,
 ]);

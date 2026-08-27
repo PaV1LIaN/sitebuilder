@@ -5,6 +5,15 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessRepos
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessService.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteDeletionService.php';
 
+if (in_array($action, [
+    'site.syncAccess',
+    'site.reconcileAccess',
+    'site.accessReconcileList',
+], true)) {
+    require_once $_SERVER['DOCUMENT_ROOT']
+        . '/local/sitebuilder/lib/UnifiedAccessReconciliationService.php';
+}
+
 global $USER;
 
 $siteBitrixGroupServicePath = $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteBitrixGroupService.php';
@@ -839,9 +848,18 @@ if ($action === 'site.syncAccess') {
     $jobs = [];
     if ((int)($site['bitrixGroupId'] ?? 0) <= 0) {
         $jobs['group'] = OutboxService::enqueueGroupEnsure($siteId, $currentUserId);
-        $jobs['sync'] = OutboxService::enqueueAccessSync($siteId, $currentUserId, 5);
+        $jobs['sync'] = OutboxService::enqueueUnifiedAccessReconcile(
+            $siteId,
+            UnifiedAccessReconciliationService::MODE_REPAIR,
+            $currentUserId,
+            5
+        );
     } else {
-        $jobs['sync'] = OutboxService::enqueueAccessSync($siteId, $currentUserId);
+        $jobs['sync'] = OutboxService::enqueueUnifiedAccessReconcile(
+            $siteId,
+            UnifiedAccessReconciliationService::MODE_REPAIR,
+            $currentUserId
+        );
     }
 
     sb_json_ok([
@@ -850,6 +868,73 @@ if ($action === 'site.syncAccess') {
         'handler' => 'site',
         'action' => 'site.syncAccess',
     ]);
+}
+
+if ($action === 'site.reconcileAccess') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    $mode = strtolower(trim((string)($_POST['mode'] ?? 'audit')));
+    if ($siteId <= 0) {
+        sb_json_error('SITE_ID_REQUIRED', 422);
+    }
+    if (!in_array($mode, [
+        UnifiedAccessReconciliationService::MODE_AUDIT,
+        UnifiedAccessReconciliationService::MODE_REPAIR,
+    ], true)) {
+        sb_json_error('INVALID_ACCESS_RECONCILE_MODE', 422);
+    }
+
+    sb_site_handler_require_owner($siteId);
+    $site = RevisionService::getSite($siteId, false);
+    if (!$site) {
+        sb_json_error('SITE_NOT_FOUND', 404);
+    }
+
+    $currentUserId = (int)$USER->GetID();
+    $jobs = [];
+    if ((int)($site['bitrixGroupId'] ?? 0) <= 0) {
+        if ($mode === UnifiedAccessReconciliationService::MODE_AUDIT) {
+            sb_json_error('BITRIX_GROUP_NOT_READY', 409);
+        }
+        $jobs['group'] = OutboxService::enqueueGroupEnsure(
+            $siteId,
+            $currentUserId
+        );
+    }
+    $jobs['reconcile'] = OutboxService::enqueueUnifiedAccessReconcile(
+        $siteId,
+        $mode,
+        $currentUserId,
+        isset($jobs['group']) ? 5 : 0
+    );
+
+    sb_json_ok([
+        'queued' => true,
+        'mode' => $mode,
+        'jobs' => $jobs,
+        'handler' => 'site',
+        'action' => 'site.reconcileAccess',
+    ]);
+}
+
+if ($action === 'site.accessReconcileList') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    if ($siteId <= 0) {
+        sb_json_error('SITE_ID_REQUIRED', 422);
+    }
+    sb_site_handler_require_owner($siteId);
+
+    try {
+        sb_json_ok([
+            'items' => UnifiedAccessReconciliationService::listRuns(
+                $siteId,
+                (int)($_POST['limit'] ?? 25)
+            ),
+            'handler' => 'site',
+            'action' => 'site.accessReconcileList',
+        ]);
+    } catch (Throwable $e) {
+        sb_site_handler_handle_exception($e, 'site.accessReconcileList');
+    }
 }
 
 if ($action === 'site.ensureGroup') {

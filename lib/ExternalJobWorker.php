@@ -10,6 +10,7 @@ require_once __DIR__ . '/disk.php';
 require_once __DIR__ . '/QueueMonitorService.php';
 require_once __DIR__ . '/SystemAlertService.php';
 require_once __DIR__ . '/ExternalResourceReconcileService.php';
+require_once __DIR__ . '/UnifiedAccessReconciliationService.php';
 
 final class ExternalJobWorker
 {
@@ -142,6 +143,7 @@ final class ExternalJobWorker
         return match ((string)$job['jobType']) {
             OutboxService::JOB_GROUP_ENSURE => self::ensureGroup($job),
             OutboxService::JOB_ACCESS_SYNC => self::syncAccess($job),
+            OutboxService::JOB_UNIFIED_ACCESS_RECONCILE => self::reconcileUnifiedAccess($job),
             OutboxService::JOB_GROUP_MEMBER_RECONCILE => self::reconcileGroupMember($job),
             OutboxService::JOB_DISK_FOLDER_ENSURE => self::ensureDiskFolder($job),
             OutboxService::JOB_GROUP_DELETE => self::deleteGroup($job),
@@ -159,14 +161,23 @@ final class ExternalJobWorker
         if (!$site) {
             return ['skipped' => true, 'reason' => 'site_missing'];
         }
-        $existingGroupId = (int)($site['bitrixGroupId'] ?? 0);
-        if ($existingGroupId > 0) {
-            return ['created' => false, 'bitrixGroupId' => $existingGroupId];
-        }
-
         $ownerUserId = (int)($payload['ownerUserId'] ?? $site['createdBy'] ?? 0);
         if ($ownerUserId <= 0) {
             throw new RuntimeException('EMPTY_OWNER_USER_ID');
+        }
+        $existingGroupId = (int)($site['bitrixGroupId'] ?? 0);
+        if ($existingGroupId > 0) {
+            $accessJob = OutboxService::enqueueUnifiedAccessReconcile(
+                $siteId,
+                UnifiedAccessReconciliationService::MODE_REPAIR,
+                $ownerUserId,
+                2
+            );
+            return [
+                'created' => false,
+                'bitrixGroupId' => $existingGroupId,
+                'accessReconcileJobId' => (int)$accessJob['id'],
+            ];
         }
 
         $newGroupId = SiteBitrixGroupService::createForSite($site, $ownerUserId);
@@ -182,25 +193,38 @@ final class ExternalJobWorker
 
             $currentGroupId = (int)($current['bitrixGroupId'] ?? 0);
             if ($currentGroupId > 0) {
+                $accessJob = OutboxService::enqueueUnifiedAccessReconcile(
+                    $siteId,
+                    UnifiedAccessReconciliationService::MODE_REPAIR,
+                    $ownerUserId,
+                    2
+                );
                 $pdo->commit();
                 SiteBitrixGroupService::deleteCreatedGroup($newGroupId);
-                return ['created' => false, 'bitrixGroupId' => $currentGroupId, 'duplicateCompensated' => true];
+                return [
+                    'created' => false,
+                    'bitrixGroupId' => $currentGroupId,
+                    'duplicateCompensated' => true,
+                    'accessReconcileJobId' => (int)$accessJob['id'],
+                ];
             }
 
             $current['bitrixGroupId'] = $newGroupId;
             $current['bitrixGroupCreatedBy'] = $ownerUserId;
             $current['bitrixGroupCreatedAt'] = date('c');
             $saved = RevisionService::saveSite($current, (int)$current['version'], $ownerUserId, 'queue_bitrix_group_attach');
-            $memberJobs = OutboxService::enqueueAllGroupMembersReconcile($siteId, $ownerUserId);
+            $accessJob = OutboxService::enqueueUnifiedAccessReconcile(
+                $siteId,
+                UnifiedAccessReconciliationService::MODE_REPAIR,
+                $ownerUserId,
+                2
+            );
             $pdo->commit();
             return [
                 'created' => true,
                 'bitrixGroupId' => $newGroupId,
                 'siteVersion' => (int)$saved['version'],
-                'memberReconcileJobs' => array_map(
-                    static fn(array $memberJob): int => (int)$memberJob['id'],
-                    $memberJobs
-                ),
+                'accessReconcileJobId' => (int)$accessJob['id'],
             ];
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
@@ -228,6 +252,35 @@ final class ExternalJobWorker
         }
         $actorUserId = (int)($payload['actorUserId'] ?? $site['createdBy'] ?? 0);
         return SiteAccessSyncService::sync($siteId, $actorUserId, true);
+    }
+
+    private static function reconcileUnifiedAccess(array $job): array
+    {
+        $siteId = (int)$job['siteId'];
+        $payload = (array)$job['payload'];
+        $site = RevisionService::getSite($siteId, false);
+        if (!$site) {
+            return ['skipped' => true, 'reason' => 'site_missing'];
+        }
+
+        $actorUserId = (int)(
+            $payload['actorUserId']
+            ?? $job['createdBy']
+            ?? $site['createdBy']
+            ?? 0
+        );
+
+        return self::withAdvisoryLock(
+            761327,
+            $siteId,
+            false,
+            static fn(): array => UnifiedAccessReconciliationService::run(
+                $siteId,
+                (string)($payload['mode'] ?? UnifiedAccessReconciliationService::MODE_AUDIT),
+                $actorUserId,
+                (int)$job['id']
+            )
+        );
     }
 
     private static function reconcileGroupMember(array $job): array
@@ -294,18 +347,49 @@ final class ExternalJobWorker
         }
         $existing = sb_disk_get_site_folder($siteId);
         if ($existing) {
-            return ['created' => false, 'folderId' => (int)$existing->getId()];
+            $accessJob = OutboxService::enqueueUnifiedAccessReconcile(
+                $siteId,
+                UnifiedAccessReconciliationService::MODE_REPAIR,
+                (int)($payload['actorUserId'] ?? $site['createdBy'] ?? 0),
+                2
+            );
+            return [
+                'created' => false,
+                'folderId' => (int)$existing->getId(),
+                'accessReconcileJobId' => (int)$accessJob['id'],
+            ];
         }
         return self::withAdvisoryLock(761315, $siteId, false, static function () use ($siteId, $payload, $site): array {
             $existing = sb_disk_get_site_folder($siteId);
+            $actorUserId = (int)($payload['actorUserId'] ?? $site['createdBy'] ?? 0);
             if ($existing) {
-                return ['created' => false, 'folderId' => (int)$existing->getId()];
+                $accessJob = OutboxService::enqueueUnifiedAccessReconcile(
+                    $siteId,
+                    UnifiedAccessReconciliationService::MODE_REPAIR,
+                    $actorUserId,
+                    2
+                );
+                return [
+                    'created' => false,
+                    'folderId' => (int)$existing->getId(),
+                    'accessReconcileJobId' => (int)$accessJob['id'],
+                ];
             }
             $folder = sb_disk_ensure_site_folder(
                 $siteId,
-                (int)($payload['actorUserId'] ?? $site['createdBy'] ?? 0)
+                $actorUserId
             );
-            return ['created' => true, 'folderId' => (int)$folder->getId()];
+            $accessJob = OutboxService::enqueueUnifiedAccessReconcile(
+                $siteId,
+                UnifiedAccessReconciliationService::MODE_REPAIR,
+                $actorUserId,
+                2
+            );
+            return [
+                'created' => true,
+                'folderId' => (int)$folder->getId(),
+                'accessReconcileJobId' => (int)$accessJob['id'],
+            ];
         });
     }
 

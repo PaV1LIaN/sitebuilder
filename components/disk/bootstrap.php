@@ -22,6 +22,7 @@ if (!defined('SITEBUILDER_DISK_BOOTSTRAP')) {
     require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessRepository.php';
     require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessService.php';
     require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/RevisionService.php';
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/OutboxService.php';
 
     \Bitrix\Main\Loader::includeModule('disk');
 
