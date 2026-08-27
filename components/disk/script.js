@@ -3577,27 +3577,19 @@
 
     var rootSelect = form.querySelector('[data-role="root-select"]');
     if (rootSelect) {
-      var options = Array.isArray(rootData.options) ? rootData.options : [];
-      rootSelect.innerHTML = '';
-
-      if (rootData.siteRootFolderId) {
-        rootSelect.insertAdjacentHTML('beforeend', '<option value="">Использовать корень сайта</option>');
-      } else {
-        rootSelect.insertAdjacentHTML('beforeend', '<option value="">Корень сайта не создан</option>');
-      }
-
-      options.forEach(function (option) {
-        if (option.type === 'block_root' && option.folderId) {
-          rootSelect.insertAdjacentHTML(
-            'beforeend',
-            '<option value="' + escapeHtml(option.folderId) + '">Собственная папка блока #' + escapeHtml(option.folderId) + '</option>'
-          );
-        }
-      });
+      this.renderSettingsRootOptions(
+        rootSelect,
+        rootData || {}
+      );
     }
 
     setFormValue(form, 'title', settings.title || 'Файлы');
-    setFormValue(form, 'rootFolderId', settings.rootFolderId || '');
+
+    var settingsRootValue = settings.rootFolderId
+      ? String(settings.rootFolderId)
+      : (rootData.siteRootFolderId ? '' : '__create_site_root__');
+
+    setFormValue(form, 'rootFolderId', settingsRootValue);
     setFormValue(form, 'viewMode', settings.viewMode || 'table');
     setFormValue(form, 'defaultSort', settings.defaultSort || 'updatedAt');
     setFormValue(form, 'defaultSortDirection', settings.defaultSortDirection || 'desc');
@@ -3618,6 +3610,141 @@
     setFormCheckbox(form, 'showSearch', !!settings.showSearch);
     setFormCheckbox(form, 'showBreadcrumbs', !!settings.showBreadcrumbs);
     setFormCheckbox(form, 'useSiteRootFallback', !!settings.useSiteRootFallback);
+  };
+
+  DiskComponent.prototype.renderSettingsRootOptions = function (rootSelect, rootData) {
+    if (!rootSelect) {
+      return;
+    }
+
+    rootData = rootData || {};
+
+    var siteRootFolderId = Number(rootData.siteRootFolderId || 0);
+    var blockRootFolderId = Number(rootData.blockRootFolderId || 0);
+
+    rootSelect.innerHTML = '';
+
+    if (siteRootFolderId > 0) {
+      rootSelect.insertAdjacentHTML(
+        'beforeend',
+        '<option value="">Использовать папку сайта</option>'
+      );
+    } else {
+      rootSelect.insertAdjacentHTML(
+        'beforeend',
+        '<option value="__create_site_root__">Создать и использовать папку сайта</option>'
+      );
+    }
+
+    if (blockRootFolderId > 0) {
+      rootSelect.insertAdjacentHTML(
+        'beforeend',
+        '<option value="' + escapeHtml(blockRootFolderId) + '">Использовать отдельную папку блока</option>'
+      );
+    } else {
+      rootSelect.insertAdjacentHTML(
+        'beforeend',
+        '<option value="__create_block_root__">Создать отдельную папку блока</option>'
+      );
+    }
+  };
+
+  DiskComponent.prototype.prepareSettingsRootFolder = async function () {
+    var form = this.root.querySelector('[data-role="settings-form"]');
+    if (!form) {
+      return;
+    }
+
+    var rootSelect = form.querySelector('[data-role="root-select"]');
+    if (!rootSelect) {
+      return;
+    }
+
+    var requestedMode = String(rootSelect.value || '');
+
+    if (
+      requestedMode !== '__create_site_root__'
+      && requestedMode !== '__create_block_root__'
+    ) {
+      return;
+    }
+
+    if (requestedMode === '__create_site_root__') {
+      this.setSettingsMessage('Создание папки сайта...');
+
+      var sitePayload = {
+        siteId: this.state.siteId,
+        sessid: this.getSessid()
+      };
+
+      var siteRes = await this.api('initSiteRoot', sitePayload);
+      if (!siteRes || !siteRes.ok) {
+        throw new Error(
+          (siteRes && (siteRes.message || siteRes.error))
+          || 'INIT_SITE_ROOT_ERROR'
+        );
+      }
+    } else {
+      this.setSettingsMessage('Создание отдельной папки блока...');
+
+      var blockPayload = this.getBasePayload();
+      blockPayload.sessid = this.getSessid();
+
+      var blockRes = await this.api('initBlockRoot', blockPayload);
+      if (!blockRes || !blockRes.ok) {
+        throw new Error(
+          (blockRes && (blockRes.message || blockRes.error))
+          || 'INIT_BLOCK_ROOT_ERROR'
+        );
+      }
+    }
+
+    /*
+     * initSiteRoot/initBlockRoot may change persisted state. Reload root
+     * options and, importantly, the fresh blockVersion before saveSettings.
+     */
+    var rootsPayload = this.getBasePayload();
+    rootsPayload.sessid = this.getSessid();
+
+    var rootsRes = await this.api('getRootOptions', rootsPayload);
+    if (!rootsRes || !rootsRes.ok) {
+      throw new Error(
+        (rootsRes && (rootsRes.message || rootsRes.error))
+        || 'GET_ROOT_OPTIONS_ERROR'
+      );
+    }
+
+    var rootData = rootsRes.data || {};
+
+    this.state.blockVersion = Number(
+      rootData.blockVersion
+      || this.state.blockVersion
+      || 1
+    );
+
+    this.renderSettingsRootOptions(
+      rootSelect,
+      rootData
+    );
+
+    if (requestedMode === '__create_block_root__') {
+      var blockRootFolderId = Number(
+        rootData.blockRootFolderId || 0
+      );
+
+      if (blockRootFolderId <= 0) {
+        throw new Error('BLOCK_ROOT_FOLDER_NOT_CREATED');
+      }
+
+      rootSelect.value = String(blockRootFolderId);
+      return;
+    }
+
+    if (!rootData.siteRootFolderId) {
+      throw new Error('SITE_ROOT_FOLDER_NOT_CREATED');
+    }
+
+    rootSelect.value = '';
   };
 
   DiskComponent.prototype.collectSettingsForm = function () {
@@ -3652,6 +3779,13 @@
   DiskComponent.prototype.saveSettings = async function () {
     try {
       this.setSettingsMessage('Сохранение...');
+
+      /*
+       * The root dropdown can contain a create-on-save option. Resolve it
+       * first so collectSettingsForm receives a real folder ID (or empty
+       * value for the site root), never an internal sentinel.
+       */
+      await this.prepareSettingsRootFolder();
 
       var payload = this.getBasePayload();
       payload.sessid = this.getSessid();
