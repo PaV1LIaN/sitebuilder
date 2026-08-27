@@ -165,30 +165,55 @@
             return null;
         }
 
-        var node =
-            heading;
+        /*
+         * The native Disk modal has a stable structure:
+         *
+         *   [data-role="settings-modal"]
+         *       └─ firstElementChild = native shell
+         *
+         * Settings 2.0 must ALWAYS decorate that shell, never the viewport
+         * overlay itself and never an ancestor from the public page.
+         *
+         * Earlier heuristic walking could occasionally return
+         * [data-role="settings-modal"], making .sb-disk4-dialog fullscreen.
+         */
+        var modal = heading.closest
+            ? heading.closest(
+                '[data-role="settings-modal"]'
+            )
+            : null;
+
+        if (
+            modal
+            && modal.firstElementChild
+            && modal.firstElementChild.contains(
+                heading
+            )
+            && isActuallyVisible(
+                modal.firstElementChild
+            )
+        ) {
+            return modal.firstElementChild;
+        }
 
         /*
-         * v4-v6 kept walking upward and remembered the largest ancestor
-         * containing enough controls. If the hidden settings markup lived
-         * inside the visible Disk component, this could select the Disk/page
-         * container itself and turn it into the settings modal.
-         *
-         * v7 returns the FIRST visible ancestor that actually looks like the
-         * settings dialog: enough settings fields + a Save button.
+         * Structural fallback for an unexpected legacy markup version.
+         * Return the FIRST small visible ancestor that actually contains
+         * settings controls + Save. Never return the modal overlay itself.
          */
+        var node = heading;
+
         for (
             var i = 0;
-            i < 10
+            i < 8
             && node
             && node !== document.body;
             i++
         ) {
             if (
-                node.querySelectorAll
-                && isActuallyVisible(
-                    node
-                )
+                node !== modal
+                && node.querySelectorAll
+                && isActuallyVisible(node)
             ) {
                 var controls =
                     node.querySelectorAll(
@@ -197,30 +222,28 @@
                     );
 
                 var buttons =
-                    Array.prototype
-                        .slice.call(
-                            node.querySelectorAll(
-                                'button,'
-                                + 'input[type="submit"],'
-                                + 'input[type="button"]'
-                            )
-                        );
+                    Array.prototype.slice.call(
+                        node.querySelectorAll(
+                            'button,'
+                            + 'input[type="submit"],'
+                            + 'input[type="button"]'
+                        )
+                    );
 
                 var hasSave =
                     buttons.some(
                         function (button) {
-                            var text =
-                                normalize(
-                                    button.textContent
-                                    || button.value
-                                    || button.getAttribute(
-                                        'aria-label'
-                                    )
-                                    || button.getAttribute(
-                                        'title'
-                                    )
-                                    || ''
-                                );
+                            var text = normalize(
+                                button.textContent
+                                || button.value
+                                || button.getAttribute(
+                                    'aria-label'
+                                )
+                                || button.getAttribute(
+                                    'title'
+                                )
+                                || ''
+                            );
 
                             return (
                                 text.indexOf(
@@ -238,8 +261,7 @@
                 }
             }
 
-            node =
-                node.parentElement;
+            node = node.parentElement;
         }
 
         return null;
