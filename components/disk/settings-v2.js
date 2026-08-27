@@ -1,5 +1,5 @@
 /* =========================================================
-   SITEBUILDER / DISK SETTINGS 2.0 / v6 VERSION BRIDGE
+   SITEBUILDER / DISK SETTINGS 2.0 / v7 OPEN-GUARD
    Full clean-shell UI. The legacy form stays hidden and is used only
    as the transport/save mechanism for backward compatibility.
    ========================================================= */
@@ -692,34 +692,191 @@
     }
 
     function isDiskHeading(node) {
-        var text = normalize(node && node.textContent);
-        return text.indexOf('настройки блока') !== -1 && text.indexOf('диск') !== -1;
+        var text =
+            normalize(
+                node
+                && node.textContent
+            );
+
+        return (
+            text.indexOf(
+                'настройки блока'
+            ) !== -1
+            && text.indexOf(
+                'диск'
+            ) !== -1
+        );
+    }
+
+    function isActuallyVisible(node) {
+        if (
+            !node
+            || !node.isConnected
+        ) {
+            return false;
+        }
+
+        var style =
+            window.getComputedStyle
+                ? window.getComputedStyle(
+                    node
+                )
+                : null;
+
+        if (
+            style
+            && (
+                style.display === 'none'
+                || style.visibility
+                    === 'hidden'
+            )
+        ) {
+            return false;
+        }
+
+        if (
+            node.hidden === true
+            || node.getAttribute(
+                'aria-hidden'
+            ) === 'true'
+        ) {
+            return false;
+        }
+
+        var rects =
+            typeof node.getClientRects
+                === 'function'
+                ? node.getClientRects()
+                : [];
+
+        if (!rects.length) {
+            return false;
+        }
+
+        var rect =
+            typeof node.getBoundingClientRect
+                === 'function'
+                ? node.getBoundingClientRect()
+                : null;
+
+        return !rect
+            || (
+                rect.width > 0
+                && rect.height > 0
+            );
     }
 
     function findHeading() {
-        return Array.prototype.slice.call(
-            document.querySelectorAll('h1,h2,h3,h4,[role="heading"],.modal-title,.popup-window-titlebar-text')
-        ).find(isDiskHeading) || null;
+        return Array.prototype
+            .slice.call(
+                document.querySelectorAll(
+                    'h1,h2,h3,h4,'
+                    + '[role="heading"],'
+                    + '.modal-title,'
+                    + '.popup-window-titlebar-text'
+                )
+            )
+            .find(
+                function (node) {
+                    return (
+                        isDiskHeading(node)
+                        && isActuallyVisible(
+                            node
+                        )
+                    );
+                }
+            )
+            || null;
     }
 
     function findScope(heading) {
-        if (!heading) return null;
-
-        var node = heading;
-        var best = heading.parentElement;
-
-        for (var i = 0; i < 11 && node && node !== document.body; i++) {
-            if (node.querySelectorAll) {
-                var controls = node.querySelectorAll('input:not([type="hidden"]),select,textarea');
-                var buttons = node.querySelectorAll('button,input[type="submit"],input[type="button"]');
-                if (controls.length >= 8 && buttons.length >= 1) {
-                    best = node;
-                }
-            }
-            node = node.parentElement;
+        if (
+            !heading
+            || !isActuallyVisible(
+                heading
+            )
+        ) {
+            return null;
         }
 
-        return best;
+        var node =
+            heading;
+
+        /*
+         * v4-v6 kept walking upward and remembered the largest ancestor
+         * containing enough controls. If the hidden settings markup lived
+         * inside the visible Disk component, this could select the Disk/page
+         * container itself and turn it into the settings modal.
+         *
+         * v7 returns the FIRST visible ancestor that actually looks like the
+         * settings dialog: enough settings fields + a Save button.
+         */
+        for (
+            var i = 0;
+            i < 10
+            && node
+            && node !== document.body;
+            i++
+        ) {
+            if (
+                node.querySelectorAll
+                && isActuallyVisible(
+                    node
+                )
+            ) {
+                var controls =
+                    node.querySelectorAll(
+                        'input:not([type="hidden"]),'
+                        + 'select,textarea'
+                    );
+
+                var buttons =
+                    Array.prototype
+                        .slice.call(
+                            node.querySelectorAll(
+                                'button,'
+                                + 'input[type="submit"],'
+                                + 'input[type="button"]'
+                            )
+                        );
+
+                var hasSave =
+                    buttons.some(
+                        function (button) {
+                            var text =
+                                normalize(
+                                    button.textContent
+                                    || button.value
+                                    || button.getAttribute(
+                                        'aria-label'
+                                    )
+                                    || button.getAttribute(
+                                        'title'
+                                    )
+                                    || ''
+                                );
+
+                            return (
+                                text.indexOf(
+                                    'сохран'
+                                ) !== -1
+                            );
+                        }
+                    );
+
+                if (
+                    controls.length >= 7
+                    && hasSave
+                ) {
+                    return node;
+                }
+            }
+
+            node =
+                node.parentElement;
+        }
+
+        return null;
     }
 
     function labelText(control, scope) {
@@ -1445,10 +1602,52 @@
         });
     }
 
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule);
-    else schedule();
-
-    if (typeof MutationObserver !== 'undefined') {
-        new MutationObserver(schedule).observe(document.body, {childList:true, subtree:true});
+    if (
+        document.readyState
+        === 'loading'
+    ) {
+        document.addEventListener(
+            'DOMContentLoaded',
+            schedule
+        );
+    } else {
+        schedule();
     }
+
+    /*
+     * Native Disk settings may be inserted into DOM on demand OR kept in
+     * DOM and opened by toggling class/style/hidden. Watch both cases.
+     */
+    if (
+        typeof MutationObserver
+        !== 'undefined'
+    ) {
+        new MutationObserver(
+            schedule
+        ).observe(
+            document.body,
+            {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: [
+                    'class',
+                    'style',
+                    'hidden',
+                    'aria-hidden'
+                ]
+            }
+        );
+    }
+
+    /*
+     * Some legacy popup implementations only change visibility in a click
+     * handler. Running one scheduled visibility check after user clicks is
+     * cheap and makes decoration independent from popup implementation.
+     */
+    document.addEventListener(
+        'click',
+        schedule,
+        true
+    );
 })();
