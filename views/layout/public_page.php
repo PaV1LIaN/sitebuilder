@@ -561,7 +561,7 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
     <?php endif; ?>
 
     <?php if ($pageHasDiskBlock && !$isLayoutPreview): ?>
-        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/settings-v2.css?v=1">
+        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/settings-v2.css?v=2">
     <?php endif; ?>
 
     <style>
@@ -700,7 +700,7 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
 
 <?php if ($pageHasDiskBlock && !$isLayoutPreview): ?>
     <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=9"></script>
-    <script src="<?= sb_public_h($basePath) ?>/components/disk/settings-v2.js?v=1"></script>
+    <script src="<?= sb_public_h($basePath) ?>/components/disk/settings-v2.js?v=2"></script>
 <?php endif; ?>
 
 <?php
