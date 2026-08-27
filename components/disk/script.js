@@ -3436,7 +3436,17 @@
         throw new Error((rootOptionsRes && (rootOptionsRes.message || rootOptionsRes.error)) || 'GET_ROOT_OPTIONS_ERROR');
       }
 
-      this.state.blockVersion = Number(settingsRes.data.blockVersion || this.state.blockVersion || 1);
+      /*
+       * getRootOptions is the last settings-related request before the
+       * modal becomes editable. Use its blockVersion when available so
+       * saveSettings does not start from an older page/render version.
+       */
+      this.state.blockVersion = Number(
+        rootOptionsRes.data.blockVersion
+        || settingsRes.data.blockVersion
+        || this.state.blockVersion
+        || 1
+      );
 
       this.fillSettingsForm(
         settingsRes.data.settings || {},
@@ -3496,11 +3506,33 @@
       form.appendChild(checksWrap);
     }
 
+    /*
+     * Only real button/input controls may be moved into the footer.
+     * The old generic [data-action] selector could select an ancestor
+     * container carrying data-action. Moving that container into footer and
+     * then appending footer back to its descendant produced:
+     * HierarchyRequestError: new child element contains the parent.
+     */
     var actionButtons = Array.prototype.slice.call(
-      modal.querySelectorAll('[data-action="save-settings"], [data-action="close-settings"]')
+      modal.querySelectorAll(
+        'button[data-action="save-settings"], '
+        + 'button[data-action="close-settings"], '
+        + 'input[type="button"][data-action="save-settings"], '
+        + 'input[type="button"][data-action="close-settings"], '
+        + 'input[type="submit"][data-action="save-settings"]'
+      )
     ).filter(function (button) {
-      var text = String(button.textContent || '').trim().toLowerCase();
-      return text !== '×' && text !== 'x';
+      var text = String(button.textContent || button.value || '').trim().toLowerCase();
+
+      if (text === '×' || text === 'x') {
+        return false;
+      }
+
+      if (button === shell || button.contains(shell)) {
+        return false;
+      }
+
+      return true;
     });
 
     if (actionButtons.length && !modal.querySelector('.sb-disk-settings-footer')) {
@@ -3511,9 +3543,9 @@
         footer.appendChild(button);
       });
 
-      if (shell) {
+      if (shell && !footer.contains(shell)) {
         shell.appendChild(footer);
-      } else {
+      } else if (!shell) {
         modal.appendChild(footer);
       }
     }

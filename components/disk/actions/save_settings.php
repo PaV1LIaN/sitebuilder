@@ -14,12 +14,21 @@ $context = DiskContextFactory::fromArray([
 
 DiskValidator::assertContext($context);
 
-$currentSettings = DiskSettingsRepository::ensureExistsForBlock(
-    $context->blockId,
-    $context->siteId,
-    $context->pageId,
-    $context->currentUserId
-);
+$currentSettings = DiskSettingsRepository::getByBlockId($context->blockId);
+
+if (!$currentSettings) {
+    /*
+     * Normal settings flow always calls getSettings before Save, so this is
+     * only a defensive first-use fallback. Existing settings are never
+     * rewritten before optimistic-lock validation.
+     */
+    $currentSettings = DiskSettingsRepository::ensureExistsForBlock(
+        $context->blockId,
+        $context->siteId,
+        $context->pageId,
+        $context->currentUserId
+    );
+}
 
 $rootFolderId = DiskRootResolver::resolve($context, $currentSettings);
 $permissions = DiskPermissionService::resolve($context, $currentSettings, $rootFolderId);
