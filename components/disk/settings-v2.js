@@ -1,12 +1,12 @@
 /* =========================================================
-   SITEBUILDER / DISK SETTINGS 2.0 / v2
-   Cleaner dialog shell for the existing Disk settings form.
-   Backend fields and save handlers are preserved.
+   SITEBUILDER / DISK SETTINGS 2.0 / v3
+   Clean mirror UI. The legacy form stays intact but hidden.
+   Existing backend/save handlers remain authoritative.
    ========================================================= */
 (function () {
     'use strict';
 
-    var MARKER = 'sbDiskSettings2V2Decorated';
+    var MARKER = 'sbDiskSettingsV3';
     var scheduled = false;
 
     var FIELD_DEFS = [
@@ -28,6 +28,33 @@
         ['showBreadcrumbs', ['показывать breadcrumbs', 'показывать хлебные крошки']]
     ];
 
+    var LABELS = {
+        title: 'Заголовок блока',
+        rootSource: 'Корневая папка',
+        viewMode: 'Вид по умолчанию',
+        sortBy: 'Сортировать по',
+        sortDirection: 'Направление',
+        maxFileSize: 'Максимальный размер файла',
+        extensions: 'Допустимые расширения',
+        permissionMode: 'Режим прав',
+        useSiteRoot: 'Использовать корень сайта, если у блока нет своей папки',
+        allowUpload: 'Разрешить загрузку',
+        allowCreateFolder: 'Разрешить создание папок',
+        allowRename: 'Разрешить переименование',
+        allowDelete: 'Разрешить удаление',
+        allowDownload: 'Разрешить скачивание',
+        showSearch: 'Показывать поиск',
+        showBreadcrumbs: 'Показывать путь к папке'
+    };
+
+    var HELP = {
+        rootSource: 'Определяет папку Bitrix.Диска, которая открывается как корневая для этого блока.',
+        viewMode: 'Таблица удобна для документов, плитка — для файлов с визуальным превью.',
+        permissionMode: 'Настройки блока могут только ограничить действия. Серверные права пользователя они не расширяют.',
+        maxFileSize: 'Лимит одного загружаемого файла.',
+        extensions: 'Через пробел, запятую или точку с запятой. Например: pdf docx xlsx png jpg.'
+    };
+
     function normalize(value) {
         return String(value || '')
             .replace(/\u00a0/g, ' ')
@@ -41,7 +68,6 @@
         if (!button) {
             return '';
         }
-
         return normalize(
             button.textContent
             || button.value
@@ -51,78 +77,46 @@
         );
     }
 
-    function isDiskSettingsHeading(node) {
-        var text = normalize(node && node.textContent);
-
-        return text.indexOf('настройки блока') !== -1
-            && text.indexOf('диск') !== -1;
-    }
-
     function findHeading() {
-        var selectors = [
-            'h1',
-            'h2',
-            'h3',
-            'h4',
-            '[role="heading"]',
-            '.modal-title',
-            '.popup-window-titlebar-text'
-        ];
-
         var nodes = Array.prototype.slice.call(
-            document.querySelectorAll(selectors.join(','))
+            document.querySelectorAll('h1,h2,h3,h4,[role="heading"],.modal-title,.popup-window-titlebar-text')
         );
-
-        return nodes.find(isDiskSettingsHeading) || null;
+        return nodes.find(function (node) {
+            var text = normalize(node.textContent);
+            return text.indexOf('настройки блока') !== -1 && text.indexOf('диск') !== -1;
+        }) || null;
     }
 
     function findScope(heading) {
-        if (!heading) {
-            return null;
-        }
-
         var current = heading;
-        var fallback = heading.parentElement;
-
         for (var i = 0; i < 10 && current && current !== document.body; i++) {
             var controls = current.querySelectorAll
                 ? current.querySelectorAll('input:not([type="hidden"]),select,textarea')
                 : [];
-
             if (controls.length >= 6) {
                 return current;
             }
-
             current = current.parentElement;
         }
-
-        return fallback;
+        return heading ? heading.parentElement : null;
     }
 
     function findForm(scope, heading) {
-        if (!scope) {
-            return null;
-        }
-
         return (
             (heading && heading.closest && heading.closest('form'))
-            || scope.querySelector('form')
-            || (scope.matches && scope.matches('form') ? scope : null)
+            || (scope && scope.querySelector && scope.querySelector('form'))
+            || (scope && scope.matches && scope.matches('form') ? scope : null)
         );
     }
 
     function findLabelText(control, form) {
-        if (!control) {
-            return '';
-        }
-
         var label = control.closest ? control.closest('label') : null;
 
         if (!label && control.id && form) {
             try {
                 label = form.querySelector('label[for="' + CSS.escape(control.id) + '"]');
             } catch (error) {
-                label = form.querySelector('label[for="' + control.id.replace(/"/g, '\\"') + '"]');
+                label = null;
             }
         }
 
@@ -130,133 +124,204 @@
             return normalize(label.textContent);
         }
 
-        var parent = control.parentElement;
-        for (var i = 0; i < 4 && parent && parent !== form; i++) {
-            var text = normalize(parent.textContent);
+        var current = control.parentElement;
+        for (var i = 0; i < 4 && current && current !== form; i++) {
+            var text = normalize(current.textContent);
             if (text) {
                 return text;
             }
-            parent = parent.parentElement;
+            current = current.parentElement;
         }
-
         return '';
     }
 
     function fieldNameByText(text) {
         for (var i = 0; i < FIELD_DEFS.length; i++) {
-            var def = FIELD_DEFS[i];
-            for (var j = 0; j < def[1].length; j++) {
-                if (text.indexOf(def[1][j]) !== -1) {
-                    return def[0];
+            for (var j = 0; j < FIELD_DEFS[i][1].length; j++) {
+                if (text.indexOf(FIELD_DEFS[i][1][j]) !== -1) {
+                    return FIELD_DEFS[i][0];
                 }
             }
         }
         return '';
     }
 
-    function fieldContainer(control, form) {
-        if (!control) {
-            return null;
-        }
-
-        var best = control;
-        var current = control;
-
-        for (var i = 0; i < 6 && current && current !== form; i++) {
-            var parent = current.parentElement;
-            if (!parent || parent === form) {
-                break;
-            }
-
-            var controlsCount = parent.querySelectorAll('input,select,textarea').length;
-            var textLength = normalize(parent.textContent).length;
-
-            if (controlsCount <= 3 && textLength <= 260) {
-                best = parent;
-                current = parent;
-                continue;
-            }
-
-            break;
-        }
-
-        return best;
-    }
-
-    function collectFields(form) {
+    function collectOriginals(form) {
         var result = {};
         var controls = Array.prototype.slice.call(
             form.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]),select,textarea')
         );
 
         controls.forEach(function (control) {
-            if (control.dataset.sbDiskSettings2Claimed === '1') {
-                return;
+            var name = fieldNameByText(findLabelText(control, form));
+            if (name && !result[name]) {
+                result[name] = control;
             }
-
-            var text = findLabelText(control, form);
-            var name = fieldNameByText(text);
-            if (!name || result[name]) {
-                return;
-            }
-
-            var container = fieldContainer(control, form);
-            if (!container) {
-                return;
-            }
-
-            control.dataset.sbDiskSettings2Claimed = '1';
-            container.dataset.diskSettings2Field = name;
-            container.classList.add('sb-disk2-field');
-
-            if (control.type === 'checkbox') {
-                container.classList.add('is-toggle');
-            }
-            if (name === 'title' || name === 'extensions' || name === 'permissionMode') {
-                container.classList.add('is-wide');
-            }
-
-            result[name] = { control: control, container: container };
         });
 
         return result;
     }
 
-    function createSection(title, description, className) {
-        var node = document.createElement('section');
-        node.className = 'sb-disk2-section' + (className ? ' ' + className : '');
+    function findActions(scope, form) {
+        var buttons = Array.prototype.slice.call(
+            scope.querySelectorAll('button,input[type="submit"],input[type="button"]')
+        );
 
-        var header = document.createElement('div');
-        header.className = 'sb-disk2-section__head';
+        var save = buttons.find(function (button) {
+            return textOfButton(button).indexOf('сохран') !== -1;
+        }) || null;
 
-        var strong = document.createElement('strong');
-        strong.textContent = title;
+        var cancel = buttons.find(function (button) {
+            if (button === save) {
+                return false;
+            }
+            var text = textOfButton(button);
+            return text.indexOf('отмен') !== -1;
+        }) || null;
 
-        var small = document.createElement('span');
-        small.textContent = description;
+        var close = buttons.find(function (button) {
+            var raw = String(button.textContent || '').trim();
+            var text = textOfButton(button);
+            return raw === '×' || raw === '✕' || text === 'x' || text.indexOf('закрыть') !== -1;
+        }) || null;
 
-        header.appendChild(strong);
-        header.appendChild(small);
-        node.appendChild(header);
-
-        var grid = document.createElement('div');
-        grid.className = 'sb-disk2-grid';
-        node.appendChild(grid);
-
-        return { section: node, grid: grid };
+        return { save: save, cancel: cancel, close: close };
     }
 
-    function appendField(target, fields, name) {
-        if (target && fields[name]) {
-            target.appendChild(fields[name].container);
+    function setOriginal(original, value, checked) {
+        if (!original) {
+            return;
         }
+
+        if (original.type === 'checkbox') {
+            original.checked = !!checked;
+        } else {
+            original.value = String(value == null ? '' : value);
+        }
+
+        original.dispatchEvent(new Event('input', {bubbles: true}));
+        original.dispatchEvent(new Event('change', {bubbles: true}));
     }
 
-    function helper(text) {
-        var small = document.createElement('small');
-        small.className = 'sb-disk2-help';
-        small.textContent = text;
-        return small;
+    function cloneSelect(original) {
+        var select = document.createElement('select');
+        select.className = 'sb-disk3-control';
+        Array.prototype.slice.call(original.options || []).forEach(function (option) {
+            var copy = document.createElement('option');
+            copy.value = option.value;
+            copy.textContent = option.textContent;
+            copy.disabled = option.disabled;
+            select.appendChild(copy);
+        });
+        select.value = original.value;
+        select.addEventListener('change', function () {
+            setOriginal(original, select.value, false);
+        });
+        return select;
+    }
+
+    function createTextControl(original, type) {
+        var input = document.createElement('input');
+        input.type = type || 'text';
+        input.className = 'sb-disk3-control';
+        input.value = original.value || '';
+        input.addEventListener('input', function () {
+            setOriginal(original, input.value, false);
+        });
+        return input;
+    }
+
+    function createMirror(name, original) {
+        if (!original) {
+            return null;
+        }
+
+        if (original.type === 'checkbox') {
+            return createToggle(name, original);
+        }
+
+        var field = document.createElement('label');
+        field.className = 'sb-disk3-field';
+
+        var label = document.createElement('span');
+        label.className = 'sb-disk3-label';
+        label.textContent = LABELS[name] || name;
+        field.appendChild(label);
+
+        var control;
+
+        if (name === 'maxFileSize') {
+            var size = document.createElement('div');
+            size.className = 'sb-disk3-size';
+            control = document.createElement('input');
+            control.type = 'number';
+            control.min = '1';
+            control.max = '2048';
+            control.step = '1';
+            control.className = 'sb-disk3-control';
+            var bytes = Number(original.value || 0);
+            control.value = String(bytes > 0 ? Math.max(1, Math.round(bytes / 1048576 * 100) / 100) : 50);
+            control.addEventListener('input', function () {
+                var mb = Math.max(1, Math.min(2048, Number(control.value || 50)));
+                setOriginal(original, Math.round(mb * 1048576), false);
+                updateHeaderSummary();
+            });
+            var unit = document.createElement('span');
+            unit.textContent = 'МБ';
+            size.appendChild(control);
+            size.appendChild(unit);
+            field.appendChild(size);
+        } else if (original.tagName === 'SELECT') {
+            control = cloneSelect(original);
+            field.appendChild(control);
+        } else {
+            control = createTextControl(original, 'text');
+            if (name === 'extensions') {
+                control.placeholder = 'pdf docx xlsx png jpg';
+            }
+            field.appendChild(control);
+        }
+
+        if (HELP[name]) {
+            var help = document.createElement('small');
+            help.className = 'sb-disk3-help';
+            help.textContent = HELP[name];
+            field.appendChild(help);
+        }
+
+        if (name === 'extensions') {
+            enhanceExtensions(field, control, original);
+        }
+
+        control.addEventListener('change', updateHeaderSummary);
+        control.addEventListener('input', updateHeaderSummary);
+
+        return field;
+    }
+
+    function createToggle(name, original) {
+        var label = document.createElement('label');
+        label.className = 'sb-disk3-toggle';
+
+        var copy = document.createElement('input');
+        copy.type = 'checkbox';
+        copy.checked = !!original.checked;
+
+        var track = document.createElement('span');
+        track.className = 'sb-disk3-toggle__track';
+        var text = document.createElement('span');
+        text.className = 'sb-disk3-toggle__text';
+        text.textContent = LABELS[name] || name;
+
+        copy.addEventListener('change', function () {
+            setOriginal(original, '', copy.checked);
+            updateHeaderSummary();
+        });
+
+        label.appendChild(copy);
+        label.appendChild(track);
+        label.appendChild(text);
+        return label;
     }
 
     function parseExtensions(value) {
@@ -276,50 +341,38 @@
             });
     }
 
-    function normalizeExtensionsValue(items) {
-        return items.join(' ');
-    }
+    function enhanceExtensions(field, input, original) {
+        var buttons = document.createElement('div');
+        buttons.className = 'sb-disk3-inline-actions';
+        var chips = document.createElement('div');
+        chips.className = 'sb-disk3-chips';
 
-    function setupExtensions(field) {
-        if (!field) {
-            return null;
-        }
-
-        var control = field.control;
-        var container = field.container;
-        control.setAttribute('placeholder', 'pdf doc docx xls xlsx png jpg');
-
-        var presets = document.createElement('div');
-        presets.className = 'sb-disk2-inline-buttons';
-
-        [
+        var presets = [
             ['Документы', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']],
             ['Изображения', ['jpg', 'jpeg', 'png', 'gif', 'webp']],
             ['Документы + изображения', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'webp']]
-        ].forEach(function (preset) {
+        ];
+
+        presets.forEach(function (preset) {
             var button = document.createElement('button');
             button.type = 'button';
-            button.className = 'sb-disk2-mini-btn';
+            button.className = 'sb-disk3-mini';
             button.textContent = preset[0];
             button.addEventListener('click', function () {
-                control.value = normalizeExtensionsValue(preset[1]);
-                control.dispatchEvent(new Event('input', {bubbles: true}));
-                control.dispatchEvent(new Event('change', {bubbles: true}));
+                input.value = preset[1].join(' ');
+                setOriginal(original, input.value, false);
                 render();
             });
-            presets.appendChild(button);
+            buttons.appendChild(button);
         });
 
-        var chips = document.createElement('div');
-        chips.className = 'sb-disk2-ext-chips';
-
         function render() {
-            var items = parseExtensions(control.value);
             chips.innerHTML = '';
+            var items = parseExtensions(input.value);
             if (!items.length) {
                 var empty = document.createElement('span');
                 empty.className = 'is-empty';
-                empty.textContent = 'Ограничение по расширениям не задано';
+                empty.textContent = 'Без ограничения по расширениям';
                 chips.appendChild(empty);
                 return;
             }
@@ -330,289 +383,309 @@
             });
         }
 
-        function normalizeValue() {
-            control.value = normalizeExtensionsValue(parseExtensions(control.value));
+        input.addEventListener('input', render);
+        input.addEventListener('blur', function () {
+            input.value = parseExtensions(input.value).join(' ');
+            setOriginal(original, input.value, false);
             render();
-        }
+        });
 
-        control.addEventListener('input', render);
-        control.addEventListener('change', render);
-        control.addEventListener('blur', normalizeValue);
-
-        container.appendChild(presets);
-        container.appendChild(chips);
-        container.appendChild(helper('Можно вводить через пробел, запятую или точку с запятой. Точки перед расширениями не нужны.'));
+        field.appendChild(buttons);
+        field.appendChild(chips);
         render();
-
-        return { normalize: normalizeValue };
     }
 
-    function setupMaxFileSize(field) {
-        if (!field) {
-            return null;
-        }
+    function section(title, description) {
+        var node = document.createElement('section');
+        node.className = 'sb-disk3-section';
 
-        var original = field.control;
-        var container = field.container;
-        original.classList.add('sb-disk2-native-bytes');
+        var head = document.createElement('div');
+        head.className = 'sb-disk3-section__head';
+        var h = document.createElement('strong');
+        h.textContent = title;
+        var p = document.createElement('span');
+        p.textContent = description;
+        head.appendChild(h);
+        head.appendChild(p);
+        node.appendChild(head);
 
-        var row = document.createElement('div');
-        row.className = 'sb-disk2-size-row';
+        var content = document.createElement('div');
+        content.className = 'sb-disk3-section__content';
+        node.appendChild(content);
 
-        var input = document.createElement('input');
-        input.type = 'number';
-        input.min = '1';
-        input.max = '2048';
-        input.step = '1';
-        input.className = 'sb-disk2-size-input';
-
-        var unit = document.createElement('span');
-        unit.textContent = 'МБ';
-
-        row.appendChild(input);
-        row.appendChild(unit);
-        original.insertAdjacentElement('afterend', row);
-
-        function bytesToMb(value) {
-            var bytes = Number(value || 0);
-            if (!isFinite(bytes) || bytes <= 0) {
-                return 50;
-            }
-            return Math.max(1, Math.round(bytes / 1048576 * 100) / 100);
-        }
-
-        function syncFromOriginal() {
-            input.value = String(bytesToMb(original.value));
-        }
-
-        function syncToOriginal(dispatch) {
-            var mb = Number(input.value || 0);
-            if (!isFinite(mb)) {
-                mb = 50;
-            }
-            mb = Math.max(1, Math.min(2048, mb));
-            input.value = String(mb);
-            original.value = String(Math.round(mb * 1048576));
-            original.dispatchEvent(new Event('input', {bubbles: true}));
-            if (dispatch) {
-                original.dispatchEvent(new Event('change', {bubbles: true}));
-            }
-            return mb;
-        }
-
-        input.addEventListener('input', function () { syncToOriginal(false); });
-        input.addEventListener('change', function () { syncToOriginal(true); });
-        container.appendChild(helper('Лимит одного файла. Значение хранится в байтах, но здесь показывается в мегабайтах.'));
-        syncFromOriginal();
-
-        return {
-            input: input,
-            sync: function () { return syncToOriginal(true); }
-        };
+        return { section: node, content: content };
     }
 
-    function setupNote(field, text) {
-        if (!field) {
+    function tabButton(name, title) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'sb-disk3-tab';
+        button.dataset.diskTab = name;
+        button.textContent = title;
+        return button;
+    }
+
+    function setTab(name) {
+        document.querySelectorAll('.sb-disk3-tab').forEach(function (button) {
+            button.classList.toggle('is-active', button.dataset.diskTab === name);
+        });
+        document.querySelectorAll('.sb-disk3-panel').forEach(function (panel) {
+            panel.hidden = panel.dataset.diskPanel !== name;
+        });
+    }
+
+    var runtime = null;
+
+    function updateHeaderSummary() {
+        if (!runtime) {
             return;
         }
-        field.container.appendChild(helper(text));
-    }
+        var original = runtime.originals;
+        var summary = runtime.summary;
+        var root = original.rootSource && original.rootSource.options
+            ? original.rootSource.options[original.rootSource.selectedIndex].textContent
+            : '—';
+        var view = original.viewMode && original.viewMode.options
+            ? original.viewMode.options[original.viewMode.selectedIndex].textContent
+            : '—';
+        var rights = original.permissionMode && original.permissionMode.options
+            ? original.permissionMode.options[original.permissionMode.selectedIndex].textContent
+            : '—';
+        var bytes = Number(original.maxFileSize ? original.maxFileSize.value : 0);
+        var mb = bytes > 0 ? Math.round(bytes / 1048576) : 0;
 
-    function ensureSummary(form) {
-        var summary = form.querySelector('[data-sb-disk2-summary]');
-        if (summary) {
-            return summary;
-        }
-        summary = document.createElement('div');
-        summary.className = 'sb-disk2-summary';
-        summary.dataset.sbDisk2Summary = '1';
-        form.insertBefore(summary, form.firstChild);
-        return summary;
-    }
-
-    function selectedText(field) {
-        if (!field || !field.control) {
-            return '—';
-        }
-        var control = field.control;
-        if (control.tagName === 'SELECT' && control.options && control.selectedIndex >= 0) {
-            return String(control.options[control.selectedIndex].textContent || control.value || '—').trim();
-        }
-        if (control.type === 'checkbox') {
-            return control.checked ? 'Да' : 'Нет';
-        }
-        return String(control.value || '—').trim();
-    }
-
-    function updateSummary(fields) {
-        var form = fields.__form;
-        if (!form) {
-            return;
-        }
-        var summary = ensureSummary(form);
         summary.innerHTML = '';
-
-        var items = [
-            ['Корень', selectedText(fields.rootSource)],
-            ['Вид', selectedText(fields.viewMode)],
-            ['Права', selectedText(fields.permissionMode)],
-            ['Файл', fields.__sizeEnhancer ? fields.__sizeEnhancer.input.value + ' МБ' : '—']
-        ];
-
-        items.forEach(function (item) {
+        [
+            ['Корень', root],
+            ['Вид', view],
+            ['Права', rights],
+            ['Файл', mb ? mb + ' МБ' : '—']
+        ].forEach(function (item) {
             var pill = document.createElement('span');
-            var label = document.createElement('small');
-            var value = document.createElement('strong');
-            label.textContent = item[0];
-            value.textContent = item[1];
-            pill.appendChild(label);
-            pill.appendChild(value);
+            pill.innerHTML = '<small></small><strong></strong>';
+            pill.querySelector('small').textContent = item[0];
+            pill.querySelector('strong').textContent = item[1];
             summary.appendChild(pill);
         });
     }
 
-    function findActions(scope) {
-        var buttons = Array.prototype.slice.call(
-            scope.querySelectorAll('button,input[type="submit"],input[type="button"]')
-        );
-
-        var save = buttons.find(function (button) {
-            return textOfButton(button).indexOf('сохран') !== -1;
-        }) || null;
-
-        var cancel = buttons.find(function (button) {
-            if (button === save) {
-                return false;
-            }
-            var text = textOfButton(button);
-            return text.indexOf('отмен') !== -1 || text.indexOf('закрыть') !== -1;
-        }) || null;
-
-        var close = buttons.find(function (button) {
-            var raw = String(button.textContent || '').trim();
-            var text = textOfButton(button);
-            return raw === '×' || raw === '✕' || text === 'x' || text.indexOf('закрыть') !== -1;
-        }) || null;
-
-        return { save: save, cancel: cancel, close: close };
+    function makePresetButton(title, values) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'sb-disk3-preset';
+        button.textContent = title;
+        button.addEventListener('click', function () {
+            Object.keys(values).forEach(function (name) {
+                var original = runtime.originals[name];
+                if (!original) {
+                    return;
+                }
+                setOriginal(original, '', !!values[name]);
+                var mirror = runtime.ui.querySelector('[data-mirror="' + name + '"] input[type="checkbox"]');
+                if (mirror) {
+                    mirror.checked = !!values[name];
+                }
+            });
+            updateHeaderSummary();
+        });
+        return button;
     }
 
-    function setupFooter(form, actions) {
-        if (!actions.save) {
-            return null;
+    function buildUi(scope, form, heading, originals, actions) {
+        var legacy = document.createElement('div');
+        legacy.className = 'sb-disk3-legacy';
+        legacy.hidden = true;
+
+        Array.prototype.slice.call(form.childNodes).forEach(function (child) {
+            legacy.appendChild(child);
+        });
+        form.appendChild(legacy);
+
+        if (heading && !legacy.contains(heading)) {
+            heading.classList.add('sb-disk3-external-hidden');
+        }
+        if (actions.close && !legacy.contains(actions.close)) {
+            actions.close.classList.add('sb-disk3-external-hidden');
         }
 
-        var footer = document.createElement('div');
-        footer.className = 'sb-disk2-actions';
+        var ui = document.createElement('div');
+        ui.className = 'sb-disk3-ui';
 
-        var note = document.createElement('span');
-        note.className = 'sb-disk2-actions__note';
-        note.textContent = 'Изменения применятся после сохранения настроек блока.';
+        var header = document.createElement('header');
+        header.className = 'sb-disk3-header';
+        header.innerHTML = '<div><h2>Настройки блока «Диск»</h2><p>Отображение, загрузка файлов и доступ пользователей.</p></div>';
+
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'sb-disk3-close';
+        close.textContent = '×';
+        close.setAttribute('aria-label', 'Закрыть');
+        close.addEventListener('click', function () {
+            if (actions.close) {
+                actions.close.click();
+            } else if (actions.cancel) {
+                actions.cancel.click();
+            }
+        });
+        header.appendChild(close);
+        ui.appendChild(header);
+
+        var summary = document.createElement('div');
+        summary.className = 'sb-disk3-summary';
+        ui.appendChild(summary);
+
+        var tabs = document.createElement('nav');
+        tabs.className = 'sb-disk3-tabs';
+        [
+            ['main', 'Основное'],
+            ['upload', 'Загрузка'],
+            ['access', 'Доступ']
+        ].forEach(function (item) {
+            var button = tabButton(item[0], item[1]);
+            button.addEventListener('click', function () {
+                setTab(item[0]);
+            });
+            tabs.appendChild(button);
+        });
+        ui.appendChild(tabs);
+
+        var body = document.createElement('div');
+        body.className = 'sb-disk3-body';
+        ui.appendChild(body);
+
+        var mainPanel = document.createElement('div');
+        mainPanel.className = 'sb-disk3-panel';
+        mainPanel.dataset.diskPanel = 'main';
+        var main = section('Основные параметры', 'Что увидит пользователь при открытии блока.');
+        main.content.classList.add('sb-disk3-grid');
+        ['title', 'rootSource', 'viewMode', 'sortBy', 'sortDirection'].forEach(function (name) {
+            var mirror = createMirror(name, originals[name]);
+            if (mirror) {
+                mirror.dataset.mirror = name;
+                main.content.appendChild(mirror);
+            }
+        });
+        mainPanel.appendChild(main.section);
+        body.appendChild(mainPanel);
+
+        var uploadPanel = document.createElement('div');
+        uploadPanel.className = 'sb-disk3-panel';
+        uploadPanel.dataset.diskPanel = 'upload';
+        var upload = section('Загрузка файлов', 'Лимиты и типы файлов для загрузки через этот блок.');
+        upload.content.classList.add('sb-disk3-grid');
+        ['maxFileSize', 'extensions'].forEach(function (name) {
+            var mirror = createMirror(name, originals[name]);
+            if (mirror) {
+                mirror.dataset.mirror = name;
+                upload.content.appendChild(mirror);
+            }
+        });
+        uploadPanel.appendChild(upload.section);
+        body.appendChild(uploadPanel);
+
+        var accessPanel = document.createElement('div');
+        accessPanel.className = 'sb-disk3-panel';
+        accessPanel.dataset.diskPanel = 'access';
+        var access = section('Доступ и возможности', 'Режим прав и действия, доступные внутри этого блока.');
+
+        var permission = createMirror('permissionMode', originals.permissionMode);
+        if (permission) {
+            permission.dataset.mirror = 'permissionMode';
+            access.content.appendChild(permission);
+        }
+
+        var presets = document.createElement('div');
+        presets.className = 'sb-disk3-presets';
+        presets.appendChild(makePresetButton('Только просмотр', {
+            allowUpload:false, allowCreateFolder:false, allowRename:false, allowDelete:false,
+            allowDownload:true, showSearch:true, showBreadcrumbs:true
+        }));
+        presets.appendChild(makePresetButton('Работа без удаления', {
+            allowUpload:true, allowCreateFolder:true, allowRename:true, allowDelete:false,
+            allowDownload:true, showSearch:true, showBreadcrumbs:true
+        }));
+        presets.appendChild(makePresetButton('Все действия', {
+            allowUpload:true, allowCreateFolder:true, allowRename:true, allowDelete:true,
+            allowDownload:true, showSearch:true, showBreadcrumbs:true
+        }));
+        access.content.appendChild(presets);
+
+        var toggles = document.createElement('div');
+        toggles.className = 'sb-disk3-toggle-grid';
+        ['useSiteRoot', 'allowUpload', 'allowCreateFolder', 'allowRename', 'allowDelete', 'allowDownload', 'showSearch', 'showBreadcrumbs'].forEach(function (name) {
+            var mirror = createMirror(name, originals[name]);
+            if (mirror) {
+                mirror.dataset.mirror = name;
+                toggles.appendChild(mirror);
+            }
+        });
+        access.content.appendChild(toggles);
+        accessPanel.appendChild(access.section);
+        body.appendChild(accessPanel);
+
+        var footer = document.createElement('footer');
+        footer.className = 'sb-disk3-footer';
+        var state = document.createElement('span');
+        state.textContent = 'Изменения применятся после сохранения.';
+        footer.appendChild(state);
 
         var buttons = document.createElement('div');
-        buttons.className = 'sb-disk2-actions__buttons';
-
-        if (actions.cancel) {
-            actions.cancel.classList.add('sb-disk2-cancel');
-            buttons.appendChild(actions.cancel);
-        }
-
-        actions.save.classList.add('sb-disk2-save');
-        buttons.appendChild(actions.save);
-
-        footer.appendChild(note);
-        footer.appendChild(buttons);
-        form.appendChild(footer);
-
-        return footer;
-    }
-
-    function setCheckbox(field, checked) {
-        if (!field || !field.control) {
-            return;
-        }
-        if (field.control.checked === checked) {
-            return;
-        }
-        field.control.checked = checked;
-        field.control.dispatchEvent(new Event('change', {bubbles: true}));
-    }
-
-    function setupPermissionPresets(target, fields) {
-        var box = document.createElement('div');
-        box.className = 'sb-disk2-presets';
-
-        var head = document.createElement('span');
-        head.textContent = 'Быстрые наборы действий';
-        box.appendChild(head);
-
-        [
-            ['Только просмотр', {allowUpload:false, allowCreateFolder:false, allowRename:false, allowDelete:false, allowDownload:true, showSearch:true, showBreadcrumbs:true}],
-            ['Работа без удаления', {allowUpload:true, allowCreateFolder:true, allowRename:true, allowDelete:false, allowDownload:true, showSearch:true, showBreadcrumbs:true}],
-            ['Все действия', {allowUpload:true, allowCreateFolder:true, allowRename:true, allowDelete:true, allowDownload:true, showSearch:true, showBreadcrumbs:true}]
-        ].forEach(function (preset) {
-            var button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'sb-disk2-mini-btn';
-            button.textContent = preset[0];
-            button.addEventListener('click', function () {
-                Object.keys(preset[1]).forEach(function (name) {
-                    setCheckbox(fields[name], preset[1][name]);
-                });
-                updateSummary(fields);
-            });
-            box.appendChild(button);
-        });
-
-        target.insertBefore(box, target.firstChild.nextSibling);
-    }
-
-    function hideLegacyContent(form, keepNodes) {
-        var keep = new Set(keepNodes.filter(Boolean));
-        Array.prototype.slice.call(form.children).forEach(function (child) {
-            if (keep.has(child)) {
-                return;
-            }
-            child.classList.add('sb-disk2-legacy-hidden');
-        });
-    }
-
-    function setupSaveValidation(scope, fields, actions) {
-        if (!actions.save) {
-            return;
-        }
-
-        function prepare() {
-            if (fields.__sizeEnhancer) {
-                var mb = fields.__sizeEnhancer.sync();
-                if (!isFinite(mb) || mb < 1 || mb > 2048) {
-                    return false;
+        if (actions.cancel || actions.close) {
+            var cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'sb-disk3-button is-secondary';
+            cancel.textContent = 'Отмена';
+            cancel.addEventListener('click', function () {
+                if (actions.cancel) {
+                    actions.cancel.click();
+                } else if (actions.close) {
+                    actions.close.click();
                 }
-            }
-            if (fields.__extensionsEnhancer) {
-                fields.__extensionsEnhancer.normalize();
-            }
-            return true;
+            });
+            buttons.appendChild(cancel);
         }
 
-        actions.save.addEventListener('click', function (event) {
-            if (!prepare()) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                window.alert('Проверьте максимальный размер файла. Допустимо от 1 до 2048 МБ.');
+        var save = document.createElement('button');
+        save.type = 'button';
+        save.className = 'sb-disk3-button is-primary';
+        save.textContent = 'Сохранить';
+        save.addEventListener('click', function () {
+            if (actions.save) {
+                actions.save.click();
+            } else if (form.requestSubmit) {
+                form.requestSubmit();
+            } else {
+                form.submit();
             }
-        }, true);
+        });
+        buttons.appendChild(save);
+        footer.appendChild(buttons);
+        ui.appendChild(footer);
+
+        form.appendChild(ui);
+
+        runtime = {
+            originals: originals,
+            actions: actions,
+            form: form,
+            ui: ui,
+            summary: summary
+        };
+
+        updateHeaderSummary();
+        setTab('main');
+
+        scope.classList.add('sb-disk3-dialog');
+        form.classList.add('sb-disk3-form');
 
         scope.addEventListener('keydown', function (event) {
             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
                 event.preventDefault();
-                if (prepare()) {
-                    actions.save.click();
-                }
+                save.click();
             }
-            if (event.key === 'Escape' && actions.close) {
+            if (event.key === 'Escape') {
                 event.preventDefault();
-                actions.close.click();
+                close.click();
             }
         });
     }
@@ -622,89 +695,24 @@
         if (!heading) {
             return;
         }
-
         var scope = findScope(heading);
         var form = findForm(scope, heading);
         if (!scope || !form || form.dataset[MARKER] === '1') {
             return;
         }
 
-        var fields = collectFields(form);
-        if (Object.keys(fields).length < 6) {
+        var originals = collectOriginals(form);
+        if (Object.keys(originals).length < 6) {
+            return;
+        }
+
+        var actions = findActions(scope, form);
+        if (!actions.save) {
             return;
         }
 
         form.dataset[MARKER] = '1';
-        scope.classList.add('sb-disk2-dialog');
-        form.classList.add('sb-disk2-form');
-        heading.classList.add('sb-disk2-title');
-
-        var subtitle = document.createElement('p');
-        subtitle.className = 'sb-disk2-subtitle';
-        subtitle.textContent = 'Настройте отображение, загрузку и доступ к файлам. Права блока не расширяют права пользователя в Bitrix24.';
-        heading.insertAdjacentElement('afterend', subtitle);
-
-        var shell = document.createElement('div');
-        shell.className = 'sb-disk2-shell';
-
-        var hero = document.createElement('div');
-        hero.className = 'sb-disk2-hero';
-        hero.innerHTML = '<div><strong>Параметры блока</strong><span>Быстрые настройки для списка файлов, загрузки и действий пользователя.</span></div>';
-        shell.appendChild(hero);
-
-        var layout = document.createElement('div');
-        layout.className = 'sb-disk2-layout';
-        shell.appendChild(layout);
-
-        var mainCol = document.createElement('div');
-        mainCol.className = 'sb-disk2-main';
-        var sideCol = document.createElement('aside');
-        sideCol.className = 'sb-disk2-side';
-        layout.appendChild(mainCol);
-        layout.appendChild(sideCol);
-
-        var main = createSection('Основное', 'Название, корневая папка и то, как список файлов открывается пользователю.');
-        ['title', 'rootSource', 'viewMode', 'sortBy', 'sortDirection'].forEach(function (name) {
-            appendField(main.grid, fields, name);
-        });
-        mainCol.appendChild(main.section);
-
-        var upload = createSection('Загрузка файлов', 'Ограничения применяются к загрузке через этот блок.');
-        ['maxFileSize', 'extensions'].forEach(function (name) {
-            appendField(upload.grid, fields, name);
-        });
-        mainCol.appendChild(upload.section);
-
-        var access = createSection('Доступ и возможности', 'Здесь задаются разрешённые действия и элементы интерфейса.');
-        appendField(access.grid, fields, 'permissionMode');
-        ['useSiteRoot', 'allowUpload', 'allowCreateFolder', 'allowRename', 'allowDelete', 'allowDownload', 'showSearch', 'showBreadcrumbs'].forEach(function (name) {
-            appendField(access.grid, fields, name);
-        });
-        setupPermissionPresets(access.section, fields);
-        sideCol.appendChild(access.section);
-
-        form.appendChild(shell);
-
-        fields.__form = form;
-        fields.__sizeEnhancer = setupMaxFileSize(fields.maxFileSize);
-        fields.__extensionsEnhancer = setupExtensions(fields.extensions);
-        setupNote(fields.rootSource, 'Определяет папку Bitrix.Диска, которая будет открываться как корневая для этого блока.');
-        setupNote(fields.permissionMode, 'Переключатели ниже ограничивают доступные действия блока и не могут расширить серверные права пользователя.');
-
-        var actions = findActions(scope);
-        var footer = setupFooter(form, actions);
-        setupSaveValidation(scope, fields, actions);
-        updateSummary(fields);
-
-        form.addEventListener('change', function () { updateSummary(fields); });
-        form.addEventListener('input', function () { updateSummary(fields); });
-
-        hideLegacyContent(form, [
-            ensureSummary(form),
-            subtitle,
-            shell,
-            footer
-        ]);
+        buildUi(scope, form, heading, originals, actions);
     }
 
     function scheduleDecorate() {
@@ -725,8 +733,9 @@
     }
 
     if (typeof MutationObserver !== 'undefined') {
-        new MutationObserver(function () {
-            scheduleDecorate();
-        }).observe(document.body, { childList: true, subtree: true });
+        new MutationObserver(scheduleDecorate).observe(document.body, {
+            childList: true,
+            subtree: true
+        });
     }
 })();
