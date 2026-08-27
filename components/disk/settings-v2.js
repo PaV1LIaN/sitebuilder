@@ -1,5 +1,5 @@
 /* =========================================================
-   SITEBUILDER / DISK SETTINGS 2.0 / v5 VERSION HOTFIX
+   SITEBUILDER / DISK SETTINGS 2.0 / v6 VERSION BRIDGE
    Full clean-shell UI. The legacy form stays hidden and is used only
    as the transport/save mechanism for backward compatibility.
    ========================================================= */
@@ -8,6 +8,647 @@
 
     var MARKER = 'sbDiskSettingsV4';
     var scheduled = false;
+
+    /*
+     * DiskComponent can keep the block version that existed when public.php
+     * was rendered. The block may legitimately become newer before the user
+     * presses "Save settings" (for example because Disk initialization or
+     * another editor operation updated the same block).
+     *
+     * Keep the server-side optimistic lock, but synchronize stale
+     * saveSettings requests with the authoritative currentVersion returned
+     * by the server. A conflict is retried at most once.
+     */
+    function installDiskSettingsVersionBridge() {
+        if (
+            window.__SB_DISK_SETTINGS_VERSION_BRIDGE__
+            || typeof window.fetch !== 'function'
+        ) {
+            return;
+        }
+
+        var nativeFetch =
+            window.fetch.bind(window);
+
+        var bridgeState = {
+            latestVersion: 0
+        };
+
+        function requestUrl(input) {
+            if (typeof input === 'string') {
+                return input;
+            }
+
+            if (
+                input
+                && typeof input.url === 'string'
+            ) {
+                return input.url;
+            }
+
+            return '';
+        }
+
+        function isSaveSettingsRequest(input) {
+            var raw =
+                requestUrl(input);
+
+            if (!raw) {
+                return false;
+            }
+
+            try {
+                var url =
+                    new URL(
+                        raw,
+                        window.location.href
+                    );
+
+                return (
+                    /\/components\/disk\/api\.php$/i
+                        .test(url.pathname)
+                    && url.searchParams.get('action')
+                        === 'saveSettings'
+                );
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function headersObject(init) {
+            if (
+                !init
+                || !init.headers
+            ) {
+                return {};
+            }
+
+            if (
+                typeof Headers !== 'undefined'
+                && init.headers instanceof Headers
+            ) {
+                var result = {};
+
+                init.headers.forEach(
+                    function (value, key) {
+                        result[
+                            String(key)
+                                .toLowerCase()
+                        ] = value;
+                    }
+                );
+
+                return result;
+            }
+
+            if (Array.isArray(init.headers)) {
+                var arrayResult = {};
+
+                init.headers.forEach(
+                    function (item) {
+                        if (
+                            Array.isArray(item)
+                            && item.length >= 2
+                        ) {
+                            arrayResult[
+                                String(item[0])
+                                    .toLowerCase()
+                            ] = String(item[1]);
+                        }
+                    }
+                );
+
+                return arrayResult;
+            }
+
+            var objectResult = {};
+
+            Object.keys(init.headers).forEach(
+                function (key) {
+                    objectResult[
+                        String(key)
+                            .toLowerCase()
+                    ] = String(
+                        init.headers[key]
+                    );
+                }
+            );
+
+            return objectResult;
+        }
+
+        function parseBody(init) {
+            if (
+                !init
+                || init.body == null
+            ) {
+                return null;
+            }
+
+            var body =
+                init.body;
+
+            if (
+                typeof URLSearchParams !== 'undefined'
+                && body instanceof URLSearchParams
+            ) {
+                return {
+                    kind:
+                        'urlsearchparams',
+                    value:
+                        new URLSearchParams(
+                            body.toString()
+                        )
+                };
+            }
+
+            if (
+                typeof FormData !== 'undefined'
+                && body instanceof FormData
+            ) {
+                var form =
+                    new FormData();
+
+                body.forEach(
+                    function (value, key) {
+                        form.append(
+                            key,
+                            value
+                        );
+                    }
+                );
+
+                return {
+                    kind:
+                        'formdata',
+                    value:
+                        form
+                };
+            }
+
+            if (typeof body === 'string') {
+                var headers =
+                    headersObject(init);
+
+                var contentType =
+                    String(
+                        headers[
+                            'content-type'
+                        ]
+                        || ''
+                    ).toLowerCase();
+
+                var trimmed =
+                    body.trim();
+
+                if (
+                    contentType.indexOf(
+                        'application/json'
+                    ) !== -1
+                    || (
+                        trimmed.charAt(0)
+                            === '{'
+                        && trimmed.charAt(
+                            trimmed.length - 1
+                        ) === '}'
+                    )
+                ) {
+                    try {
+                        return {
+                            kind:
+                                'json',
+                            value:
+                                JSON.parse(body)
+                        };
+                    } catch (error) {
+                        /* Fall through to URL encoded parsing. */
+                    }
+                }
+
+                try {
+                    return {
+                        kind:
+                            'urlencoded-string',
+                        value:
+                            new URLSearchParams(
+                                body
+                            )
+                    };
+                } catch (error) {
+                    return null;
+                }
+            }
+
+            return null;
+        }
+
+        function bodyExpectedVersion(parsed) {
+            if (!parsed) {
+                return 0;
+            }
+
+            if (
+                parsed.kind === 'json'
+            ) {
+                return Number(
+                    parsed.value
+                    && parsed.value
+                        .expectedVersion
+                    || 0
+                );
+            }
+
+            if (
+                parsed.kind
+                    === 'urlsearchparams'
+                || parsed.kind
+                    === 'urlencoded-string'
+            ) {
+                return Number(
+                    parsed.value.get(
+                        'expectedVersion'
+                    )
+                    || 0
+                );
+            }
+
+            if (
+                parsed.kind === 'formdata'
+            ) {
+                return Number(
+                    parsed.value.get(
+                        'expectedVersion'
+                    )
+                    || 0
+                );
+            }
+
+            return 0;
+        }
+
+        function serializeParsedBody(
+            parsed
+        ) {
+            if (!parsed) {
+                return null;
+            }
+
+            if (
+                parsed.kind === 'json'
+            ) {
+                return JSON.stringify(
+                    parsed.value
+                );
+            }
+
+            if (
+                parsed.kind === 'urlencoded-string'
+            ) {
+                return parsed.value
+                    .toString();
+            }
+
+            return parsed.value;
+        }
+
+        function withExpectedVersion(
+            init,
+            version
+        ) {
+            var parsed =
+                parseBody(init);
+
+            if (
+                !parsed
+                || !Number.isFinite(
+                    Number(version)
+                )
+                || Number(version) <= 0
+            ) {
+                return null;
+            }
+
+            version =
+                Number(version);
+
+            if (
+                parsed.kind === 'json'
+            ) {
+                if (
+                    !parsed.value
+                    || typeof parsed.value
+                        !== 'object'
+                    || Array.isArray(
+                        parsed.value
+                    )
+                ) {
+                    return null;
+                }
+
+                parsed.value
+                    .expectedVersion =
+                    version;
+            } else if (
+                parsed.kind
+                    === 'urlsearchparams'
+                || parsed.kind
+                    === 'urlencoded-string'
+            ) {
+                parsed.value.set(
+                    'expectedVersion',
+                    String(version)
+                );
+            } else if (
+                parsed.kind === 'formdata'
+            ) {
+                parsed.value.set(
+                    'expectedVersion',
+                    String(version)
+                );
+            } else {
+                return null;
+            }
+
+            var nextInit =
+                Object.assign(
+                    {},
+                    init || {}
+                );
+
+            nextInit.body =
+                serializeParsedBody(
+                    parsed
+                );
+
+            return nextInit;
+        }
+
+        function responseVersion(
+            payload
+        ) {
+            if (
+                !payload
+                || typeof payload
+                    !== 'object'
+            ) {
+                return 0;
+            }
+
+            var candidates = [
+                payload.version,
+                payload.blockVersion,
+                payload.currentVersion,
+                payload.details
+                    && payload.details
+                        .currentVersion,
+                payload.data
+                    && !Array.isArray(
+                        payload.data
+                    )
+                    && payload.data
+                        .version,
+                payload.data
+                    && !Array.isArray(
+                        payload.data
+                    )
+                    && payload.data
+                        .blockVersion,
+                payload.data
+                    && !Array.isArray(
+                        payload.data
+                    )
+                    && payload.data.block
+                    && payload.data.block
+                        .version,
+                payload.meta
+                    && !Array.isArray(
+                        payload.meta
+                    )
+                    && payload.meta
+                        .version,
+                payload.meta
+                    && !Array.isArray(
+                        payload.meta
+                    )
+                    && payload.meta
+                        .blockVersion
+            ];
+
+            for (
+                var i = 0;
+                i < candidates.length;
+                i++
+            ) {
+                var value =
+                    Number(
+                        candidates[i]
+                        || 0
+                    );
+
+                if (
+                    Number.isFinite(
+                        value
+                    )
+                    && value > 0
+                ) {
+                    return value;
+                }
+            }
+
+            return 0;
+        }
+
+        async function responseJson(
+            response
+        ) {
+            try {
+                return await response
+                    .clone()
+                    .json();
+            } catch (error) {
+                return null;
+            }
+        }
+
+        window.fetch =
+            async function (
+                input,
+                init
+            ) {
+                if (
+                    !isSaveSettingsRequest(
+                        input
+                    )
+                ) {
+                    return nativeFetch(
+                        input,
+                        init
+                    );
+                }
+
+                var parsed =
+                    parseBody(init);
+
+                var sentVersion =
+                    bodyExpectedVersion(
+                        parsed
+                    );
+
+                var firstInit =
+                    init;
+
+                if (
+                    bridgeState.latestVersion > 0
+                    && sentVersion > 0
+                    && bridgeState.latestVersion
+                        > sentVersion
+                ) {
+                    firstInit =
+                        withExpectedVersion(
+                            init,
+                            bridgeState
+                                .latestVersion
+                        )
+                        || init;
+
+                    sentVersion =
+                        bridgeState
+                            .latestVersion;
+                }
+
+                var response =
+                    await nativeFetch(
+                        input,
+                        firstInit
+                    );
+
+                var payload =
+                    await responseJson(
+                        response
+                    );
+
+                var successVersion =
+                    responseVersion(
+                        payload
+                    );
+
+                if (
+                    response.ok
+                    && successVersion > 0
+                ) {
+                    bridgeState
+                        .latestVersion =
+                        Math.max(
+                            bridgeState
+                                .latestVersion,
+                            successVersion
+                        );
+                }
+
+                if (
+                    response.status !== 409
+                    || !payload
+                    || payload.error
+                        !== 'VERSION_CONFLICT'
+                ) {
+                    return response;
+                }
+
+                var currentVersion =
+                    Number(
+                        payload.details
+                        && payload.details
+                            .currentVersion
+                        || 0
+                    );
+
+                if (
+                    !Number.isFinite(
+                        currentVersion
+                    )
+                    || currentVersion <= 0
+                ) {
+                    return response;
+                }
+
+                bridgeState.latestVersion =
+                    Math.max(
+                        bridgeState
+                            .latestVersion,
+                        currentVersion
+                    );
+
+                var retryInit =
+                    withExpectedVersion(
+                        firstInit,
+                        currentVersion
+                    );
+
+                if (!retryInit) {
+                    return response;
+                }
+
+                console.info(
+                    '[SiteBuilder Disk] '
+                    + 'block version refreshed '
+                    + String(sentVersion || '?')
+                    + ' → '
+                    + String(currentVersion)
+                    + '; retry saveSettings once.'
+                );
+
+                var retryResponse =
+                    await nativeFetch(
+                        input,
+                        retryInit
+                    );
+
+                if (retryResponse.ok) {
+                    var retryPayload =
+                        await responseJson(
+                            retryResponse
+                        );
+
+                    var retryVersion =
+                        responseVersion(
+                            retryPayload
+                        );
+
+                    bridgeState.latestVersion =
+                        retryVersion > 0
+                            ? retryVersion
+                            : currentVersion + 1;
+
+                    try {
+                        document.dispatchEvent(
+                            new CustomEvent(
+                                'sb-disk-settings-version-refreshed',
+                                {
+                                    detail: {
+                                        previousVersion:
+                                            sentVersion,
+                                        currentVersion:
+                                            currentVersion,
+                                        savedVersion:
+                                            bridgeState
+                                                .latestVersion
+                                    }
+                                }
+                            )
+                        );
+                    } catch (error) {
+                        /* CustomEvent is optional. */
+                    }
+                }
+
+                return retryResponse;
+            };
+
+        window.__SB_DISK_SETTINGS_VERSION_BRIDGE__ =
+            bridgeState;
+    }
+
+    installDiskSettingsVersionBridge();
 
     var FIELD_DEFS = [
         ['title', ['заголовок блока'], ['title', 'blocktitle']],
