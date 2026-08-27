@@ -12,77 +12,178 @@ $context = DiskContextFactory::fromArray([
 ]);
 
 DiskValidator::assertContext($context);
-$settings = DiskSettingsRepository::ensureExistsForBlock(
-    $context->blockId,
-    $context->siteId,
-    $context->pageId,
-    $context->currentUserId
-);
-$rootFolderId = (int)DiskRootResolver::resolve($context, $settings);
-$folderId = (int)($data['folderId'] ?? $rootFolderId);
-DiskValidator::assertFolderInsideRoot($folderId, $rootFolderId, $context);
-$permissions = DiskPermissionService::resolve($context, $settings, $folderId, $rootFolderId);
-DiskValidator::assertCan($permissions, 'canManageAccess');
 
-$query = trim((string)($data['query'] ?? ''));
-if ($query === '' || (!ctype_digit($query) && mb_strlen($query, 'UTF-8') < 2)) {
-    DiskResponse::success(['users' => []]);
+/*
+ * Searching users is a read operation.
+ * Do not call ensureExistsForBlock() on every search request: if settings
+ * already exist, read them without any initialization/upsert side effects.
+ */
+$settings = DiskSettingsRepository::getByBlockId(
+    $context->blockId
+);
+
+if (!is_array($settings)) {
+    $settings = DiskSettingsRepository::ensureExistsForBlock(
+        $context->blockId,
+        $context->siteId,
+        $context->pageId,
+        $context->currentUserId
+    );
+}
+
+$rootFolderId = (int)DiskRootResolver::resolve(
+    $context,
+    $settings
+);
+
+$folderId = (int)(
+    $data['folderId']
+    ?? $rootFolderId
+);
+
+DiskValidator::assertFolderInsideRoot(
+    $folderId,
+    $rootFolderId,
+    $context
+);
+
+$permissions = DiskPermissionService::resolve(
+    $context,
+    $settings,
+    $folderId,
+    $rootFolderId
+);
+
+DiskValidator::assertCan(
+    $permissions,
+    'canManageAccess'
+);
+
+$query = trim(
+    preg_replace(
+        '/\s+/u',
+        ' ',
+        (string)($data['query'] ?? '')
+    )
+);
+
+if (
+    $query === ''
+    || (
+        !ctype_digit($query)
+        && mb_strlen($query, 'UTF-8') < 2
+    )
+) {
+    DiskResponse::success([
+        'users' => [],
+    ]);
 }
 
 $usersById = [];
-$appendUser = static function (array $row) use (&$usersById): void {
+
+$appendUser = static function (
+    array $row
+) use (&$usersById): void {
     $userId = (int)($row['ID'] ?? 0);
-    if ($userId <= 0 || isset($usersById[$userId]) || count($usersById) >= 20) {
+
+    if (
+        $userId <= 0
+        || isset($usersById[$userId])
+        || count($usersById) >= 20
+    ) {
         return;
     }
 
-    $name = trim(implode(' ', array_filter([
-        (string)($row['LAST_NAME'] ?? ''),
-        (string)($row['NAME'] ?? ''),
-        (string)($row['SECOND_NAME'] ?? ''),
-    ])));
+    $name = trim(
+        implode(
+            ' ',
+            array_filter([
+                (string)($row['LAST_NAME'] ?? ''),
+                (string)($row['NAME'] ?? ''),
+                (string)($row['SECOND_NAME'] ?? ''),
+            ], static function ($value): bool {
+                return trim((string)$value) !== '';
+            })
+        )
+    );
 
     $usersById[$userId] = [
         'id' => $userId,
-        'name' => $name !== '' ? $name : (string)($row['LOGIN'] ?? ('ID ' . $userId)),
+        'name' => $name !== ''
+            ? $name
+            : (string)($row['LOGIN'] ?? ('ID ' . $userId)),
         'login' => (string)($row['LOGIN'] ?? ''),
         'email' => (string)($row['EMAIL'] ?? ''),
     ];
 };
 
-$fields = ['ID', 'LOGIN', 'EMAIL', 'NAME', 'LAST_NAME', 'SECOND_NAME', 'ACTIVE'];
-
 if (ctype_digit($query)) {
-    $result = CUser::GetByID((int)$query);
-    $row = $result ? $result->Fetch() : null;
-    if ($row && (string)($row['ACTIVE'] ?? '') === 'Y') {
+    /*
+     * Numeric query keeps the fast exact-ID path.
+     */
+    $result = CUser::GetByID(
+        (int)$query
+    );
+
+    $row = $result
+        ? $result->Fetch()
+        : null;
+
+    if (
+        is_array($row)
+        && (string)($row['ACTIVE'] ?? '') === 'Y'
+    ) {
         $appendUser($row);
     }
 } else {
-    $filters = [
-        ['ACTIVE' => 'Y', '%LOGIN' => $query],
-        ['ACTIVE' => 'Y', '%EMAIL' => $query],
-        ['ACTIVE' => 'Y', '%NAME' => $query],
-        ['ACTIVE' => 'Y', '%LAST_NAME' => $query],
-        ['ACTIVE' => 'Y', '%SECOND_NAME' => $query],
-    ];
+    /*
+     * CUser::GetList does NOT use D7-style filter keys such as %LOGIN.
+     * Use the ORM here, where %FIELD is the supported substring operator.
+     *
+     * One query searches all relevant identity fields with OR semantics.
+     */
+    $result = \Bitrix\Main\UserTable::getList([
+        'select' => [
+            'ID',
+            'LOGIN',
+            'EMAIL',
+            'NAME',
+            'LAST_NAME',
+            'SECOND_NAME',
+            'ACTIVE',
+        ],
+        'filter' => [
+            '=ACTIVE' => 'Y',
+            [
+                'LOGIC' => 'OR',
+                '%LOGIN' => $query,
+                '%EMAIL' => $query,
+                '%NAME' => $query,
+                '%LAST_NAME' => $query,
+                '%SECOND_NAME' => $query,
+            ],
+        ],
+        'order' => [
+            'LAST_NAME' => 'ASC',
+            'NAME' => 'ASC',
+            'ID' => 'ASC',
+        ],
+        'limit' => 20,
+    ]);
 
-    foreach ($filters as $filter) {
-        $by = 'last_name';
-        $order = 'asc';
-        $result = CUser::GetList($by, $order, $filter, [
-            'FIELDS' => $fields,
-            'NAV_PARAMS' => ['nTopCount' => 20],
-        ]);
-
-        while ($row = $result->Fetch()) {
+    while ($row = $result->fetch()) {
+        if (is_array($row)) {
             $appendUser($row);
+        }
 
-            if (count($usersById) >= 20) {
-                break 2;
-            }
+        if (count($usersById) >= 20) {
+            break;
         }
     }
 }
 
-DiskResponse::success(['users' => array_values($usersById)]);
+DiskResponse::success([
+    'users' => array_values(
+        $usersById
+    ),
+]);
