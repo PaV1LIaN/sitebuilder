@@ -784,7 +784,8 @@ $canManagePageAccess = $USER->IsAdmin()
                                 <label for="diskPermissionModeInput">Режим прав</label>
                                 <select class="sb-select" id="diskPermissionModeInput">
                                     <option value="inherit_site">Наследовать права сайта</option>
-                                    <option value="custom">Индивидуальные права папок</option>
+                                    <option value="custom">Индивидуальные права папок SiteBuilder</option>
+                                    <option value="bitrix_disk">Точные права Битрикс24.Диск</option>
                                 </select>
                             </div>
 

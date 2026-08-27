@@ -12,9 +12,22 @@ class DiskPermissionService
         $rolePermissions = self::resolveRolePermissions($context);
         $rootFolderId = $rootFolderId ?: $folderId;
         $folderRule = null;
+        $permissionMode = (string)($settings['permissionMode'] ?? 'inherit_site');
 
         if (
-            ($settings['permissionMode'] ?? 'inherit_site') === 'custom'
+            $permissionMode === 'bitrix_disk'
+            && $folderId !== null
+            && $folderId > 0
+        ) {
+            $rolePermissions = BitrixDiskRightsService::resolvePermissions(
+                $context,
+                (int)$folderId,
+                $rolePermissions
+            );
+        }
+
+        if (
+            $permissionMode === 'custom'
             && $rolePermissions['role'] !== ''
             && $rolePermissions['role'] !== 'bitrix_admin'
             && $rolePermissions['role'] !== 'site_admin'
@@ -40,10 +53,15 @@ class DiskPermissionService
 
         $blockRestrictions = self::resolveBlockRestrictions($settings);
 
+        if (!array_key_exists('canEditFile', $rolePermissions)) {
+            $rolePermissions['canEditFile'] = !empty($rolePermissions['canRename']);
+        }
+
         return [
             'canView' => $rolePermissions['canView'] && $blockRestrictions['canView'],
             'canUpload' => $rolePermissions['canUpload'] && $blockRestrictions['canUpload'],
             'canCreateFolder' => $rolePermissions['canCreateFolder'] && $blockRestrictions['canCreateFolder'],
+            'canEditFile' => !empty($rolePermissions['canEditFile']) && $blockRestrictions['canEditFile'],
             'canRename' => $rolePermissions['canRename'] && $blockRestrictions['canRename'],
             'canDelete' => $rolePermissions['canDelete'] && $blockRestrictions['canDelete'],
             'canDownload' => $rolePermissions['canDownload'] && $blockRestrictions['canDownload'],
@@ -56,6 +74,7 @@ class DiskPermissionService
             'folderRole' => $folderRule['role'] ?? null,
             'folderRuleId' => isset($folderRule['folderId']) ? (int)$folderRule['folderId'] : null,
             'folderRuleInherited' => !empty($folderRule['inherited']),
+            'effectiveTaskName' => $rolePermissions['effectiveTaskName'] ?? null,
         ];
     }
 
@@ -229,6 +248,7 @@ class DiskPermissionService
             'canView' => true,
             'canUpload' => !empty($settings['allowUpload']),
             'canCreateFolder' => !empty($settings['allowCreateFolder']),
+            'canEditFile' => !empty($settings['allowUpload']),
             'canRename' => !empty($settings['allowRename']),
             'canDelete' => !empty($settings['allowDelete']),
             'canDownload' => !empty($settings['allowDownload']),

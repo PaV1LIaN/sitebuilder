@@ -242,6 +242,14 @@ try {
             require __DIR__ . '/actions/save_settings.php';
             break;
 
+        case 'getAccessMatrix':
+            require __DIR__ . '/actions/get_access_matrix.php';
+            break;
+
+        case 'saveAccessMatrix':
+            require __DIR__ . '/actions/save_access_matrix.php';
+            break;
+
         case 'getPermissions':
             require __DIR__ . '/actions/get_permissions.php';
             break;
@@ -334,12 +342,32 @@ try {
         @ob_end_clean();
     }
 
+    if ($e instanceof DiskRightsVersionConflictException) {
+        http_response_code(409);
+        DiskResponse::error(
+            'DISK_RIGHTS_VERSION_CONFLICT',
+            'Права папки изменены в другой вкладке.',
+            ['currentRightsRevision' => $e->currentRevision()]
+        );
+    }
+
     if ($e instanceof SiteBuilderVersionConflictException) {
         http_response_code(409);
         DiskResponse::error(
             'VERSION_CONFLICT',
             'Объект был изменён в другой вкладке.',
             $e->context()
+        );
+    }
+
+    if (
+        $e instanceof InvalidArgumentException
+        && $e->getMessage() === 'EXPECTED_RIGHTS_REVISION_REQUIRED'
+    ) {
+        http_response_code(422);
+        DiskResponse::error(
+            'EXPECTED_RIGHTS_REVISION_REQUIRED',
+            'Не передана ревизия прав папки.'
         );
     }
 
