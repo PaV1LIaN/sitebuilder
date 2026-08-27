@@ -923,12 +923,62 @@
         });
     }
 
+    function nativeSettingsReady(scope) {
+        if (!scope) {
+            return false;
+        }
+
+        /*
+         * openSettingsModal() makes the native modal visible BEFORE its
+         * async getSettings/getRootOptions calls finish.
+         *
+         * The visual Settings 2.0 UI must not clone controls at that moment:
+         * root-select still contains its initial legacy option only.
+         */
+        var message = scope.querySelector(
+            '[data-role="settings-message"]'
+        );
+
+        if (
+            message
+            && normalize(message.textContent)
+                .indexOf('загрузка настроек') !== -1
+        ) {
+            return false;
+        }
+
+        var rootSelect = scope.querySelector(
+            '[data-role="root-select"]'
+        );
+
+        /*
+         * Root Source v10 always renders TWO choices after root options load:
+         *   1. site folder
+         *   2. block folder / create block folder
+         *
+         * Before that point the legacy HTML can have only one option.
+         */
+        if (
+            rootSelect
+            && rootSelect.options
+            && rootSelect.options.length < 2
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
     function decorate() {
         var heading = findHeading();
         if (!heading) return;
 
         var scope = findScope(heading);
         if (!scope || scope.dataset[MARKER] === '1') return;
+
+        if (!nativeSettingsReady(scope)) {
+            return;
+        }
 
         var native = collectNative(scope);
         var actions = findLegacyActions(scope);
@@ -1018,5 +1068,51 @@
         },
         false
     );
+
+    /*
+     * Programmatic select.value changes do not emit DOM events. Option list
+     * replacement does, so watch root selects that can appear in a modal and
+     * schedule decoration only after their options are actually populated.
+     */
+    if (
+        typeof MutationObserver !== 'undefined'
+    ) {
+        new MutationObserver(
+            function (mutations) {
+                var shouldSchedule =
+                    mutations.some(
+                        function (mutation) {
+                            var target =
+                                mutation.target;
+
+                            return !!(
+                                target
+                                && target.nodeType === 1
+                                && (
+                                    target.matches
+                                    && target.matches(
+                                        '[data-role="root-select"]'
+                                    )
+                                    || target.closest
+                                    && target.closest(
+                                        '[data-role="root-select"]'
+                                    )
+                                )
+                            );
+                        }
+                    );
+
+                if (shouldSchedule) {
+                    schedule();
+                }
+            }
+        ).observe(
+            document.body,
+            {
+                childList: true,
+                subtree: true
+            }
+        );
+    }
 
 })();
