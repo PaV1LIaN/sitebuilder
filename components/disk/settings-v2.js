@@ -1,5 +1,5 @@
 /* =========================================================
-   SITEBUILDER / DISK SETTINGS 2.0 / v7 OPEN-GUARD
+   SITEBUILDER / DISK SETTINGS 2.0 / v8 STABLE-MODAL
    Full clean-shell UI. The legacy form stays hidden and is used only
    as the transport/save mechanism for backward compatibility.
    ========================================================= */
@@ -49,30 +49,38 @@
             return '';
         }
 
-        function isSaveSettingsRequest(input) {
-            var raw =
-                requestUrl(input);
+        function diskApiAction(input) {
+            var raw = requestUrl(input);
 
             if (!raw) {
-                return false;
+                return '';
             }
 
             try {
-                var url =
-                    new URL(
-                        raw,
-                        window.location.href
-                    );
+                var url = new URL(
+                    raw,
+                    window.location.href
+                );
 
-                return (
-                    /\/components\/disk\/api\.php$/i
+                if (
+                    !/\/components\/disk\/api\.php$/i
                         .test(url.pathname)
-                    && url.searchParams.get('action')
-                        === 'saveSettings'
+                ) {
+                    return '';
+                }
+
+                return String(
+                    url.searchParams.get('action')
+                    || ''
                 );
             } catch (error) {
-                return false;
+                return '';
             }
+        }
+
+        function isSaveSettingsRequest(input) {
+            return diskApiAction(input)
+                === 'saveSettings';
         }
 
         function headersObject(init) {
@@ -383,79 +391,86 @@
             return nextInit;
         }
 
-        function responseVersion(
-            payload
-        ) {
-            if (
-                !payload
-                || typeof payload
-                    !== 'object'
-            ) {
-                return 0;
-            }
+        function responseVersion(payload) {
+            var best = 0;
+            var seen = [];
 
-            var candidates = [
-                payload.version,
-                payload.blockVersion,
-                payload.currentVersion,
-                payload.details
-                    && payload.details
-                        .currentVersion,
-                payload.data
-                    && !Array.isArray(
-                        payload.data
-                    )
-                    && payload.data
-                        .version,
-                payload.data
-                    && !Array.isArray(
-                        payload.data
-                    )
-                    && payload.data
-                        .blockVersion,
-                payload.data
-                    && !Array.isArray(
-                        payload.data
-                    )
-                    && payload.data.block
-                    && payload.data.block
-                        .version,
-                payload.meta
-                    && !Array.isArray(
-                        payload.meta
-                    )
-                    && payload.meta
-                        .version,
-                payload.meta
-                    && !Array.isArray(
-                        payload.meta
-                    )
-                    && payload.meta
-                        .blockVersion
-            ];
+            function walk(value, depth, key) {
+                if (
+                    value == null
+                    || depth > 5
+                ) {
+                    return;
+                }
 
-            for (
-                var i = 0;
-                i < candidates.length;
-                i++
-            ) {
-                var value =
-                    Number(
-                        candidates[i]
-                        || 0
-                    );
+                var normalizedKey = String(
+                    key || ''
+                ).toLowerCase();
 
                 if (
-                    Number.isFinite(
-                        value
+                    typeof value === 'number'
+                    || (
+                        typeof value === 'string'
+                        && /^\d+$/.test(value)
                     )
-                    && value > 0
                 ) {
-                    return value;
+                    if (
+                        normalizedKey === 'version'
+                        || normalizedKey === 'blockversion'
+                        || normalizedKey === 'currentversion'
+                        || normalizedKey === 'expectedversion'
+                    ) {
+                        var numeric = Number(value);
+
+                        if (
+                            Number.isFinite(numeric)
+                            && numeric > best
+                        ) {
+                            best = numeric;
+                        }
+                    }
+
+                    return;
                 }
+
+                if (
+                    typeof value !== 'object'
+                    || seen.indexOf(value) !== -1
+                ) {
+                    return;
+                }
+
+                seen.push(value);
+
+                if (Array.isArray(value)) {
+                    value.slice(0, 50).forEach(
+                        function (item) {
+                            walk(
+                                item,
+                                depth + 1,
+                                ''
+                            );
+                        }
+                    );
+                    return;
+                }
+
+                Object.keys(value)
+                    .slice(0, 100)
+                    .forEach(
+                        function (childKey) {
+                            walk(
+                                value[childKey],
+                                depth + 1,
+                                childKey
+                            );
+                        }
+                    );
             }
 
-            return 0;
+            walk(payload, 0, '');
+
+            return best;
         }
 
         async function responseJson(
@@ -475,15 +490,48 @@
                 input,
                 init
             ) {
-                if (
-                    !isSaveSettingsRequest(
-                        input
-                    )
-                ) {
+                var action =
+                    diskApiAction(input);
+
+                if (!action) {
                     return nativeFetch(
                         input,
                         init
                     );
+                }
+
+                if (
+                    action !== 'saveSettings'
+                ) {
+                    var diskResponse =
+                        await nativeFetch(
+                            input,
+                            init
+                        );
+
+                    if (diskResponse.ok) {
+                        var diskPayload =
+                            await responseJson(
+                                diskResponse
+                            );
+
+                        var diskVersion =
+                            responseVersion(
+                                diskPayload
+                            );
+
+                        if (
+                            diskVersion > 0
+                        ) {
+                            bridgeState.latestVersion =
+                                Math.max(
+                                    bridgeState.latestVersion,
+                                    diskVersion
+                                );
+                        }
+                    }
+
+                    return diskResponse;
                 }
 
                 var parsed =
@@ -497,6 +545,10 @@
                 var firstInit =
                     init;
 
+                /*
+                 * Prefer a version learned while opening/initializing Disk,
+                 * so the first save request can already be current.
+                 */
                 if (
                     bridgeState.latestVersion > 0
                     && sentVersion > 0
@@ -506,14 +558,12 @@
                     firstInit =
                         withExpectedVersion(
                             init,
-                            bridgeState
-                                .latestVersion
+                            bridgeState.latestVersion
                         )
                         || init;
 
                     sentVersion =
-                        bridgeState
-                            .latestVersion;
+                        bridgeState.latestVersion;
                 }
 
                 var response =
@@ -527,29 +577,25 @@
                         response
                     );
 
-                var successVersion =
+                var observedVersion =
                     responseVersion(
                         payload
                     );
 
                 if (
-                    response.ok
-                    && successVersion > 0
+                    observedVersion > 0
                 ) {
-                    bridgeState
-                        .latestVersion =
+                    bridgeState.latestVersion =
                         Math.max(
-                            bridgeState
-                                .latestVersion,
-                            successVersion
+                            bridgeState.latestVersion,
+                            observedVersion
                         );
                 }
 
                 if (
                     response.status !== 409
                     || !payload
-                    || payload.error
-                        !== 'VERSION_CONFLICT'
+                    || payload.error !== 'VERSION_CONFLICT'
                 ) {
                     return response;
                 }
@@ -557,26 +603,17 @@
                 var currentVersion =
                     Number(
                         payload.details
-                        && payload.details
-                            .currentVersion
+                        && payload.details.currentVersion
+                        || observedVersion
                         || 0
                     );
 
                 if (
-                    !Number.isFinite(
-                        currentVersion
-                    )
+                    !Number.isFinite(currentVersion)
                     || currentVersion <= 0
                 ) {
                     return response;
                 }
-
-                bridgeState.latestVersion =
-                    Math.max(
-                        bridgeState
-                            .latestVersion,
-                        currentVersion
-                    );
 
                 var retryInit =
                     withExpectedVersion(
@@ -589,8 +626,7 @@
                 }
 
                 console.info(
-                    '[SiteBuilder Disk] '
-                    + 'block version refreshed '
+                    '[SiteBuilder Disk] stale version '
                     + String(sentVersion || '?')
                     + ' → '
                     + String(currentVersion)
@@ -603,42 +639,32 @@
                         retryInit
                     );
 
-                if (retryResponse.ok) {
-                    var retryPayload =
-                        await responseJson(
-                            retryResponse
-                        );
+                var retryPayload =
+                    await responseJson(
+                        retryResponse
+                    );
 
-                    var retryVersion =
-                        responseVersion(
-                            retryPayload
-                        );
+                var retryVersion =
+                    responseVersion(
+                        retryPayload
+                    );
 
+                if (
+                    retryVersion > 0
+                ) {
                     bridgeState.latestVersion =
-                        retryVersion > 0
-                            ? retryVersion
-                            : currentVersion + 1;
-
-                    try {
-                        document.dispatchEvent(
-                            new CustomEvent(
-                                'sb-disk-settings-version-refreshed',
-                                {
-                                    detail: {
-                                        previousVersion:
-                                            sentVersion,
-                                        currentVersion:
-                                            currentVersion,
-                                        savedVersion:
-                                            bridgeState
-                                                .latestVersion
-                                    }
-                                }
-                            )
+                        Math.max(
+                            bridgeState.latestVersion,
+                            retryVersion
                         );
-                    } catch (error) {
-                        /* CustomEvent is optional. */
-                    }
+                } else if (
+                    retryResponse.ok
+                ) {
+                    bridgeState.latestVersion =
+                        Math.max(
+                            bridgeState.latestVersion,
+                            currentVersion + 1
+                        );
                 }
 
                 return retryResponse;
@@ -1593,34 +1619,35 @@
         });
     }
 
-    function schedule() {
-        if (scheduled) return;
-        scheduled = true;
-        window.requestAnimationFrame(function () {
-            scheduled = false;
-            decorate();
-        });
-    }
+    var stableTimer = 0;
 
-    if (
-        document.readyState
-        === 'loading'
-    ) {
-        document.addEventListener(
-            'DOMContentLoaded',
-            schedule
+    function schedule() {
+        /*
+         * Native DiskComponent.arrangeSettingsModal() also rearranges the
+         * same DOM. Never decorate in the same animation frame.
+         *
+         * Wait until no observed popup mutation happened for 220 ms.
+         */
+        window.clearTimeout(
+            stableTimer
         );
-    } else {
-        schedule();
+
+        stableTimer =
+            window.setTimeout(
+                function () {
+                    stableTimer = 0;
+                    decorate();
+                },
+                220
+            );
     }
 
     /*
-     * Native Disk settings may be inserted into DOM on demand OR kept in
-     * DOM and opened by toggling class/style/hidden. Watch both cases.
+     * Do not decorate on initial public.php load.
+     * Wait for the native settings popup to actually mutate/open.
      */
     if (
-        typeof MutationObserver
-        !== 'undefined'
+        typeof MutationObserver !== 'undefined'
     ) {
         new MutationObserver(
             schedule
@@ -1641,13 +1668,15 @@
     }
 
     /*
-     * Some legacy popup implementations only change visibility in a click
-     * handler. Running one scheduled visibility check after user clicks is
-     * cheap and makes decoration independent from popup implementation.
+     * Bubble phase: native settings-button listeners get the click first.
+     * We only schedule a delayed stability check afterwards.
      */
     document.addEventListener(
         'click',
-        schedule,
-        true
+        function () {
+            schedule();
+        },
+        false
     );
+
 })();
