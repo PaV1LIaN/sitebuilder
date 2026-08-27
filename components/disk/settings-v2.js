@@ -1,59 +1,32 @@
 /* =========================================================
-   SITEBUILDER / DISK SETTINGS 2.0 / v3
-   Clean mirror UI. The legacy form stays intact but hidden.
-   Existing backend/save handlers remain authoritative.
+   SITEBUILDER / DISK SETTINGS 2.0 / v4
+   Full clean-shell UI. The legacy form stays hidden and is used only
+   as the transport/save mechanism for backward compatibility.
    ========================================================= */
 (function () {
     'use strict';
 
-    var MARKER = 'sbDiskSettingsV3';
+    var MARKER = 'sbDiskSettingsV4';
     var scheduled = false;
 
     var FIELD_DEFS = [
-        ['title', ['заголовок блока']],
-        ['rootSource', ['источник корня']],
-        ['viewMode', ['вид по умолчанию']],
-        ['sortBy', ['сортировка по умолчанию']],
-        ['sortDirection', ['направление сортировки']],
-        ['maxFileSize', ['максимальный размер файла', 'максимальный размер']],
-        ['extensions', ['допустимые расширения']],
-        ['permissionMode', ['режим прав']],
-        ['useSiteRoot', ['использовать корень сайта']],
-        ['allowUpload', ['разрешить загрузку']],
-        ['allowCreateFolder', ['разрешить создание папок']],
-        ['allowRename', ['разрешить переименование']],
-        ['allowDelete', ['разрешить удаление']],
-        ['allowDownload', ['разрешить скачивание']],
-        ['showSearch', ['показывать поиск']],
-        ['showBreadcrumbs', ['показывать breadcrumbs', 'показывать хлебные крошки']]
+        ['title', ['заголовок блока'], ['title', 'blocktitle']],
+        ['rootSource', ['источник корня'], ['rootsource', 'root_source', 'rootmode']],
+        ['viewMode', ['вид по умолчанию'], ['viewmode', 'view_mode']],
+        ['sortBy', ['сортировка по умолчанию'], ['sortby', 'sort_by']],
+        ['sortDirection', ['направление сортировки'], ['sortdirection', 'sort_direction', 'sortdir']],
+        ['maxFileSize', ['максимальный размер файла', 'максимальный размер'], ['maxfilesize', 'max_file_size']],
+        ['extensions', ['допустимые расширения'], ['extensions', 'allowedextensions', 'allowed_extensions']],
+        ['permissionMode', ['режим прав'], ['permissionmode', 'permission_mode']],
+        ['useSiteRoot', ['использовать корень сайта'], ['usesiteroot', 'use_site_root']],
+        ['allowUpload', ['разрешить загрузку'], ['allowupload', 'allow_upload']],
+        ['allowCreateFolder', ['разрешить создание папок'], ['allowcreatefolder', 'allow_create_folder']],
+        ['allowRename', ['разрешить переименование'], ['allowrename', 'allow_rename']],
+        ['allowDelete', ['разрешить удаление'], ['allowdelete', 'allow_delete']],
+        ['allowDownload', ['разрешить скачивание'], ['allowdownload', 'allow_download']],
+        ['showSearch', ['показывать поиск'], ['showsearch', 'show_search']],
+        ['showBreadcrumbs', ['показывать breadcrumbs', 'показывать хлебные крошки'], ['showbreadcrumbs', 'show_breadcrumbs']]
     ];
-
-    var LABELS = {
-        title: 'Заголовок блока',
-        rootSource: 'Корневая папка',
-        viewMode: 'Вид по умолчанию',
-        sortBy: 'Сортировать по',
-        sortDirection: 'Направление',
-        maxFileSize: 'Максимальный размер файла',
-        extensions: 'Допустимые расширения',
-        permissionMode: 'Режим прав',
-        useSiteRoot: 'Использовать корень сайта, если у блока нет своей папки',
-        allowUpload: 'Разрешить загрузку',
-        allowCreateFolder: 'Разрешить создание папок',
-        allowRename: 'Разрешить переименование',
-        allowDelete: 'Разрешить удаление',
-        allowDownload: 'Разрешить скачивание',
-        showSearch: 'Показывать поиск',
-        showBreadcrumbs: 'Показывать путь к папке'
-    };
-
-    var HELP = {
-        rootSource: 'Определяет папку Bitrix.Диска, которая открывается как корневая для этого блока.',
-        viewMode: 'Таблица удобна для документов, плитка — для файлов с визуальным превью.',
-        permissionMode: 'Настройки блока могут только ограничить действия. Серверные права пользователя они не расширяют.',
-        maxFileSize: 'Лимит одного загружаемого файла.',
-        extensions: 'Через пробел, запятую или точку с запятой. Например: pdf docx xlsx png jpg.'
-    };
 
     function normalize(value) {
         return String(value || '')
@@ -64,59 +37,58 @@
             .toLowerCase();
     }
 
-    function textOfButton(button) {
-        if (!button) {
-            return '';
-        }
-        return normalize(
-            button.textContent
-            || button.value
-            || button.getAttribute('aria-label')
-            || button.getAttribute('title')
-            || ''
-        );
+    function attrText(control) {
+        if (!control) return '';
+        return normalize([
+            control.id,
+            control.name,
+            control.getAttribute('data-name'),
+            control.getAttribute('data-key'),
+            control.getAttribute('data-field'),
+            control.getAttribute('placeholder'),
+            control.getAttribute('aria-label')
+        ].filter(Boolean).join(' ')).replace(/\s+/g, '');
+    }
+
+    function isDiskHeading(node) {
+        var text = normalize(node && node.textContent);
+        return text.indexOf('настройки блока') !== -1 && text.indexOf('диск') !== -1;
     }
 
     function findHeading() {
-        var nodes = Array.prototype.slice.call(
+        return Array.prototype.slice.call(
             document.querySelectorAll('h1,h2,h3,h4,[role="heading"],.modal-title,.popup-window-titlebar-text')
-        );
-        return nodes.find(function (node) {
-            var text = normalize(node.textContent);
-            return text.indexOf('настройки блока') !== -1 && text.indexOf('диск') !== -1;
-        }) || null;
+        ).find(isDiskHeading) || null;
     }
 
     function findScope(heading) {
-        var current = heading;
-        for (var i = 0; i < 10 && current && current !== document.body; i++) {
-            var controls = current.querySelectorAll
-                ? current.querySelectorAll('input:not([type="hidden"]),select,textarea')
-                : [];
-            if (controls.length >= 6) {
-                return current;
+        if (!heading) return null;
+
+        var node = heading;
+        var best = heading.parentElement;
+
+        for (var i = 0; i < 11 && node && node !== document.body; i++) {
+            if (node.querySelectorAll) {
+                var controls = node.querySelectorAll('input:not([type="hidden"]),select,textarea');
+                var buttons = node.querySelectorAll('button,input[type="submit"],input[type="button"]');
+                if (controls.length >= 8 && buttons.length >= 1) {
+                    best = node;
+                }
             }
-            current = current.parentElement;
+            node = node.parentElement;
         }
-        return heading ? heading.parentElement : null;
+
+        return best;
     }
 
-    function findForm(scope, heading) {
-        return (
-            (heading && heading.closest && heading.closest('form'))
-            || (scope && scope.querySelector && scope.querySelector('form'))
-            || (scope && scope.matches && scope.matches('form') ? scope : null)
-        );
-    }
-
-    function findLabelText(control, form) {
+    function labelText(control, scope) {
         var label = control.closest ? control.closest('label') : null;
 
-        if (!label && control.id && form) {
+        if (!label && control.id && scope) {
             try {
-                label = form.querySelector('label[for="' + CSS.escape(control.id) + '"]');
+                label = scope.querySelector('label[for="' + CSS.escape(control.id) + '"]');
             } catch (error) {
-                label = null;
+                /* Old browsers: use structural fallback below. */
             }
         }
 
@@ -124,36 +96,47 @@
             return normalize(label.textContent);
         }
 
-        var current = control.parentElement;
-        for (var i = 0; i < 4 && current && current !== form; i++) {
-            var text = normalize(current.textContent);
-            if (text) {
-                return text;
+        var node = control.parentElement;
+        for (var i = 0; i < 3 && node && node !== scope; i++) {
+            var own = normalize(node.textContent);
+            if (own && own.length < 220) {
+                return own;
             }
-            current = current.parentElement;
+            node = node.parentElement;
         }
+
         return '';
     }
 
-    function fieldNameByText(text) {
+    function matchField(control, scope) {
+        var text = labelText(control, scope);
+        var attrs = attrText(control);
+
         for (var i = 0; i < FIELD_DEFS.length; i++) {
-            for (var j = 0; j < FIELD_DEFS[i][1].length; j++) {
-                if (text.indexOf(FIELD_DEFS[i][1][j]) !== -1) {
-                    return FIELD_DEFS[i][0];
-                }
+            var def = FIELD_DEFS[i];
+            var labels = def[1];
+            var hints = def[2];
+
+            for (var j = 0; j < labels.length; j++) {
+                if (text.indexOf(labels[j]) !== -1) return def[0];
+            }
+
+            for (var k = 0; k < hints.length; k++) {
+                if (attrs.indexOf(hints[k].replace(/[_\s]/g, '')) !== -1) return def[0];
             }
         }
+
         return '';
     }
 
-    function collectOriginals(form) {
+    function collectNative(scope) {
         var result = {};
         var controls = Array.prototype.slice.call(
-            form.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]),select,textarea')
+            scope.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]),select,textarea')
         );
 
         controls.forEach(function (control) {
-            var name = fieldNameByText(findLabelText(control, form));
+            var name = matchField(control, scope);
             if (name && !result[name]) {
                 result[name] = control;
             }
@@ -162,166 +145,147 @@
         return result;
     }
 
-    function findActions(scope, form) {
+    function buttonText(button) {
+        return normalize(
+            button && (
+                button.textContent
+                || button.value
+                || button.getAttribute('aria-label')
+                || button.getAttribute('title')
+            )
+        );
+    }
+
+    function findLegacyActions(scope) {
         var buttons = Array.prototype.slice.call(
             scope.querySelectorAll('button,input[type="submit"],input[type="button"]')
         );
 
         var save = buttons.find(function (button) {
-            return textOfButton(button).indexOf('сохран') !== -1;
-        }) || null;
-
-        var cancel = buttons.find(function (button) {
-            if (button === save) {
-                return false;
-            }
-            var text = textOfButton(button);
-            return text.indexOf('отмен') !== -1;
+            return buttonText(button).indexOf('сохран') !== -1;
         }) || null;
 
         var close = buttons.find(function (button) {
             var raw = String(button.textContent || '').trim();
-            var text = textOfButton(button);
+            var text = buttonText(button);
             return raw === '×' || raw === '✕' || text === 'x' || text.indexOf('закрыть') !== -1;
         }) || null;
 
-        return { save: save, cancel: cancel, close: close };
+        var cancel = buttons.find(function (button) {
+            if (button === save || button === close) return false;
+            return buttonText(button).indexOf('отмен') !== -1;
+        }) || null;
+
+        return {save: save, close: close, cancel: cancel};
     }
 
-    function setOriginal(original, value, checked) {
-        if (!original) {
+    function dispatchNative(control, type) {
+        if (!control) return;
+        control.dispatchEvent(new Event(type, {bubbles: true}));
+    }
+
+    function setNativeValue(control, value) {
+        if (!control) return;
+
+        if (control.type === 'checkbox') {
+            control.checked = !!value;
+            dispatchNative(control, 'change');
             return;
         }
 
-        if (original.type === 'checkbox') {
-            original.checked = !!checked;
-        } else {
-            original.value = String(value == null ? '' : value);
-        }
-
-        original.dispatchEvent(new Event('input', {bubbles: true}));
-        original.dispatchEvent(new Event('change', {bubbles: true}));
+        control.value = String(value == null ? '' : value);
+        dispatchNative(control, 'input');
+        dispatchNative(control, 'change');
     }
 
-    function cloneSelect(original) {
-        var select = document.createElement('select');
-        select.className = 'sb-disk3-control';
-        Array.prototype.slice.call(original.options || []).forEach(function (option) {
-            var copy = document.createElement('option');
-            copy.value = option.value;
-            copy.textContent = option.textContent;
-            copy.disabled = option.disabled;
-            select.appendChild(copy);
+    function optionData(native) {
+        if (!native || native.tagName !== 'SELECT') return [];
+        return Array.prototype.slice.call(native.options).map(function (option) {
+            return {value: option.value, label: String(option.textContent || option.value).trim()};
         });
-        select.value = original.value;
-        select.addEventListener('change', function () {
-            setOriginal(original, select.value, false);
-        });
-        return select;
     }
 
-    function createTextControl(original, type) {
-        var input = document.createElement('input');
-        input.type = type || 'text';
-        input.className = 'sb-disk3-control';
-        input.value = original.value || '';
-        input.addEventListener('input', function () {
-            setOriginal(original, input.value, false);
-        });
-        return input;
-    }
-
-    function createMirror(name, original) {
-        if (!original) {
-            return null;
-        }
-
-        if (original.type === 'checkbox') {
-            return createToggle(name, original);
-        }
-
+    function createField(label, control, help) {
         var field = document.createElement('label');
-        field.className = 'sb-disk3-field';
+        field.className = 'sb-disk4-field';
 
-        var label = document.createElement('span');
-        label.className = 'sb-disk3-label';
-        label.textContent = LABELS[name] || name;
-        field.appendChild(label);
+        var title = document.createElement('span');
+        title.className = 'sb-disk4-label';
+        title.textContent = label;
+        field.appendChild(title);
+        field.appendChild(control);
 
-        var control;
-
-        if (name === 'maxFileSize') {
-            var size = document.createElement('div');
-            size.className = 'sb-disk3-size';
-            control = document.createElement('input');
-            control.type = 'number';
-            control.min = '1';
-            control.max = '2048';
-            control.step = '1';
-            control.className = 'sb-disk3-control';
-            var bytes = Number(original.value || 0);
-            control.value = String(bytes > 0 ? Math.max(1, Math.round(bytes / 1048576 * 100) / 100) : 50);
-            control.addEventListener('input', function () {
-                var mb = Math.max(1, Math.min(2048, Number(control.value || 50)));
-                setOriginal(original, Math.round(mb * 1048576), false);
-                updateHeaderSummary();
-            });
-            var unit = document.createElement('span');
-            unit.textContent = 'МБ';
-            size.appendChild(control);
-            size.appendChild(unit);
-            field.appendChild(size);
-        } else if (original.tagName === 'SELECT') {
-            control = cloneSelect(original);
-            field.appendChild(control);
-        } else {
-            control = createTextControl(original, 'text');
-            if (name === 'extensions') {
-                control.placeholder = 'pdf docx xlsx png jpg';
-            }
-            field.appendChild(control);
+        if (help) {
+            var small = document.createElement('small');
+            small.className = 'sb-disk4-help';
+            small.textContent = help;
+            field.appendChild(small);
         }
-
-        if (HELP[name]) {
-            var help = document.createElement('small');
-            help.className = 'sb-disk3-help';
-            help.textContent = HELP[name];
-            field.appendChild(help);
-        }
-
-        if (name === 'extensions') {
-            enhanceExtensions(field, control, original);
-        }
-
-        control.addEventListener('change', updateHeaderSummary);
-        control.addEventListener('input', updateHeaderSummary);
 
         return field;
     }
 
-    function createToggle(name, original) {
+    function createInput(native, type, placeholder) {
+        var input = document.createElement('input');
+        input.type = type || 'text';
+        input.className = 'sb-disk4-input';
+        input.value = native ? native.value : '';
+        if (placeholder) input.placeholder = placeholder;
+        input.addEventListener('input', function () {
+            setNativeValue(native, input.value);
+        });
+        return input;
+    }
+
+    function createSelect(native) {
+        var select = document.createElement('select');
+        select.className = 'sb-disk4-select';
+
+        optionData(native).forEach(function (item) {
+            var option = document.createElement('option');
+            option.value = item.value;
+            option.textContent = item.label;
+            select.appendChild(option);
+        });
+
+        if (native) select.value = native.value;
+        select.addEventListener('change', function () {
+            setNativeValue(native, select.value);
+            refreshSummary();
+        });
+        return select;
+    }
+
+    function createSwitch(native, title, description) {
         var label = document.createElement('label');
-        label.className = 'sb-disk3-toggle';
+        label.className = 'sb-disk4-switch';
 
-        var copy = document.createElement('input');
-        copy.type = 'checkbox';
-        copy.checked = !!original.checked;
+        var copy = document.createElement('span');
+        copy.className = 'sb-disk4-switch__copy';
 
-        var track = document.createElement('span');
-        track.className = 'sb-disk3-toggle__track';
-        var text = document.createElement('span');
-        text.className = 'sb-disk3-toggle__text';
-        text.textContent = LABELS[name] || name;
+        var strong = document.createElement('strong');
+        strong.textContent = title;
+        var small = document.createElement('small');
+        small.textContent = description;
+        copy.appendChild(strong);
+        copy.appendChild(small);
 
-        copy.addEventListener('change', function () {
-            setOriginal(original, '', copy.checked);
-            updateHeaderSummary();
+        var input = document.createElement('input');
+        input.type = 'checkbox';
+        input.checked = native ? !!native.checked : false;
+
+        var ui = document.createElement('span');
+        ui.className = 'sb-disk4-switch__ui';
+
+        input.addEventListener('change', function () {
+            setNativeValue(native, input.checked);
+            refreshSummary();
         });
 
         label.appendChild(copy);
-        label.appendChild(track);
-        label.appendChild(text);
-        return label;
+        label.appendChild(input);
+        label.appendChild(ui);
+        return {root: label, input: input};
     }
 
     function parseExtensions(value) {
@@ -333,392 +297,416 @@
                 return item.trim().replace(/^\.+/, '').replace(/[^a-z0-9_-]/g, '');
             })
             .filter(function (item) {
-                if (!item || seen[item]) {
-                    return false;
-                }
+                if (!item || seen[item]) return false;
                 seen[item] = true;
                 return true;
             });
     }
 
-    function enhanceExtensions(field, input, original) {
-        var buttons = document.createElement('div');
-        buttons.className = 'sb-disk3-inline-actions';
-        var chips = document.createElement('div');
-        chips.className = 'sb-disk3-chips';
+    var state = {
+        scope: null,
+        native: {},
+        actions: {},
+        mirrors: {},
+        root: null,
+        summary: null,
+        activeTab: 'general'
+    };
 
-        var presets = [
-            ['Документы', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']],
-            ['Изображения', ['jpg', 'jpeg', 'png', 'gif', 'webp']],
-            ['Документы + изображения', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'webp']]
-        ];
-
-        presets.forEach(function (preset) {
-            var button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'sb-disk3-mini';
-            button.textContent = preset[0];
-            button.addEventListener('click', function () {
-                input.value = preset[1].join(' ');
-                setOriginal(original, input.value, false);
-                render();
-            });
-            buttons.appendChild(button);
-        });
-
-        function render() {
-            chips.innerHTML = '';
-            var items = parseExtensions(input.value);
-            if (!items.length) {
-                var empty = document.createElement('span');
-                empty.className = 'is-empty';
-                empty.textContent = 'Без ограничения по расширениям';
-                chips.appendChild(empty);
-                return;
-            }
-            items.forEach(function (item) {
-                var chip = document.createElement('span');
-                chip.textContent = '.' + item;
-                chips.appendChild(chip);
-            });
+    function mirrorText(name) {
+        var mirror = state.mirrors[name];
+        if (!mirror) return '—';
+        if (mirror.tagName === 'SELECT') {
+            return mirror.options[mirror.selectedIndex]
+                ? String(mirror.options[mirror.selectedIndex].textContent).trim()
+                : '—';
         }
-
-        input.addEventListener('input', render);
-        input.addEventListener('blur', function () {
-            input.value = parseExtensions(input.value).join(' ');
-            setOriginal(original, input.value, false);
-            render();
-        });
-
-        field.appendChild(buttons);
-        field.appendChild(chips);
-        render();
+        if (mirror.type === 'checkbox') return mirror.checked ? 'Да' : 'Нет';
+        return String(mirror.value || '—').trim();
     }
 
-    function section(title, description) {
-        var node = document.createElement('section');
-        node.className = 'sb-disk3-section';
+    function refreshSummary() {
+        if (!state.summary) return;
+        var mb = state.mirrors.maxFileSizeMb ? state.mirrors.maxFileSizeMb.value + ' МБ' : '—';
+        state.summary.innerHTML = '';
+        [
+            ['Корень', mirrorText('rootSource')],
+            ['Вид', mirrorText('viewMode')],
+            ['Права', mirrorText('permissionMode')],
+            ['Файл', mb]
+        ].forEach(function (item) {
+            var node = document.createElement('div');
+            node.className = 'sb-disk4-summary-item';
+            node.innerHTML = '<span></span><strong></strong>';
+            node.querySelector('span').textContent = item[0];
+            node.querySelector('strong').textContent = item[1];
+            state.summary.appendChild(node);
+        });
+    }
 
-        var head = document.createElement('div');
-        head.className = 'sb-disk3-section__head';
-        var h = document.createElement('strong');
+    function tabButton(id, label, icon) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'sb-disk4-nav__item';
+        button.dataset.tab = id;
+        button.innerHTML = '<span class="sb-disk4-nav__icon"></span><span class="sb-disk4-nav__text"></span>';
+        button.querySelector('.sb-disk4-nav__icon').textContent = icon;
+        button.querySelector('.sb-disk4-nav__text').textContent = label;
+        button.addEventListener('click', function () { activateTab(id); });
+        return button;
+    }
+
+    function activateTab(id) {
+        state.activeTab = id;
+        state.root.querySelectorAll('[data-tab]').forEach(function (button) {
+            button.classList.toggle('is-active', button.dataset.tab === id);
+        });
+        state.root.querySelectorAll('[data-pane]').forEach(function (pane) {
+            pane.hidden = pane.dataset.pane !== id;
+        });
+    }
+
+    function pane(id, title, description) {
+        var section = document.createElement('section');
+        section.className = 'sb-disk4-pane';
+        section.dataset.pane = id;
+        var head = document.createElement('header');
+        head.className = 'sb-disk4-pane__head';
+        var h = document.createElement('h3');
         h.textContent = title;
-        var p = document.createElement('span');
+        var p = document.createElement('p');
         p.textContent = description;
         head.appendChild(h);
         head.appendChild(p);
-        node.appendChild(head);
-
-        var content = document.createElement('div');
-        content.className = 'sb-disk3-section__content';
-        node.appendChild(content);
-
-        return { section: node, content: content };
+        section.appendChild(head);
+        return section;
     }
 
-    function tabButton(name, title) {
-        var button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'sb-disk3-tab';
-        button.dataset.diskTab = name;
-        button.textContent = title;
-        return button;
+    function card(title, description) {
+        var box = document.createElement('div');
+        box.className = 'sb-disk4-card';
+        var head = document.createElement('div');
+        head.className = 'sb-disk4-card__head';
+        var strong = document.createElement('strong');
+        strong.textContent = title;
+        var small = document.createElement('small');
+        small.textContent = description;
+        head.appendChild(strong);
+        head.appendChild(small);
+        box.appendChild(head);
+        return box;
     }
 
-    function setTab(name) {
-        document.querySelectorAll('.sb-disk3-tab').forEach(function (button) {
-            button.classList.toggle('is-active', button.dataset.diskTab === name);
+    function buildGeneral() {
+        var section = pane('general', 'Основные настройки', 'Как блок называется, какую папку открывает и как отображает файлы.');
+        var base = card('Отображение', 'Основные параметры файлового блока.');
+        var grid = document.createElement('div');
+        grid.className = 'sb-disk4-grid';
+
+        var title = createInput(state.native.title, 'text', 'Файлы');
+        state.mirrors.title = title;
+        var root = createSelect(state.native.rootSource);
+        state.mirrors.rootSource = root;
+        var view = createSelect(state.native.viewMode);
+        state.mirrors.viewMode = view;
+        var sort = createSelect(state.native.sortBy);
+        state.mirrors.sortBy = sort;
+        var direction = createSelect(state.native.sortDirection);
+        state.mirrors.sortDirection = direction;
+
+        var titleField = createField('Заголовок блока', title, 'Отображается над списком файлов.');
+        titleField.classList.add('is-span-2');
+        grid.appendChild(titleField);
+        grid.appendChild(createField('Корневая папка', root, 'Папка Bitrix.Диска, открываемая пользователю.'));
+        grid.appendChild(createField('Вид по умолчанию', view, 'Таблица или другой доступный режим отображения.'));
+        grid.appendChild(createField('Сортировать по', sort));
+        grid.appendChild(createField('Направление', direction));
+        base.appendChild(grid);
+        section.appendChild(base);
+        return section;
+    }
+
+    function buildUpload() {
+        var section = pane('upload', 'Загрузка файлов', 'Ограничения на размер и расширения файлов, загружаемых через этот блок.');
+        var limits = card('Ограничения', 'Настройки действуют только для загрузки через SiteBuilder.');
+        var grid = document.createElement('div');
+        grid.className = 'sb-disk4-grid';
+
+        var nativeBytes = state.native.maxFileSize;
+        var mb = document.createElement('input');
+        mb.type = 'number';
+        mb.min = '1';
+        mb.max = '2048';
+        mb.step = '1';
+        mb.className = 'sb-disk4-input';
+        var bytes = Number(nativeBytes ? nativeBytes.value : 0);
+        mb.value = String(bytes > 0 ? Math.max(1, Math.round(bytes / 1048576)) : 50);
+        mb.addEventListener('input', function () {
+            var value = Math.max(1, Math.min(2048, Number(mb.value || 50)));
+            setNativeValue(nativeBytes, Math.round(value * 1048576));
+            refreshSummary();
         });
-        document.querySelectorAll('.sb-disk3-panel').forEach(function (panel) {
-            panel.hidden = panel.dataset.diskPanel !== name;
+        state.mirrors.maxFileSizeMb = mb;
+
+        var sizeWrap = document.createElement('div');
+        sizeWrap.className = 'sb-disk4-unit';
+        sizeWrap.appendChild(mb);
+        var unit = document.createElement('span');
+        unit.textContent = 'МБ';
+        sizeWrap.appendChild(unit);
+
+        var ext = createInput(state.native.extensions, 'text', 'pdf doc docx xls xlsx png jpg');
+        state.mirrors.extensions = ext;
+        ext.addEventListener('blur', function () {
+            var items = parseExtensions(ext.value);
+            ext.value = items.join(' ');
+            setNativeValue(state.native.extensions, ext.value);
+            renderExtChips(chips, items);
         });
+
+        grid.appendChild(createField('Максимальный размер файла', sizeWrap, 'Допустимо от 1 до 2048 МБ.'));
+        var extField = createField('Допустимые расширения', ext, 'Можно вводить через пробел, запятую или точку с запятой.');
+        extField.classList.add('is-span-2');
+        grid.appendChild(extField);
+        limits.appendChild(grid);
+
+        var presetRow = document.createElement('div');
+        presetRow.className = 'sb-disk4-presets';
+        [['Документы',['pdf','doc','docx','xls','xlsx','ppt','pptx']],['Изображения',['jpg','jpeg','png','gif','webp']],['Документы + изображения',['pdf','doc','docx','xls','xlsx','ppt','pptx','jpg','jpeg','png','gif','webp']]].forEach(function (preset) {
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = preset[0];
+            button.addEventListener('click', function () {
+                ext.value = preset[1].join(' ');
+                setNativeValue(state.native.extensions, ext.value);
+                renderExtChips(chips, preset[1]);
+            });
+            presetRow.appendChild(button);
+        });
+        limits.appendChild(presetRow);
+
+        var chips = document.createElement('div');
+        chips.className = 'sb-disk4-chips';
+        limits.appendChild(chips);
+        renderExtChips(chips, parseExtensions(ext.value));
+        section.appendChild(limits);
+        return section;
     }
 
-    var runtime = null;
-
-    function updateHeaderSummary() {
-        if (!runtime) {
+    function renderExtChips(target, items) {
+        target.innerHTML = '';
+        if (!items.length) {
+            var empty = document.createElement('span');
+            empty.className = 'is-empty';
+            empty.textContent = 'Расширения не ограничены';
+            target.appendChild(empty);
             return;
         }
-        var original = runtime.originals;
-        var summary = runtime.summary;
-        var root = original.rootSource && original.rootSource.options
-            ? original.rootSource.options[original.rootSource.selectedIndex].textContent
-            : '—';
-        var view = original.viewMode && original.viewMode.options
-            ? original.viewMode.options[original.viewMode.selectedIndex].textContent
-            : '—';
-        var rights = original.permissionMode && original.permissionMode.options
-            ? original.permissionMode.options[original.permissionMode.selectedIndex].textContent
-            : '—';
-        var bytes = Number(original.maxFileSize ? original.maxFileSize.value : 0);
-        var mb = bytes > 0 ? Math.round(bytes / 1048576) : 0;
+        items.forEach(function (item) {
+            var chip = document.createElement('span');
+            chip.textContent = '.' + item;
+            target.appendChild(chip);
+        });
+    }
 
-        summary.innerHTML = '';
+    function buildAccess() {
+        var section = pane('access', 'Доступ и возможности', 'Какие действия доступны пользователю внутри файлового блока.');
+        var modeCard = card('Режим прав', 'Права блока только ограничивают интерфейс и не расширяют серверные права пользователя.');
+        var mode = createSelect(state.native.permissionMode);
+        state.mirrors.permissionMode = mode;
+        modeCard.appendChild(createField('Режим прав', mode));
+
+        var presets = document.createElement('div');
+        presets.className = 'sb-disk4-presets';
+        presets.innerHTML = '<span>Быстрый режим</span>';
         [
-            ['Корень', root],
-            ['Вид', view],
-            ['Права', rights],
-            ['Файл', mb ? mb + ' МБ' : '—']
-        ].forEach(function (item) {
-            var pill = document.createElement('span');
-            pill.innerHTML = '<small></small><strong></strong>';
-            pill.querySelector('small').textContent = item[0];
-            pill.querySelector('strong').textContent = item[1];
-            summary.appendChild(pill);
-        });
-    }
-
-    function makePresetButton(title, values) {
-        var button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'sb-disk3-preset';
-        button.textContent = title;
-        button.addEventListener('click', function () {
-            Object.keys(values).forEach(function (name) {
-                var original = runtime.originals[name];
-                if (!original) {
-                    return;
-                }
-                setOriginal(original, '', !!values[name]);
-                var mirror = runtime.ui.querySelector('[data-mirror="' + name + '"] input[type="checkbox"]');
-                if (mirror) {
-                    mirror.checked = !!values[name];
-                }
+            ['Только просмотр',{allowUpload:false,allowCreateFolder:false,allowRename:false,allowDelete:false,allowDownload:true,showSearch:true,showBreadcrumbs:true}],
+            ['Работа без удаления',{allowUpload:true,allowCreateFolder:true,allowRename:true,allowDelete:false,allowDownload:true,showSearch:true,showBreadcrumbs:true}],
+            ['Все действия',{allowUpload:true,allowCreateFolder:true,allowRename:true,allowDelete:true,allowDownload:true,showSearch:true,showBreadcrumbs:true}]
+        ].forEach(function (preset) {
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = preset[0];
+            button.addEventListener('click', function () {
+                Object.keys(preset[1]).forEach(function (name) {
+                    var mirror = state.mirrors[name];
+                    if (!mirror) return;
+                    mirror.checked = !!preset[1][name];
+                    setNativeValue(state.native[name], mirror.checked);
+                });
+                refreshSummary();
             });
-            updateHeaderSummary();
+            presets.appendChild(button);
         });
-        return button;
+        modeCard.appendChild(presets);
+        section.appendChild(modeCard);
+
+        var actionCard = card('Разрешённые действия', 'Отключённые действия не показываются пользователю блока.');
+        var switchGrid = document.createElement('div');
+        switchGrid.className = 'sb-disk4-switch-grid';
+
+        [
+            ['useSiteRoot','Использовать корень сайта','Если у блока нет своей папки — использовать корень сайта.'],
+            ['allowUpload','Загрузка файлов','Разрешить пользователю загружать новые файлы.'],
+            ['allowCreateFolder','Создание папок','Разрешить создавать новые папки.'],
+            ['allowRename','Переименование','Разрешить менять имена файлов и папок.'],
+            ['allowDelete','Удаление','Разрешить удаление файлов и папок.'],
+            ['allowDownload','Скачивание','Разрешить скачивание файлов.'],
+            ['showSearch','Поиск','Показывать строку поиска по файлам.'],
+            ['showBreadcrumbs','Навигационная цепочка','Показывать текущий путь по папкам.']
+        ].forEach(function (def) {
+            var sw = createSwitch(state.native[def[0]], def[1], def[2]);
+            state.mirrors[def[0]] = sw.input;
+            switchGrid.appendChild(sw.root);
+        });
+
+        actionCard.appendChild(switchGrid);
+        section.appendChild(actionCard);
+        return section;
     }
 
-    function buildUi(scope, form, heading, originals, actions) {
-        var legacy = document.createElement('div');
-        legacy.className = 'sb-disk3-legacy';
-        legacy.hidden = true;
-
-        Array.prototype.slice.call(form.childNodes).forEach(function (child) {
-            legacy.appendChild(child);
-        });
-        form.appendChild(legacy);
-
-        if (heading && !legacy.contains(heading)) {
-            heading.classList.add('sb-disk3-external-hidden');
-        }
-        if (actions.close && !legacy.contains(actions.close)) {
-            actions.close.classList.add('sb-disk3-external-hidden');
-        }
-
-        var ui = document.createElement('div');
-        ui.className = 'sb-disk3-ui';
+    function createRoot(scope, actions) {
+        var root = document.createElement('div');
+        root.className = 'sb-disk4-root';
 
         var header = document.createElement('header');
-        header.className = 'sb-disk3-header';
-        header.innerHTML = '<div><h2>Настройки блока «Диск»</h2><p>Отображение, загрузка файлов и доступ пользователей.</p></div>';
+        header.className = 'sb-disk4-header';
+        var heading = document.createElement('div');
+        heading.innerHTML = '<div class="sb-disk4-kicker">Файловый блок</div><h2>Настройки «Диска»</h2><p>Отображение, загрузка и доступ к файлам в одном месте.</p>';
+        header.appendChild(heading);
 
         var close = document.createElement('button');
         close.type = 'button';
-        close.className = 'sb-disk3-close';
-        close.textContent = '×';
+        close.className = 'sb-disk4-close';
         close.setAttribute('aria-label', 'Закрыть');
+        close.textContent = '×';
         close.addEventListener('click', function () {
-            if (actions.close) {
-                actions.close.click();
-            } else if (actions.cancel) {
-                actions.cancel.click();
-            }
+            if (actions.close) actions.close.click();
+            else if (actions.cancel) actions.cancel.click();
         });
         header.appendChild(close);
-        ui.appendChild(header);
-
-        var summary = document.createElement('div');
-        summary.className = 'sb-disk3-summary';
-        ui.appendChild(summary);
-
-        var tabs = document.createElement('nav');
-        tabs.className = 'sb-disk3-tabs';
-        [
-            ['main', 'Основное'],
-            ['upload', 'Загрузка'],
-            ['access', 'Доступ']
-        ].forEach(function (item) {
-            var button = tabButton(item[0], item[1]);
-            button.addEventListener('click', function () {
-                setTab(item[0]);
-            });
-            tabs.appendChild(button);
-        });
-        ui.appendChild(tabs);
+        root.appendChild(header);
 
         var body = document.createElement('div');
-        body.className = 'sb-disk3-body';
-        ui.appendChild(body);
+        body.className = 'sb-disk4-body';
+        root.appendChild(body);
 
-        var mainPanel = document.createElement('div');
-        mainPanel.className = 'sb-disk3-panel';
-        mainPanel.dataset.diskPanel = 'main';
-        var main = section('Основные параметры', 'Что увидит пользователь при открытии блока.');
-        main.content.classList.add('sb-disk3-grid');
-        ['title', 'rootSource', 'viewMode', 'sortBy', 'sortDirection'].forEach(function (name) {
-            var mirror = createMirror(name, originals[name]);
-            if (mirror) {
-                mirror.dataset.mirror = name;
-                main.content.appendChild(mirror);
-            }
-        });
-        mainPanel.appendChild(main.section);
-        body.appendChild(mainPanel);
+        var sidebar = document.createElement('aside');
+        sidebar.className = 'sb-disk4-sidebar';
+        body.appendChild(sidebar);
 
-        var uploadPanel = document.createElement('div');
-        uploadPanel.className = 'sb-disk3-panel';
-        uploadPanel.dataset.diskPanel = 'upload';
-        var upload = section('Загрузка файлов', 'Лимиты и типы файлов для загрузки через этот блок.');
-        upload.content.classList.add('sb-disk3-grid');
-        ['maxFileSize', 'extensions'].forEach(function (name) {
-            var mirror = createMirror(name, originals[name]);
-            if (mirror) {
-                mirror.dataset.mirror = name;
-                upload.content.appendChild(mirror);
-            }
-        });
-        uploadPanel.appendChild(upload.section);
-        body.appendChild(uploadPanel);
+        var summary = document.createElement('div');
+        summary.className = 'sb-disk4-summary';
+        state.summary = summary;
+        sidebar.appendChild(summary);
 
-        var accessPanel = document.createElement('div');
-        accessPanel.className = 'sb-disk3-panel';
-        accessPanel.dataset.diskPanel = 'access';
-        var access = section('Доступ и возможности', 'Режим прав и действия, доступные внутри этого блока.');
+        var nav = document.createElement('nav');
+        nav.className = 'sb-disk4-nav';
+        nav.appendChild(tabButton('general','Основное','◫'));
+        nav.appendChild(tabButton('upload','Загрузка','⇧'));
+        nav.appendChild(tabButton('access','Доступ','◉'));
+        sidebar.appendChild(nav);
 
-        var permission = createMirror('permissionMode', originals.permissionMode);
-        if (permission) {
-            permission.dataset.mirror = 'permissionMode';
-            access.content.appendChild(permission);
-        }
+        var tip = document.createElement('div');
+        tip.className = 'sb-disk4-tip';
+        tip.innerHTML = '<strong>Важно</strong><span>Настройки блока не могут дать пользователю больше прав, чем разрешено в Bitrix24.</span>';
+        sidebar.appendChild(tip);
 
-        var presets = document.createElement('div');
-        presets.className = 'sb-disk3-presets';
-        presets.appendChild(makePresetButton('Только просмотр', {
-            allowUpload:false, allowCreateFolder:false, allowRename:false, allowDelete:false,
-            allowDownload:true, showSearch:true, showBreadcrumbs:true
-        }));
-        presets.appendChild(makePresetButton('Работа без удаления', {
-            allowUpload:true, allowCreateFolder:true, allowRename:true, allowDelete:false,
-            allowDownload:true, showSearch:true, showBreadcrumbs:true
-        }));
-        presets.appendChild(makePresetButton('Все действия', {
-            allowUpload:true, allowCreateFolder:true, allowRename:true, allowDelete:true,
-            allowDownload:true, showSearch:true, showBreadcrumbs:true
-        }));
-        access.content.appendChild(presets);
-
-        var toggles = document.createElement('div');
-        toggles.className = 'sb-disk3-toggle-grid';
-        ['useSiteRoot', 'allowUpload', 'allowCreateFolder', 'allowRename', 'allowDelete', 'allowDownload', 'showSearch', 'showBreadcrumbs'].forEach(function (name) {
-            var mirror = createMirror(name, originals[name]);
-            if (mirror) {
-                mirror.dataset.mirror = name;
-                toggles.appendChild(mirror);
-            }
-        });
-        access.content.appendChild(toggles);
-        accessPanel.appendChild(access.section);
-        body.appendChild(accessPanel);
+        var content = document.createElement('main');
+        content.className = 'sb-disk4-content';
+        content.appendChild(buildGeneral());
+        content.appendChild(buildUpload());
+        content.appendChild(buildAccess());
+        body.appendChild(content);
 
         var footer = document.createElement('footer');
-        footer.className = 'sb-disk3-footer';
-        var state = document.createElement('span');
-        state.textContent = 'Изменения применятся после сохранения.';
-        footer.appendChild(state);
+        footer.className = 'sb-disk4-footer';
+        var stateText = document.createElement('span');
+        stateText.textContent = 'Изменения применятся после сохранения.';
+        footer.appendChild(stateText);
 
         var buttons = document.createElement('div');
-        if (actions.cancel || actions.close) {
-            var cancel = document.createElement('button');
-            cancel.type = 'button';
-            cancel.className = 'sb-disk3-button is-secondary';
-            cancel.textContent = 'Отмена';
-            cancel.addEventListener('click', function () {
-                if (actions.cancel) {
-                    actions.cancel.click();
-                } else if (actions.close) {
-                    actions.close.click();
-                }
-            });
-            buttons.appendChild(cancel);
-        }
+        var cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'sb-disk4-btn sb-disk4-btn--secondary';
+        cancel.textContent = 'Отмена';
+        cancel.addEventListener('click', function () {
+            if (actions.cancel) actions.cancel.click();
+            else if (actions.close) actions.close.click();
+        });
 
         var save = document.createElement('button');
         save.type = 'button';
-        save.className = 'sb-disk3-button is-primary';
+        save.className = 'sb-disk4-btn sb-disk4-btn--primary';
         save.textContent = 'Сохранить';
         save.addEventListener('click', function () {
-            if (actions.save) {
-                actions.save.click();
-            } else if (form.requestSubmit) {
-                form.requestSubmit();
-            } else {
-                form.submit();
+            var mb = state.mirrors.maxFileSizeMb;
+            if (mb) {
+                var value = Math.max(1, Math.min(2048, Number(mb.value || 50)));
+                mb.value = String(value);
+                setNativeValue(state.native.maxFileSize, Math.round(value * 1048576));
             }
+            if (state.mirrors.extensions) {
+                state.mirrors.extensions.value = parseExtensions(state.mirrors.extensions.value).join(' ');
+                setNativeValue(state.native.extensions, state.mirrors.extensions.value);
+            }
+            if (actions.save) actions.save.click();
         });
+
+        buttons.appendChild(cancel);
         buttons.appendChild(save);
         footer.appendChild(buttons);
-        ui.appendChild(footer);
+        root.appendChild(footer);
 
-        form.appendChild(ui);
+        return root;
+    }
 
-        runtime = {
-            originals: originals,
-            actions: actions,
-            form: form,
-            ui: ui,
-            summary: summary
-        };
-
-        updateHeaderSummary();
-        setTab('main');
-
-        scope.classList.add('sb-disk3-dialog');
-        form.classList.add('sb-disk3-form');
-
-        scope.addEventListener('keydown', function (event) {
-            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                event.preventDefault();
-                save.click();
-            }
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                close.click();
+    function hideLegacy(scope, root) {
+        Array.prototype.slice.call(scope.children).forEach(function (child) {
+            if (child !== root) {
+                child.classList.add('sb-disk4-legacy-hidden');
             }
         });
     }
 
     function decorate() {
         var heading = findHeading();
-        if (!heading) {
-            return;
-        }
+        if (!heading) return;
+
         var scope = findScope(heading);
-        var form = findForm(scope, heading);
-        if (!scope || !form || form.dataset[MARKER] === '1') {
-            return;
-        }
+        if (!scope || scope.dataset[MARKER] === '1') return;
 
-        var originals = collectOriginals(form);
-        if (Object.keys(originals).length < 6) {
-            return;
-        }
+        var native = collectNative(scope);
+        var actions = findLegacyActions(scope);
+        if (Object.keys(native).length < 7 || !actions.save) return;
 
-        var actions = findActions(scope, form);
-        if (!actions.save) {
-            return;
-        }
+        scope.dataset[MARKER] = '1';
+        scope.classList.add('sb-disk4-dialog');
+        state.scope = scope;
+        state.native = native;
+        state.actions = actions;
 
-        form.dataset[MARKER] = '1';
-        buildUi(scope, form, heading, originals, actions);
+        var root = createRoot(scope, actions);
+        state.root = root;
+        scope.appendChild(root);
+        hideLegacy(scope, root);
+        refreshSummary();
+        activateTab('general');
+
+        root.addEventListener('keydown', function (event) {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                event.preventDefault();
+                root.querySelector('.sb-disk4-btn--primary').click();
+            }
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                root.querySelector('.sb-disk4-close').click();
+            }
+        });
     }
 
-    function scheduleDecorate() {
-        if (scheduled) {
-            return;
-        }
+    function schedule() {
+        if (scheduled) return;
         scheduled = true;
         window.requestAnimationFrame(function () {
             scheduled = false;
@@ -726,16 +714,10 @@
         });
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', scheduleDecorate);
-    } else {
-        scheduleDecorate();
-    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule);
+    else schedule();
 
     if (typeof MutationObserver !== 'undefined') {
-        new MutationObserver(scheduleDecorate).observe(document.body, {
-            childList: true,
-            subtree: true
-        });
+        new MutationObserver(schedule).observe(document.body, {childList:true, subtree:true});
     }
 })();
