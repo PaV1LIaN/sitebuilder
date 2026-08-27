@@ -1,5 +1,5 @@
 /* =========================================================
-   SITEBUILDER / DISK SETTINGS 2.0 / v4
+   SITEBUILDER / DISK SETTINGS 2.0 / v5 VERSION HOTFIX
    Full clean-shell UI. The legacy form stays hidden and is used only
    as the transport/save mechanism for backward compatibility.
    ========================================================= */
@@ -179,23 +179,35 @@
         return {save: save, close: close, cancel: cancel};
     }
 
-    function dispatchNative(control, type) {
-        if (!control) return;
-        control.dispatchEvent(new Event(type, {bubbles: true}));
-    }
-
+    /*
+     * IMPORTANT:
+     *
+     * The v4 mirror UI dispatched input/change into the legacy Disk form
+     * every time a user edited a mirror field. Legacy listeners can react
+     * to those events and update the block before the final Save click.
+     *
+     * Result:
+     *   settings dialog opened at block version 75
+     *   mirror edits advanced the block to version 78
+     *   final saveSettings still sent expectedVersion=75
+     *   => VERSION_CONFLICT
+     *
+     * The mirror is now draft-only. We update the native form values
+     * silently and invoke the existing legacy Save button exactly once.
+     */
     function setNativeValue(control, value) {
         if (!control) return;
 
         if (control.type === 'checkbox') {
             control.checked = !!value;
-            dispatchNative(control, 'change');
             return;
         }
 
-        control.value = String(value == null ? '' : value);
-        dispatchNative(control, 'input');
-        dispatchNative(control, 'change');
+        control.value = String(
+            value == null
+                ? ''
+                : value
+        );
     }
 
     function optionData(native) {
@@ -640,17 +652,95 @@
         save.className = 'sb-disk4-btn sb-disk4-btn--primary';
         save.textContent = 'Сохранить';
         save.addEventListener('click', function () {
-            var mb = state.mirrors.maxFileSizeMb;
+            /*
+             * Make the hidden legacy form an exact snapshot of the mirror
+             * immediately before its original save handler runs.
+             *
+             * No input/change events are dispatched here. The original
+             * saveSettings handler reads these form controls and performs
+             * one optimistic-locking update.
+             */
+            [
+                'title',
+                'rootSource',
+                'viewMode',
+                'sortBy',
+                'sortDirection',
+                'permissionMode'
+            ].forEach(function (name) {
+                if (
+                    state.native[name]
+                    && state.mirrors[name]
+                ) {
+                    setNativeValue(
+                        state.native[name],
+                        state.mirrors[name].value
+                    );
+                }
+            });
+
+            [
+                'useSiteRoot',
+                'allowUpload',
+                'allowCreateFolder',
+                'allowRename',
+                'allowDelete',
+                'allowDownload',
+                'showSearch',
+                'showBreadcrumbs'
+            ].forEach(function (name) {
+                if (
+                    state.native[name]
+                    && state.mirrors[name]
+                ) {
+                    setNativeValue(
+                        state.native[name],
+                        state.mirrors[name].checked
+                    );
+                }
+            });
+
+            var mb =
+                state.mirrors.maxFileSizeMb;
+
             if (mb) {
-                var value = Math.max(1, Math.min(2048, Number(mb.value || 50)));
-                mb.value = String(value);
-                setNativeValue(state.native.maxFileSize, Math.round(value * 1048576));
+                var value =
+                    Math.max(
+                        1,
+                        Math.min(
+                            2048,
+                            Number(
+                                mb.value || 50
+                            )
+                        )
+                    );
+
+                mb.value =
+                    String(value);
+
+                setNativeValue(
+                    state.native.maxFileSize,
+                    Math.round(
+                        value * 1048576
+                    )
+                );
             }
+
             if (state.mirrors.extensions) {
-                state.mirrors.extensions.value = parseExtensions(state.mirrors.extensions.value).join(' ');
-                setNativeValue(state.native.extensions, state.mirrors.extensions.value);
+                state.mirrors.extensions.value =
+                    parseExtensions(
+                        state.mirrors.extensions.value
+                    ).join(' ');
+
+                setNativeValue(
+                    state.native.extensions,
+                    state.mirrors.extensions.value
+                );
             }
-            if (actions.save) actions.save.click();
+
+            if (actions.save) {
+                actions.save.click();
+            }
         });
 
         buttons.appendChild(cancel);
