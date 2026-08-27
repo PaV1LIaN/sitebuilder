@@ -260,8 +260,26 @@
             node.id = 'globalBlockReferenceInfo';
             node.className = 'sb-global-block-reference sb-hidden';
             var designPanel = gbNode('blockDesignPanel');
-            if (designPanel) inspector.insertBefore(node, designPanel);
-            else inspector.prepend(node);
+            var modeTabs = gbNode('blockInspectorModes');
+            var advancedToggle = gbNode('toggleAdvancedJsonBtn');
+
+            /*
+             * После появления вкладок инспектора designPanel
+             * находится внутри панели «Адаптивность» и больше
+             * не является прямым ребёнком blockInspector.
+             */
+            if (designPanel && designPanel.parentNode === inspector) {
+                inspector.insertBefore(node, designPanel);
+            } else if (modeTabs && modeTabs.parentNode === inspector) {
+                inspector.insertBefore(node, modeTabs);
+            } else if (
+                advancedToggle
+                && advancedToggle.parentNode === inspector
+            ) {
+                inspector.insertBefore(node, advancedToggle);
+            } else {
+                inspector.prepend(node);
+            }
         }
         if (!block || String(block.type || '') !== 'global') {
             node.classList.add('sb-hidden');

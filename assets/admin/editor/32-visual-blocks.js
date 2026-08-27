@@ -44,8 +44,50 @@
         return /^#[0-9a-f]{6}$/i.test(value) ? value : (fallback || '');
     }
 
-    function vbSafeUrl(value, imageOnly) {
+    function vbNormalizeDiskMediaUrl(value) {
         value = String(value || '').trim();
+
+        if (!value) {
+            return '';
+        }
+
+        try {
+            var parsed = new URL(
+                value,
+                window.location.origin
+            );
+
+            if (
+                parsed.origin
+                !== window.location.origin
+            ) {
+                return value;
+            }
+
+            /*
+             * Валидные legacy URL должны быть исправлены сервером
+             * в block.list. Если здесь всё-таки остался старый
+             * проблемный маршрут, не отправляем лишний 404/502.
+             */
+            if (
+                /\/media_preview\.php$/i.test(
+                    parsed.pathname
+                )
+                || /\/bitrix\/tools\/disk\/downloadFile\.php$/i.test(
+                    parsed.pathname
+                )
+            ) {
+                return '';
+            }
+        } catch (error) {
+            return value;
+        }
+
+        return value;
+    }
+
+    function vbSafeUrl(value, imageOnly) {
+        value = vbNormalizeDiskMediaUrl(value);
 
         if (
             !value

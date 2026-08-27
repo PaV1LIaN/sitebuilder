@@ -315,10 +315,13 @@ final class RequestLockService
                 break;
 
             case 'layout.updateSettings':
+            case 'layout.save':
             case 'layout.block.create':
             case 'layout.block.update':
             case 'layout.block.delete':
             case 'layout.block.move':
+            case 'layout.block.relocate':
+            case 'layout.block.duplicate':
                 $siteId = self::int($input, 'siteId');
                 self::addSiteShared($locks, $siteId);
                 self::add($locks, self::NS_LAYOUT, $siteId, false, 'layout');

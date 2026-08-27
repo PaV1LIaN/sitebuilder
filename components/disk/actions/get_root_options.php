@@ -14,12 +14,16 @@ $context = DiskContextFactory::fromArray([
 
 DiskValidator::assertContext($context);
 
-$settings = DiskSettingsRepository::ensureExistsForBlock(
-    $context->blockId,
-    $context->siteId,
-    $context->pageId,
-    $context->currentUserId
-);
+$settings = DiskSettingsRepository::getByBlockId($context->blockId);
+
+if (!$settings) {
+    $settings = DiskSettingsRepository::ensureExistsForBlock(
+        $context->blockId,
+        $context->siteId,
+        $context->pageId,
+        $context->currentUserId
+    );
+}
 
 $permissions = DiskPermissionService::resolve($context, $settings, null);
 DiskValidator::assertCan($permissions, 'canEditSettings');
@@ -47,9 +51,12 @@ if (!empty($settings['rootFolderId'])) {
     ];
 }
 
+$block = BlockRepository::getById($context->blockId);
+
 DiskResponse::success([
     'options' => $options,
     'siteRootFolderId' => $siteRootFolderId ? (int)$siteRootFolderId : null,
     'blockRootFolderId' => !empty($settings['rootFolderId']) ? (int)$settings['rootFolderId'] : null,
     'siteName' => $site ? (string)$site['name'] : '',
+    'blockVersion' => max(1, (int)($block['version'] ?? 1)),
 ]);

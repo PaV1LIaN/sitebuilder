@@ -171,6 +171,17 @@ final class MigrationService
                     ],
                 ],
             ],
+            [
+                'key' => '20260804_010_disk_folder_access',
+                'stage' => 21,
+                'title' => 'Индивидуальные права папок компонента Диск',
+                'file' => $root . '/migrations/20260804_010_disk_folder_access.sql',
+                'fingerprint' => [
+                    'relations' => [
+                        'sitebuilder.disk_folder_access',
+                    ],
+                ],
+            ],
         ];
     }
 

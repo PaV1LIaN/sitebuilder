@@ -418,7 +418,8 @@
 }
 
 /* Результаты поиска */
-#accessUserSearchResults {
+#accessUserSearchResults,
+#pageAccessUserSearchResults {
     display: block !important;
     max-height: 260px !important;
     overflow-y: auto !important;
@@ -429,11 +430,13 @@
     background: #fff !important;
 }
 
-#accessUserSearchResults.sb-hidden {
+#accessUserSearchResults.sb-hidden,
+#pageAccessUserSearchResults.sb-hidden {
     display: none !important;
 }
 
-#accessUserSearchResults .sb-access-result-item {
+#accessUserSearchResults .sb-access-result-item,
+#pageAccessUserSearchResults .sb-access-result-item {
     width: 100% !important;
     min-height: 44px !important;
     display: grid !important;
@@ -450,15 +453,18 @@
     transition: background .15s ease !important;
 }
 
-#accessUserSearchResults .sb-access-result-item:last-child {
+#accessUserSearchResults .sb-access-result-item:last-child,
+#pageAccessUserSearchResults .sb-access-result-item:last-child {
     border-bottom: 0 !important;
 }
 
-#accessUserSearchResults .sb-access-result-item:hover {
+#accessUserSearchResults .sb-access-result-item:hover,
+#pageAccessUserSearchResults .sb-access-result-item:hover {
     background: #f8fafc !important;
 }
 
-#accessUserSearchResults .sb-access-result-avatar {
+#accessUserSearchResults .sb-access-result-avatar,
+#pageAccessUserSearchResults .sb-access-result-avatar {
     width: 32px !important;
     height: 32px !important;
     min-width: 32px !important;
@@ -477,7 +483,8 @@
     line-height: 1 !important;
 }
 
-#accessUserSearchResults .sb-access-result-avatar img {
+#accessUserSearchResults .sb-access-result-avatar img,
+#pageAccessUserSearchResults .sb-access-result-avatar img {
     width: 32px !important;
     height: 32px !important;
     max-width: 32px !important;
@@ -488,12 +495,14 @@
     display: block !important;
 }
 
-#accessUserSearchResults .sb-access-result-body {
+#accessUserSearchResults .sb-access-result-body,
+#pageAccessUserSearchResults .sb-access-result-body {
     min-width: 0 !important;
     overflow: hidden !important;
 }
 
-#accessUserSearchResults .sb-access-result-title {
+#accessUserSearchResults .sb-access-result-title,
+#pageAccessUserSearchResults .sb-access-result-title {
     font-size: 13px !important;
     font-weight: 700 !important;
     line-height: 1.2 !important;
@@ -503,7 +512,8 @@
     text-overflow: ellipsis !important;
 }
 
-#accessUserSearchResults .sb-access-result-meta {
+#accessUserSearchResults .sb-access-result-meta,
+#pageAccessUserSearchResults .sb-access-result-meta {
     margin-top: 2px !important;
     font-size: 11px !important;
     line-height: 1.2 !important;
@@ -522,14 +532,16 @@
     background: #f8fafc;
 }
 
-#accessSelectedUser .sb-access-selected-user {
+#accessSelectedUser .sb-access-selected-user,
+#pageAccessSelectedUser .sb-access-selected-user {
     display: grid !important;
     grid-template-columns: 42px minmax(0, 1fr) !important;
     gap: 10px !important;
     align-items: center !important;
 }
 
-#accessSelectedUser .sb-access-selected-avatar {
+#accessSelectedUser .sb-access-selected-avatar,
+#pageAccessSelectedUser .sb-access-selected-avatar {
     width: 42px !important;
     height: 42px !important;
     min-width: 42px !important;
@@ -547,7 +559,8 @@
     font-weight: 700 !important;
 }
 
-#accessSelectedUser .sb-access-selected-avatar img {
+#accessSelectedUser .sb-access-selected-avatar img,
+#pageAccessSelectedUser .sb-access-selected-avatar img {
     width: 42px !important;
     height: 42px !important;
     max-width: 42px !important;
@@ -576,7 +589,8 @@
     word-break: break-word;
 }
 
-#accessSelectedUser .sb-access-selected-actions {
+#accessSelectedUser .sb-access-selected-actions,
+#pageAccessSelectedUser .sb-access-selected-actions {
     grid-column: 1 / -1 !important;
     justify-content: flex-start !important;
     display: flex !important;
@@ -592,7 +606,8 @@
     margin-top: 12px;
 }
 
-#accessList .sb-access-item {
+#accessList .sb-access-item,
+#pageAccessList .sb-access-item {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
     gap: 8px !important;
@@ -604,12 +619,14 @@
     box-sizing: border-box !important;
 }
 
-#accessList .sb-access-item__main {
+#accessList .sb-access-item__main,
+#pageAccessList .sb-access-item__main {
     min-width: 0 !important;
     overflow: hidden !important;
 }
 
-#accessList .sb-access-item__name {
+#accessList .sb-access-item__name,
+#pageAccessList .sb-access-item__name {
     font-size: 14px !important;
     font-weight: 700 !important;
     line-height: 1.25 !important;
@@ -619,7 +636,8 @@
     text-overflow: ellipsis !important;
 }
 
-#accessList .sb-access-item__meta {
+#accessList .sb-access-item__meta,
+#pageAccessList .sb-access-item__meta {
     margin-top: 2px !important;
     font-size: 12px !important;
     line-height: 1.25 !important;
@@ -629,7 +647,8 @@
     text-overflow: ellipsis !important;
 }
 
-#accessList .sb-access-item__side {
+#accessList .sb-access-item__side,
+#pageAccessList .sb-access-item__side {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
@@ -637,13 +656,50 @@
     width: 100% !important;
 }
 
-#accessList .sb-role-badge {
+#accessList .sb-role-badge,
+#pageAccessList .sb-role-badge {
     flex: 0 0 auto !important;
 }
 
-#accessList .sb-access-item__side .sb-btn {
+#accessList .sb-access-item__side .sb-btn,
+#pageAccessList .sb-access-item__side .sb-btn {
     flex: 0 0 auto !important;
     white-space: nowrap !important;
+}
+
+.sb-page-access-permissions {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.sb-page-access-permissions .sb-switch {
+    min-height: 32px;
+    align-self: auto;
+    cursor: pointer;
+}
+
+.sb-page-access-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+}
+
+.sb-page-access-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #3730a3;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
 }
 
 /* badges ролей */

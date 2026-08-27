@@ -22,8 +22,11 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 );
 
 $rootFolderId = DiskRootResolver::resolve($context, $settings);
-$permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId);
+$folderId = (int)($data['folderId'] ?? $rootFolderId);
+DiskValidator::assertFolderInsideRoot($folderId, $rootFolderId, $context);
+$permissions = DiskPermissionService::resolve($context, $settings, $folderId, $rootFolderId);
 
 DiskResponse::success([
     'permissions' => $permissions,
+    'folderId' => $folderId,
 ]);

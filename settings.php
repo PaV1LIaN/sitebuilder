@@ -179,7 +179,7 @@ if (!$USER->IsAdmin()) {
                     <div class="sb-asset-controls">
                         <div class="sb-field">
                             <label for="logoFileInput">Файл логотипа</label>
-                            <input class="sb-input" type="file" id="logoFileInput" accept="image/*">
+                            <input class="sb-input" type="file" id="logoFileInput" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif">
                         </div>
 
                         <div class="sb-field">
@@ -222,7 +222,7 @@ if (!$USER->IsAdmin()) {
                     <div class="sb-asset-controls">
                         <div class="sb-field">
                             <label for="backgroundFileInput">Изображение фона</label>
-                            <input class="sb-input" type="file" id="backgroundFileInput" accept="image/*">
+                            <input class="sb-input" type="file" id="backgroundFileInput" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif">
                         </div>
 
                         <div class="sb-settings-grid">

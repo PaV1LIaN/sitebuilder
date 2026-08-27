@@ -1,0 +1,145 @@
+/* =========================================================
+   SITEBUILDER / FORMS 2.0 / STAGE 1
+   ========================================================= */
+
+.sb-form2-editor .sb-repeater-head {
+    align-items: center;
+    gap: 10px;
+}
+
+.sb-form2-editor #formFieldsEditor {
+    display: grid;
+    gap: 10px;
+}
+
+.sb-form2-field-card {
+    position: relative;
+    padding: 11px !important;
+    border-color: #dbe4ef !important;
+    border-radius: 13px !important;
+    background: #fff !important;
+}
+
+.sb-form2-field-card:hover {
+    border-color: #b8c8dc !important;
+    box-shadow: 0 7px 18px rgba(15, 23, 42, .055);
+}
+
+.sb-form2-field-card .sb-biz-item__head {
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 9px;
+}
+
+.sb-form2-field-card .sb-biz-item__head > strong {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sb-form2-type-badge {
+    min-height: 19px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 8px;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.sb-form2-field-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: auto;
+}
+
+.sb-form2-field-actions button {
+    width: 27px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    background: #fff;
+    color: #64748b;
+    cursor: pointer;
+    font: 800 11px/1 inherit;
+}
+
+.sb-form2-field-actions button:hover:not(:disabled) {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.sb-form2-field-actions button:disabled {
+    opacity: .34;
+    cursor: default;
+}
+
+.sb-form2-field-actions [data-biz-remove="form"] {
+    color: #b42318;
+}
+
+.sb-form2-field-actions [data-biz-remove="form"]:hover {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.sb-form2-field-card [data-field="optionsText"] {
+    min-height: 76px;
+    margin-top: 8px;
+}
+
+.sb-form2-field-card [data-field="placeholder"] {
+    margin-top: 8px;
+}
+
+.sb-form2-field-card [hidden] {
+    display: none !important;
+}
+
+.sb-form2-field-card.is-options-field {
+    border-left: 3px solid #93c5fd !important;
+}
+
+.sb-form2-field-card.is-check-field {
+    border-left: 3px solid #c4b5fd !important;
+}
+
+body.sb-editor-theme-dark
+.sb-form2-field-card {
+    border-color: #334155 !important;
+    background: #111827 !important;
+}
+
+body.sb-editor-theme-dark
+.sb-form2-field-actions button {
+    border-color: #334155;
+    background: #172033;
+    color: #94a3b8;
+}
+
+body.sb-editor-theme-dark
+.sb-form2-field-actions button:hover:not(:disabled) {
+    border-color: #3b82f6;
+    background: #172554;
+    color: #bfdbfe;
+}
+
+body.sb-editor-theme-dark
+.sb-form2-type-badge {
+    background: #172554;
+    color: #bfdbfe;
+}

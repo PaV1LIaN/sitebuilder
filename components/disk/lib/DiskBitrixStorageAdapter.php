@@ -354,7 +354,7 @@ class DiskBitrixStorageAdapter
             'size' => (int)$file->getSize(),
             'downloadUrl' => $this->buildScopedDownloadUrl($context, $file),
             'previewUrl' => $isOffice
-                ? $this->buildViewerSrc($file)
+                ? $this->buildScopedOfficePreviewUrl($context, $file)
                 : $this->buildPreviewUrl($context, $file),
             'previewMode' => $isOffice ? 'office' : 'browser',
             'createdAt' => $this->normalizeDate($file->getCreateTime()),
@@ -387,12 +387,15 @@ class DiskBitrixStorageAdapter
         return '/bitrix/tools/disk/downloadFile/' . (int)$file->getId() . '/?ncc=1';
     }
 
-    protected function buildViewerSrc(File $file): string
+    protected function buildScopedOfficePreviewUrl(DiskContext $context, File $file): string
     {
-        $name = (string)$file->getName();
-
-        return '/disk/downloadFile/' . (int)$file->getId()
-            . '/?&ncc=1&filename=' . rawurlencode($name);
+        return '/local/sitebuilder/components/disk/office_preview.php?'
+            . http_build_query([
+                'siteId' => (int)$context->siteId,
+                'pageId' => (int)$context->pageId,
+                'blockId' => (int)$context->blockId,
+                'fileId' => (int)$file->getId(),
+            ]);
     }
 
     protected function buildPreviewUrl(DiskContext $context, File $file): string

@@ -1,0 +1,370 @@
+/* =========================================================
+   SITEBUILDER BLOCK INSPECTOR MODES / STAGE 23
+   ========================================================= */
+
+#blockInspector .sb-block-type-field--legacy {
+    display: none !important;
+}
+
+.sb-block-inspector-context {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 0 10px;
+    padding: 11px 12px;
+    border: 1px solid #dce5ef;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #fbfdff 0%, #f8fafc 100%);
+}
+
+.sb-block-inspector-context__main {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+
+.sb-block-inspector-context__eyebrow {
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .055em;
+    text-transform: uppercase;
+}
+
+.sb-block-inspector-context strong {
+    overflow: hidden;
+    color: #172033;
+    font-size: 14px;
+    font-weight: 850;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sb-block-inspector-context small {
+    overflow: hidden;
+    color: #64748b;
+    font-size: 10.5px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sb-block-inspector-context__id {
+    flex: 0 0 auto;
+    min-width: 40px;
+    padding: 5px 8px;
+    border: 1px solid #dbe7f8;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 10px;
+    font-weight: 850;
+    text-align: center;
+}
+
+#blockInspector .sb-block-placement-row {
+    margin-top: 0 !important;
+    margin-bottom: 10px !important;
+    padding: 9px !important;
+    border-radius: 11px !important;
+}
+
+.sb-block-mode-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    margin: 0 0 10px;
+    padding: 4px;
+    border: 1px solid #dce5ef;
+    border-radius: 11px;
+    background: #f8fafc;
+}
+
+.sb-block-mode-tabs button {
+    min-width: 0;
+    min-height: 34px;
+    padding: 0 7px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    font: 780 10.5px/1.2 inherit;
+    transition: background .14s ease, border-color .14s ease, color .14s ease, box-shadow .14s ease;
+}
+
+.sb-block-mode-tabs button:hover:not(.is-active) {
+    border-color: #e2e8f0;
+    background: #fff;
+    color: #334155;
+}
+
+.sb-block-mode-tabs button.is-active {
+    border-color: #bfd5fb;
+    background: #fff;
+    color: #1d4ed8;
+    box-shadow: 0 3px 10px rgba(37, 99, 235, .10);
+}
+
+.sb-block-mode-pane {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid #e0e7f0;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, .03);
+}
+
+.sb-block-mode-pane[hidden] {
+    display: none !important;
+}
+
+.sb-block-mode-pane__head {
+    display: grid;
+    gap: 2px;
+    margin-bottom: 11px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid #edf1f5;
+}
+
+.sb-block-mode-pane__head strong {
+    color: #334155;
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: .025em;
+    text-transform: uppercase;
+}
+
+.sb-block-mode-pane__head span {
+    color: #94a3b8;
+    font-size: 10px;
+    line-height: 1.35;
+}
+
+#blockInspectorModeContent > .sb-block-type-form {
+    margin-top: 0 !important;
+}
+
+#blockInspectorModeContent > .sb-block-type-form.is-active {
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+#blockInspectorModeContent > .sb-block-type-form.is-active::before {
+    content: none !important;
+    display: none !important;
+}
+
+.sb-block-mode-type-host {
+    display: block;
+    min-width: 0;
+}
+
+.sb-block-mode-type[hidden] {
+    display: none !important;
+}
+
+.sb-block-mode-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.sb-block-mode-field-unit {
+    min-width: 0;
+    margin: 0 !important;
+}
+
+.sb-block-mode-fields > .sb-field,
+.sb-block-mode-fields > .sb-switch,
+.sb-block-mode-fields > .sb-checkbox,
+.sb-block-mode-fields > label {
+    min-width: 0;
+    margin: 0 !important;
+}
+
+.sb-block-mode-fields > .sb-switch,
+.sb-block-mode-fields > .sb-checkbox,
+.sb-block-mode-fields > label:not(.sb-field) {
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    box-sizing: border-box;
+    padding: 7px 9px;
+    border: 1px solid #dfe7f0;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 10.5px;
+    font-weight: 720;
+}
+
+.sb-block-mode-empty {
+    display: grid;
+    gap: 4px;
+    padding: 13px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.sb-block-mode-empty[hidden] {
+    display: none !important;
+}
+
+.sb-block-mode-empty strong {
+    color: #475569;
+    font-size: 11px;
+}
+
+.sb-block-mode-empty span {
+    color: #94a3b8;
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+#blockInspectorModeAdaptive .sb-block-mode-type {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #edf1f5;
+}
+
+#blockInspectorModeAdaptive .sb-block-design-panel--mode {
+    display: block !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+}
+
+#blockInspectorModeAdaptive .sb-block-design-panel--mode > summary {
+    display: none !important;
+}
+
+#blockInspectorModeAdaptive .sb-block-design-panel__body {
+    padding: 0 !important;
+}
+
+#blockInspectorModeAdaptive .sb-block-visibility-row {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px !important;
+    margin: 0 0 10px !important;
+}
+
+#blockInspectorModeAdaptive .sb-block-visibility-row label {
+    min-width: 0;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    box-sizing: border-box;
+    padding: 6px;
+    border: 1px solid #dfe7f0;
+    border-radius: 9px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 9.5px;
+    font-weight: 760;
+    text-align: center;
+}
+
+#blockInspectorModeAdaptive .sb-form-grid {
+    gap: 9px !important;
+}
+
+.sb-block-mode-style-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px !important;
+    margin: 12px 0 0 !important;
+    padding-top: 11px !important;
+    border-top: 1px solid #edf1f5 !important;
+}
+
+.sb-block-mode-style-actions .sb-btn {
+    width: 100%;
+}
+
+#blockInspector > .sb-block-common-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px !important;
+    margin: 10px 0 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+#blockInspector > .sb-block-common-actions .sb-btn {
+    width: 100%;
+    min-width: 0;
+}
+
+#blockInspector > .sb-advanced-toggle {
+    margin-top: 10px !important;
+}
+
+body.sb-editor-theme-dark .sb-block-inspector-context,
+body.sb-editor-theme-dark .sb-block-mode-pane,
+body.sb-editor-theme-dark .sb-block-mode-tabs button.is-active {
+    border-color: #334155;
+    background: #111827;
+}
+
+body.sb-editor-theme-dark .sb-block-mode-tabs {
+    border-color: #334155;
+    background: #0f172a;
+}
+
+body.sb-editor-theme-dark .sb-block-inspector-context strong,
+body.sb-editor-theme-dark .sb-block-mode-pane__head strong {
+    color: #f1f5f9;
+}
+
+body.sb-editor-theme-dark .sb-block-inspector-context small,
+body.sb-editor-theme-dark .sb-block-mode-pane__head span,
+body.sb-editor-theme-dark .sb-block-mode-tabs button {
+    color: #94a3b8;
+}
+
+body.sb-editor-theme-dark .sb-block-mode-tabs button.is-active {
+    color: #93c5fd;
+}
+
+body.sb-editor-theme-dark .sb-block-mode-empty,
+body.sb-editor-theme-dark .sb-block-mode-fields > .sb-switch,
+body.sb-editor-theme-dark .sb-block-mode-fields > .sb-checkbox,
+body.sb-editor-theme-dark .sb-block-mode-fields > label:not(.sb-field),
+body.sb-editor-theme-dark #blockInspectorModeAdaptive .sb-block-visibility-row label {
+    border-color: #334155;
+    background: #0f172a;
+    color: #cbd5e1;
+}
+
+@media (max-width: 1180px) {
+    .sb-block-mode-fields {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .sb-block-mode-tabs {
+        position: sticky;
+        top: 0;
+        z-index: 15;
+    }
+
+    #blockInspectorModeAdaptive .sb-block-visibility-row {
+        grid-template-columns: 1fr;
+    }
+}

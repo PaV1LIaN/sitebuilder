@@ -1,0 +1,41 @@
+/* =========================================================
+   SITEBUILDER / SECTIONS 2.0 / STAGE 1
+   Desktop column ratios.
+   Tablet/mobile continue using existing responsive column counts.
+   ========================================================= */
+
+@media (min-width: 1025px) {
+    .sb-page-section__grid,
+    .sb-section-grid {
+        grid-template-columns:
+            var(
+                --sb-section-grid-template,
+                repeat(
+                    var(--sb-section-columns, 1),
+                    minmax(0, 1fr)
+                )
+            ) !important;
+    }
+}
+
+@media (max-width: 1024px) {
+    .sb-page-section__grid,
+    .sb-section-grid {
+        grid-template-columns:
+            repeat(
+                var(--sb-section-tablet-columns, 1),
+                minmax(0, 1fr)
+            ) !important;
+    }
+}
+
+@media (max-width: 640px) {
+    .sb-page-section__grid,
+    .sb-section-grid {
+        grid-template-columns:
+            repeat(
+                var(--sb-section-mobile-columns, 1),
+                minmax(0, 1fr)
+            ) !important;
+    }
+}

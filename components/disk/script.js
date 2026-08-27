@@ -27,7 +27,13 @@
       items: [],
       selectedIds: [],
       searchQuery: '',
+      page: 1,
+      pageSize: 20,
+      pageSizeOptions: [10, 20, 50, 100],
       viewMode: (parsed.settings && parsed.settings.viewMode) || 'table',
+      folderAccessItems: [],
+      folderAccessUsers: [],
+      selectedFolderAccessUser: null,
       loading: false,
       error: null
     };
@@ -59,6 +65,7 @@
       this.state.viewMode = (this.state.settings && this.state.settings.viewMode) || 'table';
 
       this.prepareModernUi();
+      this.applyPermissions();
       this.applyInitialViewMode();
 
       if (!this.state.permissions.canView) {
@@ -109,6 +116,20 @@
     }
 
     this.renameTypeColumnToAddedBy();
+  };
+
+  DiskComponent.prototype.applyPermissions = function () {
+    var permissions = this.state.permissions || {};
+
+    this.root.querySelectorAll('[data-permission]').forEach(function (node) {
+      var key = node.getAttribute('data-permission') || '';
+      node.hidden = !permissions[key];
+    });
+
+    var accessButton = this.root.querySelector('[data-action="folder-access"]');
+    if (accessButton) {
+      accessButton.hidden = !permissions.canManageAccess;
+    }
   };
 
   DiskComponent.prototype.renameTypeColumnToAddedBy = function () {
@@ -306,10 +327,13 @@
       }
 
       this.state.currentFolderId = folderId;
+      this.state.page = 1;
       this.state.items = Array.isArray(res.data.items) ? res.data.items : [];
       this.state.breadcrumbs = Array.isArray(res.data.breadcrumbs) ? res.data.breadcrumbs : [];
+      this.state.permissions = res.data.permissions || this.state.permissions || {};
       this.state.selectedIds = [];
 
+      this.applyPermissions();
       this.renderAll();
 
       if (res.meta && res.meta.noRoot) {
@@ -344,6 +368,7 @@
       }
 
       this.state.items = Array.isArray(res.data.items) ? res.data.items : [];
+      this.state.page = 1;
       this.state.selectedIds = [];
       this.renderAll();
 
@@ -483,6 +508,254 @@
     return folders.concat(files);
   };
 
+  DiskComponent.prototype.getPaginationInfo = function () {
+    var items = this.getDisplayItems();
+    var options = Array.isArray(this.state.pageSizeOptions)
+      ? this.state.pageSizeOptions
+      : [10, 20, 50, 100];
+
+    var pageSize = Number(this.state.pageSize || 20);
+
+    if (options.indexOf(pageSize) === -1) {
+      pageSize = 20;
+    }
+
+    var total = items.length;
+    var totalPages = Math.max(1, Math.ceil(total / pageSize));
+    var page = Number(this.state.page || 1);
+
+    if (!Number.isFinite(page)) {
+      page = 1;
+    }
+
+    page = Math.max(1, Math.min(totalPages, Math.floor(page)));
+
+    var start = total > 0 ? (page - 1) * pageSize : 0;
+    var end = Math.min(start + pageSize, total);
+
+    this.state.page = page;
+    this.state.pageSize = pageSize;
+
+    return {
+      items: items,
+      total: total,
+      totalPages: totalPages,
+      page: page,
+      pageSize: pageSize,
+      start: start,
+      end: end
+    };
+  };
+
+  DiskComponent.prototype.getPagedDisplayItems = function () {
+    var info = this.getPaginationInfo();
+
+    return info.items.slice(info.start, info.end);
+  };
+
+  DiskComponent.prototype.getPaginationTokens = function (page, totalPages) {
+    if (totalPages <= 7) {
+      var allPages = [];
+
+      for (var allPage = 1; allPage <= totalPages; allPage++) {
+        allPages.push(allPage);
+      }
+
+      return allPages;
+    }
+
+    var tokens = [1];
+    var start = Math.max(2, page - 1);
+    var end = Math.min(totalPages - 1, page + 1);
+
+    if (page <= 4) {
+      end = Math.min(totalPages - 1, 5);
+    }
+
+    if (page >= totalPages - 3) {
+      start = Math.max(2, totalPages - 4);
+    }
+
+    if (start > 2) {
+      tokens.push('ellipsis-left');
+    }
+
+    for (var current = start; current <= end; current++) {
+      tokens.push(current);
+    }
+
+    if (end < totalPages - 1) {
+      tokens.push('ellipsis-right');
+    }
+
+    tokens.push(totalPages);
+
+    return tokens;
+  };
+
+  DiskComponent.prototype.setPage = function (page) {
+    var info = this.getPaginationInfo();
+    var nextPage = Math.max(
+      1,
+      Math.min(info.totalPages, Math.floor(Number(page || 1)))
+    );
+
+    this.state.page = nextPage;
+    this.state.selectedIds = [];
+
+    var selectAll = this.root.querySelector('[data-role="select-all"]');
+
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    }
+
+    this.renderAll();
+  };
+
+  DiskComponent.prototype.setPageSize = function (pageSize) {
+    var options = Array.isArray(this.state.pageSizeOptions)
+      ? this.state.pageSizeOptions
+      : [10, 20, 50, 100];
+
+    pageSize = Number(pageSize || 20);
+
+    if (options.indexOf(pageSize) === -1) {
+      pageSize = 20;
+    }
+
+    this.state.pageSize = pageSize;
+    this.state.page = 1;
+    this.state.selectedIds = [];
+
+    var selectAll = this.root.querySelector('[data-role="select-all"]');
+
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    }
+
+    this.renderAll();
+  };
+
+  DiskComponent.prototype.renderPagination = function () {
+    var self = this;
+    var info = this.getPaginationInfo();
+    var tableContainer = this.root.querySelector(
+      '[data-view-container="table"]'
+    );
+    var gridContainer = this.root.querySelector(
+      '[data-view-container="grid"]'
+    );
+    var anchor = gridContainer || tableContainer;
+
+    if (!anchor || !anchor.parentNode) {
+      return;
+    }
+
+    var pagination = this.root.querySelector(
+      '[data-role="disk-pagination"]'
+    );
+
+    if (!pagination) {
+      pagination = document.createElement('div');
+      pagination.className = 'sb-disk__pagination';
+      pagination.setAttribute('data-role', 'disk-pagination');
+
+      anchor.parentNode.insertBefore(
+        pagination,
+        anchor.nextSibling
+      );
+    }
+
+    if (info.total <= 0) {
+      pagination.hidden = true;
+      pagination.innerHTML = '';
+      return;
+    }
+
+    pagination.hidden = false;
+
+    var pageSizeOptions = (
+      Array.isArray(this.state.pageSizeOptions)
+        ? this.state.pageSizeOptions
+        : [10, 20, 50, 100]
+    ).map(function (value) {
+      return ''
+        + '<option value="' + value + '"'
+        + (value === info.pageSize ? ' selected' : '')
+        + '>' + value + '</option>';
+    }).join('');
+
+    var pageButtons = this.getPaginationTokens(
+      info.page,
+      info.totalPages
+    ).map(function (token) {
+      if (typeof token !== 'number') {
+        return '<span class="sb-disk__pagination-ellipsis">…</span>';
+      }
+
+      var active = token === info.page;
+
+      return ''
+        + '<button type="button"'
+        + ' class="sb-disk__pagination-btn'
+        + (active ? ' is-active' : '') + '"'
+        + ' data-pagination-page="' + token + '"'
+        + (active ? ' aria-current="page"' : '')
+        + '>' + token + '</button>';
+    }).join('');
+
+    pagination.innerHTML = ''
+      + '<div class="sb-disk__pagination-summary">'
+      + '  <span>Показано '
+      + (info.start + 1)
+      + '–'
+      + info.end
+      + ' из '
+      + info.total
+      + '</span>'
+      + '  <label class="sb-disk__page-size">'
+      + '    <span>На странице</span>'
+      + '    <select data-role="page-size">' + pageSizeOptions + '</select>'
+      + '  </label>'
+      + '</div>'
+      + '<div class="sb-disk__pagination-pages">'
+      + '  <button type="button" class="sb-disk__pagination-btn sb-disk__pagination-btn--wide"'
+      + ' data-pagination-page="' + (info.page - 1) + '"'
+      + (info.page <= 1 ? ' disabled' : '')
+      + '>Назад</button>'
+      + pageButtons
+      + '  <button type="button" class="sb-disk__pagination-btn sb-disk__pagination-btn--wide"'
+      + ' data-pagination-page="' + (info.page + 1) + '"'
+      + (info.page >= info.totalPages ? ' disabled' : '')
+      + '>Вперёд</button>'
+      + '</div>';
+
+    pagination.querySelectorAll('[data-pagination-page]').forEach(
+      function (button) {
+        button.addEventListener('click', function () {
+          if (button.disabled) {
+            return;
+          }
+
+          self.setPage(
+            Number(button.getAttribute('data-pagination-page') || 1)
+          );
+        });
+      }
+    );
+
+    var pageSizeSelect = pagination.querySelector(
+      '[data-role="page-size"]'
+    );
+
+    if (pageSizeSelect) {
+      pageSizeSelect.addEventListener('change', function () {
+        self.setPageSize(Number(pageSizeSelect.value || 20));
+      });
+    }
+  };
   DiskComponent.prototype.renderHistoryControl = function (item) {
     if (!item || String(item.entityType || '') !== 'file') {
       return '';
@@ -1594,6 +1867,22 @@
   DiskComponent.prototype.bindStaticEvents = function () {
     var self = this;
 
+    if (!this._diskActionMenuDocumentBound) {
+      this._diskActionMenuDocumentBound = true;
+
+      document.addEventListener('click', function (event) {
+        if (!event.target.closest('[data-action-menu-toggle]')) {
+          self.closeActionMenus();
+        }
+      });
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          self.closeActionMenus();
+        }
+      });
+    }
+
     this.root.addEventListener('dblclick', async function (e) {
       var item = e.target.closest(
         '.sb-disk__row[data-id][data-entity-type], .sb-disk__card[data-id][data-entity-type]'
@@ -1790,22 +2079,73 @@
     var searchInput = this.root.querySelector('[data-role="search-input"]');
     if (searchInput) {
       var searchTimer = null;
+      var searchIsComposing = false;
+      var lastScheduledValue = null;
 
-      searchInput.addEventListener('input', function () {
+      var runSearch = function () {
         var value = String(searchInput.value || '').trim();
 
         clearTimeout(searchTimer);
+        searchTimer = null;
 
-        searchTimer = setTimeout(function () {
-          self.state.searchQuery = value;
+        if (value === lastScheduledValue) {
+          return;
+        }
 
-          if (value === '') {
-            self.loadFolder(self.state.currentFolderId || self.state.rootFolderId);
-            return;
+        lastScheduledValue = value;
+        self.state.searchQuery = value;
+        self.state.page = 1;
+
+        if (value === '') {
+          self.loadFolder(
+            self.state.currentFolderId || self.state.rootFolderId
+          );
+          return;
+        }
+
+        self.search(value);
+      };
+
+      var scheduleSearch = function () {
+        clearTimeout(searchTimer);
+
+        if (searchIsComposing) {
+          return;
+        }
+
+        searchTimer = setTimeout(runSearch, 700);
+      };
+
+      searchInput.addEventListener('compositionstart', function () {
+        searchIsComposing = true;
+        clearTimeout(searchTimer);
+      });
+
+      searchInput.addEventListener('compositionend', function () {
+        searchIsComposing = false;
+        scheduleSearch();
+      });
+
+      searchInput.addEventListener('input', function () {
+        scheduleSearch();
+      });
+
+      searchInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          runSearch();
+          return;
+        }
+
+        if (event.key === 'Escape') {
+          event.preventDefault();
+
+          if (searchInput.value !== '') {
+            searchInput.value = '';
+            lastScheduledValue = null;
+            runSearch();
           }
-
-          self.search(value);
-        }, 250);
+        }
       });
     }
 
@@ -1813,7 +2153,7 @@
     if (selectAll) {
       selectAll.addEventListener('change', function () {
         var checked = !!selectAll.checked;
-        var checkboxes = self.root.querySelectorAll('.sb-disk__item-check');
+        var checkboxes = self.getActiveItemCheckboxes();
 
         self.state.selectedIds = [];
 
@@ -1859,6 +2199,43 @@
       });
     }
 
+    var folderAccessBtn = this.root.querySelector('[data-action="folder-access"]');
+    if (folderAccessBtn) {
+      folderAccessBtn.addEventListener('click', async function () {
+        await self.openFolderAccessModal();
+      });
+    }
+
+    this.root.querySelectorAll('[data-action="close-folder-access"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        self.closeFolderAccessModal();
+      });
+    });
+
+    var folderAccessSearchBtn = this.root.querySelector('[data-action="search-folder-access-user"]');
+    if (folderAccessSearchBtn) {
+      folderAccessSearchBtn.addEventListener('click', async function () {
+        await self.searchFolderAccessUsers();
+      });
+    }
+
+    var folderAccessQuery = this.root.querySelector('[data-role="folder-access-query"]');
+    if (folderAccessQuery) {
+      folderAccessQuery.addEventListener('keydown', async function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          await self.searchFolderAccessUsers();
+        }
+      });
+    }
+
+    var folderAccessSaveBtn = this.root.querySelector('[data-action="save-folder-access"]');
+    if (folderAccessSaveBtn) {
+      folderAccessSaveBtn.addEventListener('click', async function () {
+        await self.saveFolderAccess();
+      });
+    }
+
     var initSiteRootBtn = this.root.querySelector('[data-action="init-site-root"]');
     if (initSiteRootBtn) {
       initSiteRootBtn.addEventListener('click', async function () {
@@ -1874,6 +2251,42 @@
     }
 
     this.root.addEventListener('click', async function (e) {
+      var menuToggle = e.target.closest('[data-action-menu-toggle]');
+
+      if (menuToggle) {
+        e.preventDefault();
+        e.stopPropagation();
+        self.toggleActionMenu(menuToggle);
+        return;
+      }
+
+      var retryLoad = e.target.closest('[data-action="retry-load"]');
+
+      if (retryLoad) {
+        await self.loadFolder(
+          self.state.currentFolderId || self.state.rootFolderId
+        );
+        return;
+      }
+
+      var clearSelection = e.target.closest('[data-action="clear-selection"]');
+
+      if (clearSelection) {
+        self.clearSelection();
+        return;
+      }
+
+      var openFileMenuItem = e.target.closest('[data-row-action="open-file"]');
+
+      if (openFileMenuItem) {
+        var openFileRow = e.target.closest('[data-id][data-entity-type="file"]');
+
+        if (openFileRow) {
+          self.openFileFromElement(openFileRow);
+        }
+
+        return;
+      }
       var crumb = e.target.closest('.sb-disk__crumb');
       if (crumb) {
         var crumbFolderId = Number(crumb.getAttribute('data-folder-id') || 0);
@@ -2083,7 +2496,10 @@
 
       var downloadSelectedBtn = e.target.closest('[data-action="download-selected"]');
       if (downloadSelectedBtn) {
-        var rows = self.root.querySelectorAll('[data-id][data-entity-type="file"]');
+        var activeContainer = self.getActiveViewContainer();
+        var rows = activeContainer
+          ? activeContainer.querySelectorAll('[data-id][data-entity-type="file"]')
+          : [];
 
         rows.forEach(function (row) {
           var id = Number(row.getAttribute('data-id') || 0);
@@ -2122,26 +2538,35 @@
   };
 
   DiskComponent.prototype.collectSelectedItemsPayload = function () {
-    var rows = this.root.querySelectorAll('[data-id][data-entity-type]');
+    var container = this.getActiveViewContainer();
+    var rows = container
+      ? container.querySelectorAll('[data-id][data-entity-type]')
+      : [];
     var items = [];
+    var seen = {};
 
     rows.forEach(function (row) {
       var id = Number(row.getAttribute('data-id') || 0);
-      if (id <= 0) {
+      var entityType = row.getAttribute('data-entity-type') || '';
+      var key = entityType + ':' + id;
+
+      if (
+        id <= 0
+        || this.state.selectedIds.indexOf(id) === -1
+        || seen[key]
+      ) {
         return;
       }
 
-      if (this.state.selectedIds.indexOf(id) !== -1) {
-        items.push({
-          id: id,
-          entityType: row.getAttribute('data-entity-type')
-        });
-      }
+      seen[key] = true;
+      items.push({
+        id: id,
+        entityType: entityType
+      });
     }, this);
 
     return items;
   };
-
   DiskComponent.prototype.syncSelectedState = function () {
     var rows = this.root.querySelectorAll('[data-id][data-entity-type]');
 
@@ -2151,13 +2576,20 @@
       row.classList.toggle('is-selected', selected);
     }, this);
 
-    var cards = this.root.querySelectorAll('.sb-disk__card[data-id]');
+    var activeCheckboxes = Array.prototype.slice.call(
+      this.getActiveItemCheckboxes()
+    );
+    var checkedCount = activeCheckboxes.filter(function (checkbox) {
+      return checkbox.checked;
+    }).length;
+    var selectAll = this.root.querySelector('[data-role="select-all"]');
 
-    cards.forEach(function (card) {
-      var id = Number(card.getAttribute('data-id') || 0);
-      var selected = this.state.selectedIds.indexOf(id) !== -1;
-      card.classList.toggle('is-selected', selected);
-    }, this);
+    if (selectAll) {
+      selectAll.checked = activeCheckboxes.length > 0
+        && checkedCount === activeCheckboxes.length;
+      selectAll.indeterminate = checkedCount > 0
+        && checkedCount < activeCheckboxes.length;
+    }
 
     var bulkbar = this.root.querySelector('[data-role="bulkbar"]');
     var bulkbarText = this.root.querySelector('[data-role="bulkbar-text"]');
@@ -2165,17 +2597,37 @@
     if (bulkbar && bulkbarText) {
       bulkbar.hidden = !this.state.selectedIds.length;
       bulkbarText.textContent = 'Выбрано: ' + this.state.selectedIds.length;
+
+      var actions = bulkbar.querySelector('.sb-disk__bulkbar-actions');
+
+      if (actions && !actions.querySelector('[data-action="clear-selection"]')) {
+        var clearButton = document.createElement('button');
+        clearButton.type = 'button';
+        clearButton.className = 'sb-disk__btn sb-disk__btn--ghost';
+        clearButton.setAttribute('data-action', 'clear-selection');
+        clearButton.textContent = 'Снять выбор';
+        actions.appendChild(clearButton);
+      }
     }
   };
-
   DiskComponent.prototype.renderAll = function () {
     this.prepareModernUi();
     this.renderSubtitle();
     this.renderBreadcrumbs();
     this.renderItemsTable();
     this.renderItemsGrid();
+    this.renderPagination();
+
+    var selectAll = this.root.querySelector('[data-role="select-all"]');
+
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    }
+
     this.syncSelectedState();
     this.arrangeModernLayout();
+    this.polishCommandPanel();
   };
 
   DiskComponent.prototype.arrangeModernLayout = function () {
@@ -2183,19 +2635,18 @@
 
     var breadcrumbs = root.querySelector('[data-role="breadcrumbs"]');
     var refreshBtn = root.querySelector('[data-action="refresh"]');
+    var folderAccessBtn = root.querySelector('[data-action="folder-access"]');
     var settingsBtn = root.querySelector('[data-action="settings"]');
-
     var searchInput = root.querySelector('[data-role="search-input"]');
     var sortSelect = root.querySelector('[data-role="sort-select"]');
     var uploadBtn = root.querySelector('[data-action="upload"]');
     var createFolderBtn = root.querySelector('[data-action="create-folder"]');
-
-    var viewButtons = Array.prototype.slice.call(root.querySelectorAll('.sb-disk__view-btn'));
-
+    var viewButtons = Array.prototype.slice.call(
+      root.querySelectorAll('.sb-disk__view-btn')
+    );
     var tableContainer = root.querySelector('[data-view-container="table"]');
     var gridContainer = root.querySelector('[data-view-container="grid"]');
     var bulkbar = root.querySelector('[data-role="bulkbar"]');
-
     var anchor = bulkbar || tableContainer || gridContainer || root.firstElementChild;
 
     if (!anchor) {
@@ -2203,19 +2654,13 @@
     }
 
     var header = root.querySelector('.sb-disk__smart-header');
+
     if (!header) {
       header = document.createElement('div');
       header.className = 'sb-disk__smart-header';
-
-      var headerLeft = document.createElement('div');
-      headerLeft.className = 'sb-disk__smart-header-left';
-
-      var headerRight = document.createElement('div');
-      headerRight.className = 'sb-disk__smart-header-right';
-
-      header.appendChild(headerLeft);
-      header.appendChild(headerRight);
-
+      header.innerHTML = ''
+        + '<div class="sb-disk__smart-header-left"></div>'
+        + '<div class="sb-disk__smart-header-right"></div>';
       root.insertBefore(header, anchor);
     }
 
@@ -2226,27 +2671,21 @@
       headerLeftNode.appendChild(breadcrumbs);
     }
 
-    if (refreshBtn) {
-      headerRightNode.appendChild(refreshBtn);
-    }
-
-    if (settingsBtn) {
-      headerRightNode.appendChild(settingsBtn);
-    }
+    [refreshBtn, folderAccessBtn, settingsBtn].forEach(function (button) {
+      if (button) {
+        button.classList.add('sb-disk-modern-control');
+        headerRightNode.appendChild(button);
+      }
+    });
 
     var toolbar = root.querySelector('.sb-disk__smart-toolbar');
+
     if (!toolbar) {
       toolbar = document.createElement('div');
       toolbar.className = 'sb-disk__smart-toolbar';
-
-      var toolbarLeft = document.createElement('div');
-      toolbarLeft.className = 'sb-disk__smart-toolbar-left';
-
-      var toolbarRight = document.createElement('div');
-      toolbarRight.className = 'sb-disk__smart-toolbar-right';
-
-      toolbar.appendChild(toolbarLeft);
-      toolbar.appendChild(toolbarRight);
+      toolbar.innerHTML = ''
+        + '<div class="sb-disk__smart-toolbar-left"></div>'
+        + '<div class="sb-disk__smart-toolbar-right"></div>';
 
       if (header.nextSibling) {
         root.insertBefore(toolbar, header.nextSibling);
@@ -2258,27 +2697,38 @@
     var toolbarLeftNode = toolbar.querySelector('.sb-disk__smart-toolbar-left');
     var toolbarRightNode = toolbar.querySelector('.sb-disk__smart-toolbar-right');
 
-    if (searchInput) {
-      toolbarLeftNode.appendChild(searchInput);
-    }
-
-    if (sortSelect) {
-      toolbarLeftNode.appendChild(sortSelect);
-    }
-
-    if (uploadBtn) {
-      toolbarRightNode.appendChild(uploadBtn);
-    }
-
-    if (createFolderBtn) {
-      toolbarRightNode.appendChild(createFolderBtn);
-    }
-
-    viewButtons.forEach(function (btn) {
-      toolbarRightNode.appendChild(btn);
+    [searchInput, sortSelect].forEach(function (control) {
+      if (control && control.parentNode !== toolbarLeftNode) {
+        toolbarLeftNode.appendChild(control);
+      }
     });
-  };
 
+    [uploadBtn, createFolderBtn].forEach(function (button) {
+      if (button) {
+        toolbarRightNode.appendChild(button);
+      }
+    });
+
+    viewButtons.forEach(function (button) {
+      toolbarRightNode.appendChild(button);
+    });
+
+    var commandPanel = root.querySelector('.sb-disk__command-panel');
+
+    if (!commandPanel) {
+      commandPanel = document.createElement('div');
+      commandPanel.className = 'sb-disk__command-panel';
+      root.insertBefore(commandPanel, header);
+    }
+
+    if (header.parentNode !== commandPanel) {
+      commandPanel.appendChild(header);
+    }
+
+    if (toolbar.parentNode !== commandPanel) {
+      commandPanel.appendChild(toolbar);
+    }
+  };
   DiskComponent.prototype.renderSubtitle = function () {
     var node = this.root.querySelector('[data-role="subtitle"]');
     if (!node) {
@@ -2335,149 +2785,368 @@
     }).join('<span class="sb-disk__crumb-separator">/</span>');
   };
 
+  /* =========================================================
+     SiteBuilder Disk visual refinement v2
+     ========================================================= */
+
+  DiskComponent.prototype.getActiveViewContainer = function () {
+    var selector = this.state.viewMode === 'grid'
+      ? '[data-view-container="grid"]'
+      : '[data-view-container="table"]';
+
+    return this.root.querySelector(selector);
+  };
+
+  DiskComponent.prototype.getActiveItemCheckboxes = function () {
+    var container = this.getActiveViewContainer();
+
+    return container
+      ? container.querySelectorAll('.sb-disk__item-check')
+      : [];
+  };
+
+  DiskComponent.prototype.clearSelection = function () {
+    this.state.selectedIds = [];
+
+    this.root.querySelectorAll('.sb-disk__item-check').forEach(
+      function (checkbox) {
+        checkbox.checked = false;
+      }
+    );
+
+    var selectAll = this.root.querySelector('[data-role="select-all"]');
+
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    }
+
+    this.syncSelectedState();
+  };
+
+  DiskComponent.prototype.closeActionMenus = function (exceptWrap) {
+    this.root.querySelectorAll('.sb-disk__action-menu-wrap.is-open').forEach(
+      function (wrap) {
+        if (exceptWrap && wrap === exceptWrap) {
+          return;
+        }
+
+        wrap.classList.remove('is-open');
+
+        var menu = wrap.querySelector('.sb-disk__action-menu');
+        var toggle = wrap.querySelector('[data-action-menu-toggle]');
+
+        if (menu) {
+          menu.hidden = true;
+          menu.classList.remove('is-up');
+        }
+
+        if (toggle) {
+          toggle.setAttribute('aria-expanded', 'false');
+        }
+      }
+    );
+  };
+
+  DiskComponent.prototype.toggleActionMenu = function (button) {
+    var wrap = button
+      ? button.closest('.sb-disk__action-menu-wrap')
+      : null;
+
+    if (!wrap) {
+      return;
+    }
+
+    var menu = wrap.querySelector('.sb-disk__action-menu');
+
+    if (!menu) {
+      return;
+    }
+
+    var shouldOpen = menu.hidden || !wrap.classList.contains('is-open');
+
+    this.closeActionMenus(wrap);
+
+    wrap.classList.toggle('is-open', shouldOpen);
+    menu.hidden = !shouldOpen;
+    button.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+
+    if (shouldOpen) {
+      var rect = wrap.getBoundingClientRect();
+      var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      var spaceBelow = viewportHeight - rect.bottom;
+
+      menu.classList.toggle(
+        'is-up',
+        spaceBelow < 250 && rect.top > 250
+      );
+    }
+  };
+
+  DiskComponent.prototype.renderItemActions = function (item) {
+    var permissions = this.state.permissions || {};
+    var menuItems = [];
+    var entityType = String(item.entityType || 'file');
+
+    if (entityType === 'folder') {
+      menuItems.push(
+        '<button type="button" class="sb-disk__action-menu-item" data-row-action="open">'
+        + '<span aria-hidden="true">↗</span><strong>Открыть папку</strong>'
+        + '</button>'
+      );
+    } else {
+      menuItems.push(
+        '<button type="button" class="sb-disk__action-menu-item" data-row-action="open-file">'
+        + '<span aria-hidden="true">↗</span><strong>Открыть</strong>'
+        + '</button>'
+      );
+
+      if (permissions.canDownload) {
+        menuItems.push(
+          '<button type="button" class="sb-disk__action-menu-item" data-row-action="download">'
+          + '<span aria-hidden="true">↓</span><strong>Скачать</strong>'
+          + '</button>'
+        );
+      }
+
+      if (this.getHistoryItemsForFile(item.name).length) {
+        menuItems.push(
+          '<button type="button" class="sb-disk__action-menu-item" data-row-action="history">'
+          + '<span aria-hidden="true">↺</span><strong>История</strong>'
+          + '</button>'
+        );
+      }
+
+      if (isArchiveItem(item) && permissions.canUpload) {
+        menuItems.push(
+          '<button type="button" class="sb-disk__action-menu-item" data-row-action="unpack">'
+          + '<span aria-hidden="true">⇲</span><strong>Распаковать</strong>'
+          + '</button>'
+        );
+      }
+    }
+
+    if (permissions.canRename) {
+      menuItems.push(
+        '<button type="button" class="sb-disk__action-menu-item" data-row-action="rename">'
+        + '<span aria-hidden="true">✎</span><strong>Переименовать</strong>'
+        + '</button>'
+      );
+    }
+
+    if (permissions.canDelete) {
+      menuItems.push(
+        '<button type="button" class="sb-disk__action-menu-item is-danger" data-row-action="delete">'
+        + '<span aria-hidden="true">×</span><strong>Удалить</strong>'
+        + '</button>'
+      );
+    }
+
+    var hiddenOpenControl = renderOpenControl(item);
+
+    if (!menuItems.length) {
+      return hiddenOpenControl;
+    }
+
+    var menuId = 'sb-disk-action-menu-'
+      + Number(this.state.blockId || 0)
+      + '-'
+      + entityType
+      + '-'
+      + Number(item.id || 0);
+
+    return hiddenOpenControl
+      + '<div class="sb-disk__action-menu-wrap">'
+      + '  <button type="button" class="sb-disk__action-menu-toggle"'
+      + '    data-action-menu-toggle'
+      + '    aria-label="Действия с ' + escapeHtml(item.name || 'элементом') + '"'
+      + '    aria-controls="' + escapeHtml(menuId) + '"'
+      + '    aria-expanded="false"'
+      + '    title="Действия">⋯</button>'
+      + '  <div class="sb-disk__action-menu" id="' + escapeHtml(menuId) + '" role="menu" hidden>'
+      + menuItems.join('')
+      + '  </div>'
+      + '</div>';
+  };
   DiskComponent.prototype.renderItemsTable = function () {
     var tbody = this.root.querySelector('[data-role="items-table"]');
+
     if (!tbody) {
-        return;
+      return;
     }
 
     var self = this;
 
-    tbody.innerHTML = this.getDisplayItems().map(function (item) {
-        var typeText = getItemTypeText(item);
-        var addedByText = getItemAddedByText(item);
-        var sizeText = item.entityType === 'folder' ? '—' : (item.size ? formatBytes(item.size) : '—');
-        var iconHtml = renderItemIcon(item);
-        var openControl = renderOpenControl(item);
-        var historyControl = self.renderHistoryControl(item);
+    tbody.innerHTML = this.getPagedDisplayItems().map(function (item) {
+      var typeText = getItemTypeText(item);
+      var addedByText = getItemAddedByText(item);
+      var addedByCompact = formatPersonCompact(addedByText);
+      var initials = getPersonInitials(addedByText);
+      var dateInfo = formatDiskDate(item.updatedAt || '');
+      var sizeText = item.entityType === 'folder'
+        ? '—'
+        : (item.size ? formatBytes(item.size) : '—');
+      var iconHtml = renderItemIcon(item);
 
-        return '' +
-        '<tr class="sb-disk__row ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
-            'data-id="' + escapeHtml(item.id) + '" ' +
-            'data-entity-type="' + escapeHtml(item.entityType) + '" ' +
-            'data-name="' + escapeHtml(item.name) + '" ' +
-            'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" ' +
-            'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" ' +
-            'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">' +
-            '<td class="sb-disk__check-cell">' +
-                '<input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">' +
-            '</td>' +
-            '<td class="sb-disk__name-cell">' +
-                '<div class="sb-disk__modern-name">' +
-                iconHtml +
-                '<div class="sb-disk__modern-name-main">' +
-                    '<div class="sb-disk__modern-name-title">' + escapeHtml(item.name) + '</div>' +
-                    '<div class="sb-disk__modern-name-sub">' + escapeHtml(typeText) + '</div>' +
-                '</div>' +
-                '</div>' +
-            '</td>' +
-            '<td><span class="sb-disk__added-by">' + escapeHtml(addedByText) + '</span></td>' +
-            '<td>' + escapeHtml(sizeText) + '</td>' +
-            '<td>' + escapeHtml(item.updatedAt || '—') + '</td>' +
-            '<td>' +
-                '<div class="sb-disk__actions">' +
-                openControl +
-                historyControl +
-                (item.entityType === 'file'
-                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
-                    : '') +
-                (isArchiveItem(item)
-                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="unpack">Распаковать</button>'
-                    : '') +
-                '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' +
-                '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' +
-                '</div>' +
-            '</td>' +
-        '</tr>';
+      return ''
+        + '<tr class="sb-disk__row ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" '
+        + 'data-id="' + escapeHtml(item.id) + '" '
+        + 'data-entity-type="' + escapeHtml(item.entityType) + '" '
+        + 'data-name="' + escapeHtml(item.name) + '" '
+        + 'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" '
+        + 'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" '
+        + 'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">'
+        + '  <td class="sb-disk__check-cell">'
+        + '    <input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">'
+        + '  </td>'
+        + '  <td class="sb-disk__name-cell">'
+        + '    <div class="sb-disk__modern-name">'
+        + iconHtml
+        + '      <div class="sb-disk__modern-name-main">'
+        + '        <div class="sb-disk__modern-name-title" title="' + escapeHtml(item.name) + '">'
+        + escapeHtml(item.name)
+        + '        </div>'
+        + '        <div class="sb-disk__modern-name-sub">' + escapeHtml(typeText) + '</div>'
+        + '      </div>'
+        + '    </div>'
+        + '  </td>'
+        + '  <td>'
+        + '    <div class="sb-disk__author" title="' + escapeHtml(addedByText) + '">'
+        + '      <span class="sb-disk__author-avatar">' + escapeHtml(initials) + '</span>'
+        + '      <span class="sb-disk__author-name">' + escapeHtml(addedByCompact) + '</span>'
+        + '    </div>'
+        + '  </td>'
+        + '  <td class="sb-disk__size-cell">' + escapeHtml(sizeText) + '</td>'
+        + '  <td>'
+        + '    <div class="sb-disk__date" title="' + escapeHtml(dateInfo.title) + '">'
+        + '      <span>' + escapeHtml(dateInfo.dateText) + '</span>'
+        + (dateInfo.timeText ? '<small>' + escapeHtml(dateInfo.timeText) + '</small>' : '')
+        + '    </div>'
+        + '  </td>'
+        + '  <td class="sb-disk__actions-cell">'
+        + '    <div class="sb-disk__actions">' + self.renderItemActions(item) + '</div>'
+        + '  </td>'
+        + '</tr>';
     }).join('');
-    };
+  };
+  DiskComponent.prototype.renderItemsGrid = function () {
+    var container = this.root.querySelector('[data-view-container="grid"]');
 
-    DiskComponent.prototype.renderItemsGrid = function () {
-        var container = this.root.querySelector('[data-view-container="grid"]');
-        if (!container) {
-            return;
-        }
+    if (!container) {
+      return;
+    }
 
-        container.classList.add('sb-disk__grid');
+    container.classList.add('sb-disk__grid');
 
-        var self = this;
+    var self = this;
 
-        container.innerHTML = this.getDisplayItems().map(function (item) {
-            var typeText = getItemTypeText(item);
-            var addedByText = getItemAddedByText(item);
-            var sizeText = item.entityType === 'folder' ? 'Папка' : (item.size ? formatBytes(item.size) : '—');
-            var openControl = renderOpenControl(item);
-            var historyControl = self.renderHistoryControl(item);
+    container.innerHTML = this.getPagedDisplayItems().map(function (item) {
+      var typeText = getItemTypeText(item);
+      var addedByText = getItemAddedByText(item);
+      var addedByCompact = formatPersonCompact(addedByText);
+      var initials = getPersonInitials(addedByText);
+      var dateInfo = formatDiskDate(item.updatedAt || '');
+      var sizeText = item.entityType === 'folder'
+        ? 'Папка'
+        : (item.size ? formatBytes(item.size) : '—');
 
-            return '' +
-            '<div class="sb-disk__card ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" ' +
-                'data-id="' + escapeHtml(item.id) + '" ' +
-                'data-entity-type="' + escapeHtml(item.entityType) + '" ' +
-                'data-name="' + escapeHtml(item.name) + '" ' +
-                'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" ' +
-                'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" ' +
-                'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">' +
-                '<div class="sb-disk__card-top">' +
-                    '<label class="sb-disk__card-check">' +
-                    '<input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">' +
-                    '</label>' +
-                    '<span class="sb-disk__type-pill">' + escapeHtml(typeText) + '</span>' +
-                '</div>' +
-                '<div class="sb-disk__card-preview">' +
-                    renderItemIcon(item) +
-                '</div>' +
-                '<div class="sb-disk__card-name">' + escapeHtml(item.name) + '</div>' +
-                '<div class="sb-disk__card-meta">' +
-                    '<span class="sb-disk__card-sub">' + escapeHtml(sizeText) + '</span>' +
-                '</div>' +
-                '<div class="sb-disk__card-meta">' +
-                    '<span class="sb-disk__card-sub">Добавил: ' + escapeHtml(addedByText) + '</span>' +
-                '</div>' +
-                '<div class="sb-disk__card-meta">' +
-                    '<span class="sb-disk__card-sub">' + escapeHtml(item.updatedAt || '') + '</span>' +
-                '</div>' +
-                '<div class="sb-disk__card-actions">' +
-                    openControl +
-                    historyControl +
-                    (item.entityType === 'file'
-                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="download">Скачать</button>'
-                    : '') +
-                    (isArchiveItem(item)
-                    ? '<button type="button" class="sb-disk__row-btn" data-row-action="unpack">Распаковать</button>'
-                    : '') +
-                    '<button type="button" class="sb-disk__row-btn" data-row-action="rename">Переим.</button>' +
-                    '<button type="button" class="sb-disk__row-btn is-danger" data-row-action="delete">Удалить</button>' +
-                '</div>' +
-            '</div>';
-        }).join('');
-        };
-
-
+      return ''
+        + '<div class="sb-disk__card ' + (item.entityType === 'folder' ? 'is-clickable' : '') + '" '
+        + 'data-id="' + escapeHtml(item.id) + '" '
+        + 'data-entity-type="' + escapeHtml(item.entityType) + '" '
+        + 'data-name="' + escapeHtml(item.name) + '" '
+        + 'data-download-url="' + escapeHtml(item.downloadUrl || '') + '" '
+        + 'data-preview-url="' + escapeHtml(item.previewUrl || '') + '" '
+        + 'data-preview-mode="' + escapeHtml(item.previewMode || '') + '">'
+        + '  <div class="sb-disk__card-top">'
+        + '    <label class="sb-disk__card-check">'
+        + '      <input type="checkbox" class="sb-disk__item-check" data-id="' + escapeHtml(item.id) + '">'
+        + '    </label>'
+        + '    <span class="sb-disk__type-pill">' + escapeHtml(typeText) + '</span>'
+        + '  </div>'
+        + '  <div class="sb-disk__card-preview">' + renderItemIcon(item) + '</div>'
+        + '  <div class="sb-disk__card-name" title="' + escapeHtml(item.name) + '">'
+        + escapeHtml(item.name)
+        + '  </div>'
+        + '  <div class="sb-disk__card-meta sb-disk__card-meta--primary">'
+        + '    <span>' + escapeHtml(sizeText) + '</span>'
+        + '    <span>' + escapeHtml(dateInfo.dateText) + (dateInfo.timeText ? ', ' + escapeHtml(dateInfo.timeText) : '') + '</span>'
+        + '  </div>'
+        + '  <div class="sb-disk__card-author" title="' + escapeHtml(addedByText) + '">'
+        + '    <span class="sb-disk__author-avatar">' + escapeHtml(initials) + '</span>'
+        + '    <span class="sb-disk__author-name">' + escapeHtml(addedByCompact) + '</span>'
+        + '  </div>'
+        + '  <div class="sb-disk__card-actions">' + self.renderItemActions(item) + '</div>'
+        + '</div>';
+    }).join('');
+  };
   DiskComponent.prototype.setLoading = function (loading) {
     this.state.loading = !!loading;
+    this.root.classList.toggle('is-loading', !!loading);
 
     var loadingNode = this.root.querySelector('[data-state="loading"]');
-    if (loadingNode) {
-      loadingNode.hidden = !loading;
+
+    if (!loadingNode) {
+      return;
+    }
+
+    if (!loadingNode.getAttribute('data-modern-loading-ready')) {
+      loadingNode.setAttribute('data-modern-loading-ready', '1');
+      loadingNode.innerHTML = ''
+        + '<div class="sb-disk__loading-head">Обновляю содержимое…</div>'
+        + '<div class="sb-disk__skeleton-list">'
+        + [1, 2, 3, 4, 5].map(function () {
+          return ''
+            + '<div class="sb-disk__skeleton-row">'
+            + '  <span class="sb-disk__skeleton-icon"></span>'
+            + '  <span class="sb-disk__skeleton-line"></span>'
+            + '  <span class="sb-disk__skeleton-short"></span>'
+            + '</div>';
+        }).join('')
+        + '</div>';
+    }
+
+    if (loading && typeof this.renderState === 'function') {
+      this.renderState('loading');
+    } else {
+      loadingNode.hidden = true;
     }
   };
-
   DiskComponent.prototype.renderState = function (stateName) {
     var nodes = this.root.querySelectorAll('[data-state]');
 
     nodes.forEach(function (node) {
       node.hidden = true;
 
-      if (node.getAttribute('data-state') === 'empty') {
+      var state = node.getAttribute('data-state');
+
+      if (state === 'empty') {
         node.classList.add('sb-disk-empty-enhanced');
 
         if (!node.getAttribute('data-modern-empty-ready')) {
           node.setAttribute('data-modern-empty-ready', '1');
-          node.innerHTML = '' +
-            '<div class="sb-disk-empty-icon">📁</div>' +
-            '<strong>Пока здесь пусто</strong>' +
-            '<span>Загрузите первый файл или создайте новую папку.</span>';
+          node.innerHTML = ''
+            + '<div class="sb-disk-empty-icon">📁</div>'
+            + '<strong>В этой папке пока нет файлов</strong>'
+            + '<span>Перетащите файлы сюда или нажмите «Загрузить».</span>';
         }
+      }
+
+      if (state === 'error' && !node.getAttribute('data-modern-error-ready')) {
+        node.setAttribute('data-modern-error-ready', '1');
+        node.innerHTML = ''
+          + '<div class="sb-disk__state-icon is-error">!</div>'
+          + '<strong>Не удалось загрузить файлы</strong>'
+          + '<span>Проверьте соединение и повторите попытку.</span>'
+          + '<button type="button" class="sb-disk__retry-btn" data-action="retry-load">Повторить</button>';
+      }
+
+      if (state === 'no-access' && !node.getAttribute('data-modern-access-ready')) {
+        node.setAttribute('data-modern-access-ready', '1');
+        node.innerHTML = ''
+          + '<div class="sb-disk__state-icon">🔒</div>'
+          + '<strong>Нет доступа к этой папке</strong>'
+          + '<span>Обратитесь к администратору сайта для получения прав.</span>';
       }
     });
 
@@ -2486,8 +3155,254 @@
     }
 
     var node = this.root.querySelector('[data-state="' + stateName + '"]');
+
     if (node) {
       node.hidden = false;
+    }
+  };
+  /* =========================================================
+     FOLDER ACCESS
+     ========================================================= */
+
+  DiskComponent.prototype.openFolderAccessModal = async function () {
+    var modal = this.root.querySelector('[data-role="folder-access-modal"]');
+    if (!modal || !this.state.permissions.canManageAccess || !this.state.currentFolderId) {
+      return;
+    }
+
+    modal.hidden = false;
+    this.state.selectedFolderAccessUser = null;
+
+    var editor = this.root.querySelector('[data-role="folder-access-editor"]');
+    if (editor) {
+      editor.hidden = true;
+    }
+
+    var warning = this.root.querySelector('[data-role="folder-access-warning"]');
+    if (warning) {
+      warning.hidden = (this.state.settings.permissionMode || 'inherit_site') === 'custom';
+    }
+
+    var currentCrumb = this.state.breadcrumbs.length
+      ? this.state.breadcrumbs[this.state.breadcrumbs.length - 1]
+      : null;
+    var folderNode = this.root.querySelector('[data-role="folder-access-folder"]');
+    if (folderNode) {
+      folderNode.textContent = (currentCrumb && currentCrumb.name ? currentCrumb.name + ' · ' : '')
+        + 'ID ' + Number(this.state.currentFolderId || 0);
+    }
+
+    await this.loadFolderAccess();
+  };
+
+  DiskComponent.prototype.closeFolderAccessModal = function () {
+    var modal = this.root.querySelector('[data-role="folder-access-modal"]');
+    if (modal) {
+      modal.hidden = true;
+    }
+  };
+
+  DiskComponent.prototype.setFolderAccessMessage = function (message) {
+    var node = this.root.querySelector('[data-role="folder-access-message"]');
+    if (node) {
+      node.textContent = message || '';
+    }
+  };
+
+  DiskComponent.prototype.loadFolderAccess = async function () {
+    try {
+      this.setFolderAccessMessage('Загрузка прав...');
+      var payload = this.getBasePayload();
+      payload.folderId = Number(this.state.currentFolderId || 0);
+      payload.sessid = this.getSessid();
+
+      var res = await this.api('folderAccessList', payload);
+      if (!res || !res.ok) {
+        throw new Error((res && (res.message || res.error)) || 'FOLDER_ACCESS_LIST_ERROR');
+      }
+
+      this.state.folderAccessItems = Array.isArray(res.data.items) ? res.data.items : [];
+      this.renderFolderAccessList();
+      this.setFolderAccessMessage('');
+    } catch (e) {
+      console.error(e);
+      this.setFolderAccessMessage('Не удалось загрузить права папки.');
+    }
+  };
+
+  DiskComponent.prototype.renderFolderAccessList = function () {
+    var container = this.root.querySelector('[data-role="folder-access-list"]');
+    if (!container) {
+      return;
+    }
+
+    var self = this;
+    var roleLabels = {
+      VIEWER: 'Просмотр',
+      EDITOR: 'Редактирование',
+      DENY: 'Нет доступа'
+    };
+
+    if (!this.state.folderAccessItems.length) {
+      container.innerHTML = '<div class="sb-disk-folder-access__empty">Для этой папки нет собственных правил — используются права родительской папки или сайта.</div>';
+      return;
+    }
+
+    container.innerHTML = this.state.folderAccessItems.map(function (item) {
+      return '<div class="sb-disk-folder-access__item" data-folder-access-user-id="' + escapeHtml(item.userId) + '">' +
+        '<div><strong>' + escapeHtml(item.userName || ('ID ' + item.userId)) + '</strong>' +
+        '<span>' + escapeHtml(roleLabels[item.role] || item.role) + '</span></div>' +
+        '<div class="sb-disk-folder-access__actions">' +
+        '<button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="edit-folder-access">Изменить</button>' +
+        '<button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="delete-folder-access">Наследовать</button>' +
+        '</div></div>';
+    }).join('');
+
+    container.querySelectorAll('[data-action="edit-folder-access"]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var row = button.closest('[data-folder-access-user-id]');
+        var userId = Number(row ? row.getAttribute('data-folder-access-user-id') : 0);
+        var item = self.state.folderAccessItems.find(function (current) {
+          return Number(current.userId || 0) === userId;
+        });
+        if (item) {
+          self.selectFolderAccessUser({id: item.userId, name: item.userName}, item.role);
+        }
+      });
+    });
+
+    container.querySelectorAll('[data-action="delete-folder-access"]').forEach(function (button) {
+      button.addEventListener('click', async function () {
+        var row = button.closest('[data-folder-access-user-id]');
+        var userId = Number(row ? row.getAttribute('data-folder-access-user-id') : 0);
+        if (userId > 0) {
+          await self.deleteFolderAccess(userId);
+        }
+      });
+    });
+  };
+
+  DiskComponent.prototype.searchFolderAccessUsers = async function () {
+    var queryNode = this.root.querySelector('[data-role="folder-access-query"]');
+    var query = queryNode ? String(queryNode.value || '').trim() : '';
+
+    if (!query || (!/^\d+$/.test(query) && query.length < 2)) {
+      this.setFolderAccessMessage('Введите не менее двух символов.');
+      return;
+    }
+
+    try {
+      this.setFolderAccessMessage('Поиск...');
+      var payload = this.getBasePayload();
+      payload.folderId = Number(this.state.currentFolderId || 0);
+      payload.query = query;
+      payload.sessid = this.getSessid();
+
+      var res = await this.api('userSearch', payload);
+      if (!res || !res.ok) {
+        throw new Error((res && (res.message || res.error)) || 'USER_SEARCH_ERROR');
+      }
+
+      this.state.folderAccessUsers = Array.isArray(res.data.users) ? res.data.users : [];
+      this.renderFolderAccessSearchResults();
+      this.setFolderAccessMessage(this.state.folderAccessUsers.length ? '' : 'Пользователи не найдены.');
+    } catch (e) {
+      console.error(e);
+      this.setFolderAccessMessage('Не удалось выполнить поиск.');
+    }
+  };
+
+  DiskComponent.prototype.renderFolderAccessSearchResults = function () {
+    var container = this.root.querySelector('[data-role="folder-access-results"]');
+    if (!container) {
+      return;
+    }
+
+    var self = this;
+    container.innerHTML = this.state.folderAccessUsers.map(function (user) {
+      var meta = [user.login, user.email].filter(Boolean).join(' · ');
+      return '<button type="button" class="sb-disk-folder-access__user" data-user-id="' + escapeHtml(user.id) + '">' +
+        '<strong>' + escapeHtml(user.name || ('ID ' + user.id)) + '</strong>' +
+        (meta ? '<span>' + escapeHtml(meta) + '</span>' : '') +
+        '</button>';
+    }).join('');
+
+    container.querySelectorAll('[data-user-id]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var userId = Number(button.getAttribute('data-user-id') || 0);
+        var user = self.state.folderAccessUsers.find(function (current) {
+          return Number(current.id || 0) === userId;
+        });
+        if (user) {
+          self.selectFolderAccessUser(user, 'VIEWER');
+        }
+      });
+    });
+  };
+
+  DiskComponent.prototype.selectFolderAccessUser = function (user, role) {
+    this.state.selectedFolderAccessUser = user || null;
+    var editor = this.root.querySelector('[data-role="folder-access-editor"]');
+    var label = this.root.querySelector('[data-role="folder-access-selected-user"]');
+    var select = this.root.querySelector('[data-role="folder-access-role"]');
+
+    if (editor) {
+      editor.hidden = !user;
+    }
+    if (label) {
+      label.textContent = user ? (user.name || ('ID ' + user.id)) : '';
+    }
+    if (select) {
+      select.value = role || 'VIEWER';
+    }
+  };
+
+  DiskComponent.prototype.saveFolderAccess = async function () {
+    var user = this.state.selectedFolderAccessUser;
+    var roleNode = this.root.querySelector('[data-role="folder-access-role"]');
+    if (!user || !roleNode) {
+      return;
+    }
+
+    try {
+      this.setFolderAccessMessage('Сохранение...');
+      var payload = this.getBasePayload();
+      payload.folderId = Number(this.state.currentFolderId || 0);
+      payload.userId = Number(user.id || 0);
+      payload.role = String(roleNode.value || 'VIEWER');
+      payload.sessid = this.getSessid();
+
+      var res = await this.api('folderAccessSet', payload);
+      if (!res || !res.ok) {
+        throw new Error((res && (res.message || res.error)) || 'FOLDER_ACCESS_SAVE_ERROR');
+      }
+
+      this.selectFolderAccessUser(null, 'VIEWER');
+      await this.loadFolderAccess();
+      this.setFolderAccessMessage('Права сохранены.');
+    } catch (e) {
+      console.error(e);
+      this.setFolderAccessMessage('Не удалось сохранить права.');
+    }
+  };
+
+  DiskComponent.prototype.deleteFolderAccess = async function (userId) {
+    try {
+      var payload = this.getBasePayload();
+      payload.folderId = Number(this.state.currentFolderId || 0);
+      payload.userId = Number(userId || 0);
+      payload.sessid = this.getSessid();
+
+      var res = await this.api('folderAccessDelete', payload);
+      if (!res || !res.ok) {
+        throw new Error((res && (res.message || res.error)) || 'FOLDER_ACCESS_DELETE_ERROR');
+      }
+
+      await this.loadFolderAccess();
+      this.setFolderAccessMessage('Собственное правило удалено; снова действует наследование.');
+    } catch (e) {
+      console.error(e);
+      this.setFolderAccessMessage('Не удалось удалить правило.');
     }
   };
 
@@ -2501,7 +3416,6 @@
       return;
     }
 
-    modal.hidden = false;
     this.setSettingsMessage('Загрузка настроек...');
 
     try {
@@ -2521,7 +3435,12 @@
         throw new Error((rootOptionsRes && (rootOptionsRes.message || rootOptionsRes.error)) || 'GET_ROOT_OPTIONS_ERROR');
       }
 
-      this.state.blockVersion = Number(settingsRes.data.blockVersion || this.state.blockVersion || 1);
+      this.state.blockVersion = Number(
+        (rootOptionsRes.data && rootOptionsRes.data.blockVersion)
+        || settingsRes.data.blockVersion
+        || this.state.blockVersion
+        || 1
+      );
 
       this.fillSettingsForm(
         settingsRes.data.settings || {},
@@ -2529,8 +3448,12 @@
       );
 
       this.arrangeSettingsModal();
+      this.activateSettingsTab('main');
 
       this.setSettingsMessage('');
+
+      modal.hidden = false;
+      document.body.classList.add('sb-disk-settings-modal-open');
     } catch (e) {
       console.error(e);
       this.setSettingsMessage('Не удалось загрузить настройки.');
@@ -2538,72 +3461,148 @@
   };
 
   DiskComponent.prototype.arrangeSettingsModal = function () {
-    var modal = this.root.querySelector('[data-role="settings-modal"]');
-    var form = this.root.querySelector('[data-role="settings-form"]');
+    /*
+     * Native v14: no DOM moving, no duplicate UI.
+     * The template already has the final structure.
+     */
+    this.bindNativeSettingsUi();
+  };
 
-    if (!modal || !form) {
+  DiskComponent.prototype.activateSettingsTab = function (name) {
+    var modal = this.root.querySelector('[data-role="settings-modal"]');
+    if (!modal) {
       return;
     }
 
-    modal.classList.add('sb-disk-settings-modal');
+    name = String(name || 'main');
 
-    var shell = modal.firstElementChild;
-    if (shell) {
-      shell.classList.add('sb-disk-settings-shell');
-    }
-
-    if (!form.querySelector('.sb-disk-settings-section-main')) {
-      var mainTitle = document.createElement('div');
-      mainTitle.className = 'sb-disk-settings-section-main';
-      mainTitle.textContent = 'Основные настройки';
-      form.insertBefore(mainTitle, form.firstChild);
-    }
-
-    var checkboxLabels = Array.prototype.slice.call(
-      form.querySelectorAll('label')
-    ).filter(function (label) {
-      return !!label.querySelector('input[type="checkbox"]');
+    Array.prototype.slice.call(
+      modal.querySelectorAll('[data-settings-tab]')
+    ).forEach(function (button) {
+      button.classList.toggle(
+        'is-active',
+        button.getAttribute('data-settings-tab') === name
+      );
     });
 
-    if (checkboxLabels.length && !form.querySelector('.sb-disk-settings-checks')) {
-      var checksTitle = document.createElement('div');
-      checksTitle.className = 'sb-disk-settings-section-title';
-      checksTitle.textContent = 'Возможности';
+    Array.prototype.slice.call(
+      modal.querySelectorAll('[data-settings-panel]')
+    ).forEach(function (panel) {
+      panel.hidden =
+        panel.getAttribute('data-settings-panel') !== name;
+    });
+  };
 
-      var checksWrap = document.createElement('div');
-      checksWrap.className = 'sb-disk-settings-checks';
-
-      checkboxLabels.forEach(function (label) {
-        checksWrap.appendChild(label);
-      });
-
-      form.appendChild(checksTitle);
-      form.appendChild(checksWrap);
+  DiskComponent.prototype.applySettingsAccessPreset = function (preset) {
+    var form = this.root.querySelector('[data-role="settings-form"]');
+    if (!form) {
+      return;
     }
 
-    var actionButtons = Array.prototype.slice.call(
-      modal.querySelectorAll('[data-action="save-settings"], [data-action="close-settings"]')
-    ).filter(function (button) {
-      var text = String(button.textContent || '').trim().toLowerCase();
-      return text !== '×' && text !== 'x';
-    });
-
-    if (actionButtons.length && !modal.querySelector('.sb-disk-settings-footer')) {
-      var footer = document.createElement('div');
-      footer.className = 'sb-disk-settings-footer';
-
-      actionButtons.forEach(function (button) {
-        footer.appendChild(button);
-      });
-
-      if (shell) {
-        shell.appendChild(footer);
-      } else {
-        modal.appendChild(footer);
+    var map = {
+      view: {
+        allowUpload: false,
+        allowCreateFolder: false,
+        allowRename: false,
+        allowDelete: false,
+        allowDownload: true,
+        showSearch: true,
+        showBreadcrumbs: true
+      },
+      edit: {
+        allowUpload: true,
+        allowCreateFolder: true,
+        allowRename: true,
+        allowDelete: false,
+        allowDownload: true,
+        showSearch: true,
+        showBreadcrumbs: true
+      },
+      all: {
+        allowUpload: true,
+        allowCreateFolder: true,
+        allowRename: true,
+        allowDelete: true,
+        allowDownload: true,
+        showSearch: true,
+        showBreadcrumbs: true
       }
+    };
+
+    var values = map[preset];
+    if (!values) {
+      return;
+    }
+
+    Object.keys(values).forEach(function (name) {
+      setFormCheckbox(
+        form,
+        name,
+        values[name]
+      );
+    });
+  };
+
+  DiskComponent.prototype.applySettingsExtensionPreset = function (preset) {
+    var form = this.root.querySelector('[data-role="settings-form"]');
+    if (!form) {
+      return;
+    }
+
+    var input = form.querySelector('[name="allowedExtensions"]');
+    if (!input) {
+      return;
+    }
+
+    var values = {
+      documents: 'pdf doc docx xls xlsx ppt pptx',
+      images: 'jpg jpeg png gif webp',
+      all: 'pdf doc docx xls xlsx ppt pptx jpg jpeg png gif webp'
+    };
+
+    if (values[preset]) {
+      input.value = values[preset];
     }
   };
 
+  DiskComponent.prototype.bindNativeSettingsUi = function () {
+    var modal = this.root.querySelector('[data-role="settings-modal"]');
+    if (!modal || modal.dataset.nativeSettingsBound === '1') {
+      return;
+    }
+
+    modal.dataset.nativeSettingsBound = '1';
+
+    var self = this;
+
+    modal.addEventListener('click', function (event) {
+      var tab = event.target.closest('[data-settings-tab]');
+      if (tab) {
+        event.preventDefault();
+        self.activateSettingsTab(
+          tab.getAttribute('data-settings-tab')
+        );
+        return;
+      }
+
+      var accessPreset = event.target.closest('[data-access-preset]');
+      if (accessPreset) {
+        event.preventDefault();
+        self.applySettingsAccessPreset(
+          accessPreset.getAttribute('data-access-preset')
+        );
+        return;
+      }
+
+      var extensionPreset = event.target.closest('[data-extension-preset]');
+      if (extensionPreset) {
+        event.preventDefault();
+        self.applySettingsExtensionPreset(
+          extensionPreset.getAttribute('data-extension-preset')
+        );
+      }
+    });
+  };
   DiskComponent.prototype.closeSettingsModal = function () {
     var modal = this.root.querySelector('[data-role="settings-modal"]');
     if (!modal) {
@@ -2611,6 +3610,7 @@
     }
 
     modal.hidden = true;
+    document.body.classList.remove('sb-disk-settings-modal-open');
   };
 
   DiskComponent.prototype.setSettingsMessage = function (message) {
@@ -2630,31 +3630,23 @@
 
     var rootSelect = form.querySelector('[data-role="root-select"]');
     if (rootSelect) {
-      var options = Array.isArray(rootData.options) ? rootData.options : [];
-      rootSelect.innerHTML = '';
-
-      if (rootData.siteRootFolderId) {
-        rootSelect.insertAdjacentHTML('beforeend', '<option value="">Использовать корень сайта</option>');
-      } else {
-        rootSelect.insertAdjacentHTML('beforeend', '<option value="">Корень сайта не создан</option>');
-      }
-
-      options.forEach(function (option) {
-        if (option.type === 'block_root' && option.folderId) {
-          rootSelect.insertAdjacentHTML(
-            'beforeend',
-            '<option value="' + escapeHtml(option.folderId) + '">Собственная папка блока #' + escapeHtml(option.folderId) + '</option>'
-          );
-        }
-      });
+      this.renderSettingsRootOptions(
+        rootSelect,
+        rootData || {}
+      );
     }
 
     setFormValue(form, 'title', settings.title || 'Файлы');
-    setFormValue(form, 'rootFolderId', settings.rootFolderId || '');
+
+    var settingsRootValue = settings.rootFolderId
+      ? String(settings.rootFolderId)
+      : (rootData.siteRootFolderId ? '' : '__create_site_root__');
+
+    setFormValue(form, 'rootFolderId', settingsRootValue);
     setFormValue(form, 'viewMode', settings.viewMode || 'table');
     setFormValue(form, 'defaultSort', settings.defaultSort || 'updatedAt');
     setFormValue(form, 'defaultSortDirection', settings.defaultSortDirection || 'desc');
-    setFormValue(form, 'maxFileSize', settings.maxFileSize || 52428800);
+    setFormValue(form, 'maxFileSizeMb', Math.max(1, Math.round((Number(settings.maxFileSize || 52428800) / 1048576) * 100) / 100));
     setFormValue(form, 'permissionMode', settings.permissionMode || 'inherit_site');
 
     var extValue = Array.isArray(settings.allowedExtensions)
@@ -2673,6 +3665,141 @@
     setFormCheckbox(form, 'useSiteRootFallback', !!settings.useSiteRootFallback);
   };
 
+  DiskComponent.prototype.renderSettingsRootOptions = function (rootSelect, rootData) {
+    if (!rootSelect) {
+      return;
+    }
+
+    rootData = rootData || {};
+
+    var siteRootFolderId = Number(rootData.siteRootFolderId || 0);
+    var blockRootFolderId = Number(rootData.blockRootFolderId || 0);
+
+    rootSelect.innerHTML = '';
+
+    if (siteRootFolderId > 0) {
+      rootSelect.insertAdjacentHTML(
+        'beforeend',
+        '<option value="">Использовать папку сайта</option>'
+      );
+    } else {
+      rootSelect.insertAdjacentHTML(
+        'beforeend',
+        '<option value="__create_site_root__">Создать и использовать папку сайта</option>'
+      );
+    }
+
+    if (blockRootFolderId > 0) {
+      rootSelect.insertAdjacentHTML(
+        'beforeend',
+        '<option value="' + escapeHtml(blockRootFolderId) + '">Использовать отдельную папку блока</option>'
+      );
+    } else {
+      rootSelect.insertAdjacentHTML(
+        'beforeend',
+        '<option value="__create_block_root__">Создать отдельную папку блока</option>'
+      );
+    }
+  };
+
+  DiskComponent.prototype.prepareSettingsRootFolder = async function () {
+    var form = this.root.querySelector('[data-role="settings-form"]');
+    if (!form) {
+      return;
+    }
+
+    var rootSelect = form.querySelector('[data-role="root-select"]');
+    if (!rootSelect) {
+      return;
+    }
+
+    var requestedMode = String(rootSelect.value || '');
+
+    if (
+      requestedMode !== '__create_site_root__'
+      && requestedMode !== '__create_block_root__'
+    ) {
+      return;
+    }
+
+    if (requestedMode === '__create_site_root__') {
+      this.setSettingsMessage('Создание папки сайта...');
+
+      var sitePayload = {
+        siteId: this.state.siteId,
+        sessid: this.getSessid()
+      };
+
+      var siteRes = await this.api('initSiteRoot', sitePayload);
+      if (!siteRes || !siteRes.ok) {
+        throw new Error(
+          (siteRes && (siteRes.message || siteRes.error))
+          || 'INIT_SITE_ROOT_ERROR'
+        );
+      }
+    } else {
+      this.setSettingsMessage('Создание отдельной папки блока...');
+
+      var blockPayload = this.getBasePayload();
+      blockPayload.sessid = this.getSessid();
+
+      var blockRes = await this.api('initBlockRoot', blockPayload);
+      if (!blockRes || !blockRes.ok) {
+        throw new Error(
+          (blockRes && (blockRes.message || blockRes.error))
+          || 'INIT_BLOCK_ROOT_ERROR'
+        );
+      }
+    }
+
+    /*
+     * initSiteRoot/initBlockRoot may change persisted state. Reload root
+     * options and, importantly, the fresh blockVersion before saveSettings.
+     */
+    var rootsPayload = this.getBasePayload();
+    rootsPayload.sessid = this.getSessid();
+
+    var rootsRes = await this.api('getRootOptions', rootsPayload);
+    if (!rootsRes || !rootsRes.ok) {
+      throw new Error(
+        (rootsRes && (rootsRes.message || rootsRes.error))
+        || 'GET_ROOT_OPTIONS_ERROR'
+      );
+    }
+
+    var rootData = rootsRes.data || {};
+
+    this.state.blockVersion = Number(
+      rootData.blockVersion
+      || this.state.blockVersion
+      || 1
+    );
+
+    this.renderSettingsRootOptions(
+      rootSelect,
+      rootData
+    );
+
+    if (requestedMode === '__create_block_root__') {
+      var blockRootFolderId = Number(
+        rootData.blockRootFolderId || 0
+      );
+
+      if (blockRootFolderId <= 0) {
+        throw new Error('BLOCK_ROOT_FOLDER_NOT_CREATED');
+      }
+
+      rootSelect.value = String(blockRootFolderId);
+      return;
+    }
+
+    if (!rootData.siteRootFolderId) {
+      throw new Error('SITE_ROOT_FOLDER_NOT_CREATED');
+    }
+
+    rootSelect.value = '';
+  };
+
   DiskComponent.prototype.collectSettingsForm = function () {
     var form = this.root.querySelector('[data-role="settings-form"]');
     if (!form) {
@@ -2685,10 +3812,11 @@
       viewMode: getFormValue(form, 'viewMode'),
       defaultSort: getFormValue(form, 'defaultSort'),
       defaultSortDirection: getFormValue(form, 'defaultSortDirection'),
-      maxFileSize: Number(getFormValue(form, 'maxFileSize') || 0),
+      maxFileSize: Math.round(Math.max(1, Number(getFormValue(form, 'maxFileSizeMb') || 50)) * 1048576),
       allowedExtensions: String(getFormValue(form, 'allowedExtensions') || '')
         .trim()
-        .split(/\s+/)
+        .split(/[\s,;]+/)
+        .map(function (value) { return String(value || '').toLowerCase().replace(/^\.+/, ''); })
         .filter(Boolean),
       permissionMode: getFormValue(form, 'permissionMode'),
       allowUpload: getFormCheckbox(form, 'allowUpload'),
@@ -2705,6 +3833,13 @@
   DiskComponent.prototype.saveSettings = async function () {
     try {
       this.setSettingsMessage('Сохранение...');
+
+      /*
+       * The root dropdown can contain a create-on-save option. Resolve it
+       * first so collectSettingsForm receives a real folder ID (or empty
+       * value for the site root), never an internal sentinel.
+       */
+      await this.prepareSettingsRootFolder();
 
       var payload = this.getBasePayload();
       payload.sessid = this.getSessid();
@@ -2793,6 +3928,130 @@
      HELPERS
      ========================================================= */
 
+  function formatPersonCompact(value) {
+    value = String(value || '').trim().replace(/\s+/g, ' ');
+
+    if (!value || value === '—' || /^ID\s+\d+$/i.test(value)) {
+      return value || '—';
+    }
+
+    var parts = value.split(' ').filter(Boolean);
+
+    if (parts.length < 2) {
+      return value.length > 24 ? value.slice(0, 23) + '…' : value;
+    }
+
+    var surname = parts[0];
+    var initials = parts.slice(1, 3).map(function (part) {
+      var clean = String(part || '').replace(/[^A-Za-zА-Яа-яЁё]/g, '');
+      return clean ? clean.charAt(0).toUpperCase() + '.' : '';
+    }).filter(Boolean);
+
+    return initials.length ? surname + ' ' + initials.join(' ') : surname;
+  }
+
+  function getPersonInitials(value) {
+    value = String(value || '').trim().replace(/\s+/g, ' ');
+
+    if (!value || value === '—') {
+      return '—';
+    }
+
+    if (/^ID\s+\d+$/i.test(value)) {
+      return 'ID';
+    }
+
+    var parts = value.split(' ').filter(Boolean);
+    var first = parts[0] ? parts[0].charAt(0) : '';
+    var second = parts[1] ? parts[1].charAt(0) : '';
+    var result = (first + second).toUpperCase();
+
+    return result || '?';
+  }
+
+  function padDiskDate(value) {
+    return String(value).padStart(2, '0');
+  }
+
+  function formatDiskDate(value) {
+    var raw = String(value || '').trim();
+
+    if (!raw || raw === '—') {
+      return {
+        dateText: '—',
+        timeText: '',
+        title: raw || '—'
+      };
+    }
+
+    var normalized = raw.replace(' ', 'T');
+    var date = new Date(normalized);
+
+    if (Number.isNaN(date.getTime())) {
+      var isoMatch = raw.match(
+        /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/
+      );
+      var ruMatch = raw.match(
+        /^(\d{2})\.(\d{2})\.(\d{4})[ ,T]*(\d{2})?[:.]?(\d{2})?/
+      );
+
+      if (isoMatch) {
+        date = new Date(
+          Number(isoMatch[1]),
+          Number(isoMatch[2]) - 1,
+          Number(isoMatch[3]),
+          Number(isoMatch[4]),
+          Number(isoMatch[5])
+        );
+      } else if (ruMatch) {
+        date = new Date(
+          Number(ruMatch[3]),
+          Number(ruMatch[2]) - 1,
+          Number(ruMatch[1]),
+          Number(ruMatch[4] || 0),
+          Number(ruMatch[5] || 0)
+        );
+      }
+    }
+
+    if (Number.isNaN(date.getTime())) {
+      return {
+        dateText: raw,
+        timeText: '',
+        title: raw
+      };
+    }
+
+    var today = new Date();
+    var todayStart = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
+    var dateStart = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate()
+    );
+    var diffDays = Math.round(
+      (todayStart.getTime() - dateStart.getTime()) / 86400000
+    );
+    var dateText = diffDays === 0
+      ? 'Сегодня'
+      : (diffDays === 1
+        ? 'Вчера'
+        : padDiskDate(date.getDate())
+          + '.'
+          + padDiskDate(date.getMonth() + 1)
+          + '.'
+          + date.getFullYear());
+
+    return {
+      dateText: dateText,
+      timeText: padDiskDate(date.getHours()) + ':' + padDiskDate(date.getMinutes()),
+      title: raw
+    };
+  }
      function getItemAddedByText(item) {
         if (!item) {
             return '—';
@@ -2989,6 +4248,324 @@
   function getApiData(res) {
     return res && res.data ? res.data : {};
   }
+
+  /* =========================================================
+     SiteBuilder Disk final polish v1
+     ========================================================= */
+
+  DiskComponent.prototype.bindActionMenuViewportEvents = function () {
+    if (this._diskActionMenuViewportBound) {
+      return;
+    }
+
+    this._diskActionMenuViewportBound = true;
+
+    var self = this;
+
+    this._diskActionMenuViewportHandler = function () {
+      self.closeActionMenus();
+    };
+
+    window.addEventListener(
+      'resize',
+      this._diskActionMenuViewportHandler,
+      {passive: true}
+    );
+
+    /*
+     * capture=true позволяет закрыть меню при прокрутке как страницы,
+     * так и любого вложенного контейнера.
+     */
+    window.addEventListener(
+      'scroll',
+      this._diskActionMenuViewportHandler,
+      true
+    );
+  };
+
+  DiskComponent.prototype.closeActionMenus = function (exceptWrap) {
+    this.root.querySelectorAll(
+      '.sb-disk__action-menu-wrap.is-open'
+    ).forEach(function (wrap) {
+      if (exceptWrap && wrap === exceptWrap) {
+        return;
+      }
+
+      wrap.classList.remove('is-open');
+
+      var menu = wrap.querySelector('.sb-disk__action-menu');
+      var toggle = wrap.querySelector('[data-action-menu-toggle]');
+
+      if (menu) {
+        menu.hidden = true;
+        menu.classList.remove('is-up', 'is-viewport-menu');
+        menu.removeAttribute('style');
+      }
+
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+  };
+
+  DiskComponent.prototype.positionActionMenu = function (
+    wrap,
+    menu,
+    button
+  ) {
+    var viewportWidth =
+      window.innerWidth || document.documentElement.clientWidth;
+    var viewportHeight =
+      window.innerHeight || document.documentElement.clientHeight;
+    var padding = 10;
+    var gap = 7;
+    var preferredWidth = 216;
+    var width = Math.min(
+      preferredWidth,
+      Math.max(170, viewportWidth - (padding * 2))
+    );
+
+    menu.classList.remove('is-up');
+    menu.classList.add('is-viewport-menu');
+    menu.hidden = false;
+
+    menu.style.width = width + 'px';
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+    menu.style.right = 'auto';
+    menu.style.bottom = 'auto';
+    menu.style.maxHeight = Math.max(
+      140,
+      viewportHeight - (padding * 2)
+    ) + 'px';
+    menu.style.visibility = 'hidden';
+
+    var buttonRect = button.getBoundingClientRect();
+    var menuHeight = menu.offsetHeight;
+
+    var left = buttonRect.right - width;
+
+    left = Math.max(
+      padding,
+      Math.min(left, viewportWidth - width - padding)
+    );
+
+    var top = buttonRect.bottom + gap;
+    var canOpenBelow =
+      top + menuHeight <= viewportHeight - padding;
+
+    if (!canOpenBelow) {
+      var topAbove = buttonRect.top - menuHeight - gap;
+
+      if (topAbove >= padding) {
+        top = topAbove;
+        menu.classList.add('is-up');
+      } else {
+        top = Math.max(
+          padding,
+          viewportHeight - menuHeight - padding
+        );
+      }
+    }
+
+    menu.style.left = Math.round(left) + 'px';
+    menu.style.top = Math.round(top) + 'px';
+    menu.style.visibility = 'visible';
+  };
+
+  DiskComponent.prototype.toggleActionMenu = function (button) {
+    var wrap = button
+      ? button.closest('.sb-disk__action-menu-wrap')
+      : null;
+
+    if (!wrap) {
+      return;
+    }
+
+    var menu = wrap.querySelector('.sb-disk__action-menu');
+
+    if (!menu) {
+      return;
+    }
+
+    var shouldOpen =
+      menu.hidden || !wrap.classList.contains('is-open');
+
+    this.closeActionMenus(wrap);
+
+    if (!shouldOpen) {
+      wrap.classList.remove('is-open');
+      menu.hidden = true;
+      menu.classList.remove('is-up', 'is-viewport-menu');
+      menu.removeAttribute('style');
+      button.setAttribute('aria-expanded', 'false');
+      return;
+    }
+
+    this.bindActionMenuViewportEvents();
+
+    wrap.classList.add('is-open');
+    button.setAttribute('aria-expanded', 'true');
+
+    this.positionActionMenu(wrap, menu, button);
+  };
+
+  DiskComponent.prototype.getVisibleItemsSummary = function () {
+    var files = 0;
+    var folders = 0;
+
+    this.getDisplayItems().forEach(function (item) {
+      if (String(item.entityType || '').toLowerCase() === 'folder') {
+        folders++;
+      } else {
+        files++;
+      }
+    });
+
+    var parts = [];
+
+    if (files > 0) {
+      parts.push(files + ' ' + this.getRussianCountWord(
+        files,
+        'файл',
+        'файла',
+        'файлов'
+      ));
+    }
+
+    if (folders > 0) {
+      parts.push(folders + ' ' + this.getRussianCountWord(
+        folders,
+        'папка',
+        'папки',
+        'папок'
+      ));
+    }
+
+    return parts.join(' · ') || 'Пустая папка';
+  };
+
+  DiskComponent.prototype.getRussianCountWord = function (
+    value,
+    one,
+    few,
+    many
+  ) {
+    value = Math.abs(Number(value || 0)) % 100;
+
+    var last = value % 10;
+
+    if (value > 10 && value < 20) {
+      return many;
+    }
+
+    if (last === 1) {
+      return one;
+    }
+
+    if (last >= 2 && last <= 4) {
+      return few;
+    }
+
+    return many;
+  };
+
+  DiskComponent.prototype.polishCommandPanel = function () {
+    var panel = this.root.querySelector('.sb-disk__command-panel');
+
+    if (!panel) {
+      return;
+    }
+
+    var headerLeft = panel.querySelector(
+      '.sb-disk__smart-header-left'
+    );
+    var toolbarRight = panel.querySelector(
+      '.sb-disk__smart-toolbar-right'
+    );
+
+    if (headerLeft) {
+      var summary = headerLeft.querySelector(
+        '[data-role="visible-items-summary"]'
+      );
+
+      if (!summary) {
+        summary = document.createElement('span');
+        summary.className = 'sb-disk__visible-items-summary';
+        summary.setAttribute(
+          'data-role',
+          'visible-items-summary'
+        );
+        headerLeft.appendChild(summary);
+      }
+
+      summary.textContent = this.getVisibleItemsSummary();
+    }
+
+    if (toolbarRight) {
+      var viewButtons = Array.prototype.slice.call(
+        toolbarRight.querySelectorAll('.sb-disk__view-btn')
+      );
+
+      if (viewButtons.length) {
+        var switcher = toolbarRight.querySelector(
+          '.sb-disk__polished-view-switch'
+        );
+
+        if (!switcher) {
+          switcher = document.createElement('div');
+          switcher.className =
+            'sb-disk__polished-view-switch';
+        }
+
+        viewButtons.forEach(function (button) {
+          switcher.appendChild(button);
+        });
+
+        toolbarRight.appendChild(switcher);
+      }
+    }
+
+    var labels = [
+      ['[data-action="refresh"]', 'Обновить содержимое папки'],
+      ['[data-action="folder-access"]', 'Настроить права папки'],
+      ['[data-action="settings"]', 'Настройки файлового блока'],
+      ['[data-action="upload"]', 'Загрузить файлы'],
+      ['[data-action="create-folder"]', 'Создать новую папку']
+    ];
+
+    labels.forEach(function (item) {
+      var node = panel.querySelector(item[0]);
+
+      if (node) {
+        node.setAttribute('title', item[1]);
+        node.setAttribute('aria-label', item[1]);
+      }
+    });
+
+    var search = panel.querySelector(
+      '[data-role="search-input"]'
+    );
+
+    if (search) {
+      search.setAttribute(
+        'aria-label',
+        'Поиск файлов и папок'
+      );
+    }
+
+    var sort = panel.querySelector(
+      '[data-role="sort-select"]'
+    );
+
+    if (sort) {
+      sort.setAttribute(
+        'aria-label',
+        'Сортировка файлов и папок'
+      );
+    }
+  };
+  /* SiteBuilder Disk search focus fix v1 */
 
   function initDisks() {
     document.querySelectorAll('.sb-disk').forEach(function (root) {

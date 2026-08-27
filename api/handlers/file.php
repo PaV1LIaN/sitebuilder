@@ -39,7 +39,7 @@ if ($action === 'file.list') {
                     : '',
                 'downloadUrl' => sb_disk_file_download_url($child),
                 'previewUrl' => $isImage
-                    ? '/local/sitebuilder/media_preview.php?siteId=' . $siteId . '&fileId=' . (int)$child->getId()
+                    ? sb_disk_file_preview_url($child)
                     : '',
             ];
         }
@@ -117,7 +117,7 @@ if ($action === 'file.upload') {
                 'size' => (int)$file->getSize(),
                 'downloadUrl' => sb_disk_file_download_url($file),
                 'previewUrl' => $uploadedIsImage
-                    ? '/local/sitebuilder/media_preview.php?siteId=' . $siteId . '&fileId=' . (int)$file->getId()
+                    ? sb_disk_file_preview_url($file)
                     : '',
             ],
             'folderId' => (int)$folder->getId(),

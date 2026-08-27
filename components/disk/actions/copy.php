@@ -22,11 +22,6 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 );
 
 $rootFolderId = DiskRootResolver::resolve($context, $settings);
-$permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId);
-
-DiskValidator::assertCan($permissions, 'canView');
-DiskValidator::assertCan($permissions, 'canUpload');
-
 $items = $data['items'] ?? [];
 $targetFolderId = (int)($data['targetFolderId'] ?? 0);
 
@@ -36,6 +31,20 @@ if (!is_array($items) || empty($items)) {
 
 DiskValidator::assertFolderInsideRoot($targetFolderId, $rootFolderId, $context);
 DiskValidator::assertItemsInsideRoot($items, $rootFolderId, $context);
+DiskValidator::assertCanForItemParents(
+    $context,
+    $settings,
+    $items,
+    (int)$rootFolderId,
+    'canView'
+);
+DiskValidator::assertCanForFolder(
+    $context,
+    $settings,
+    $targetFolderId,
+    (int)$rootFolderId,
+    'canUpload'
+);
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 $result = $adapter->copy($context, $items, $targetFolderId);

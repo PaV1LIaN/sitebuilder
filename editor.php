@@ -40,7 +40,7 @@ if ($siteId <= 0) {
         <title>SiteBuilder / Editor</title>
         <?php $APPLICATION->ShowHead(); ?>
         <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=16">
+        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=21">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v2.css?v=17">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v3.css?v=17">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v4.css?v=18">
@@ -164,6 +164,14 @@ if (!$canOpenEditor) {
 
     exit;
 }
+
+/*
+ * Источник истины для интерфейса прав страницы.
+ * Сервер всё равно повторно проверяет эти полномочия
+ * в api/handlers/page_access.php.
+ */
+$canManagePageAccess = $USER->IsAdmin()
+    || (int)($globalRoleRank ?? 0) >= 3;
 ?>
 <!doctype html>
 <html lang="ru">
@@ -172,13 +180,24 @@ if (!$canOpenEditor) {
     <title>SiteBuilder / Editor</title>
     <?php $APPLICATION->ShowHead(); ?>
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=16">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=21">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v2.css?v=17">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v3.css?v=17">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v4.css?v=18">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v5.css?v=19">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v7.css?v=3">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v8.css?v=4">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v9.css?v=1">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v10.css?v=1">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v11.css?v=1">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v12.css?v=1">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v13.css?v=1">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v14.css?v=1">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v15.css?v=2">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v16.css?v=1">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/forms2.css?v=1">
 </head>
-<body class="sb-admin-body">
+<body class="sb-admin-body" data-editor-inspector-tab="page">
 <div class="sb-page">
     <header class="sb-editor-appbar" id="editorAppbar">
         <div class="sb-editor-appbar__brand">
@@ -311,10 +330,47 @@ if (!$canOpenEditor) {
                         <p class="sb-editor-canvas-sub" id="canvasPageMeta">Выберите страницу слева</p>
                     </div>
 
-                    <div class="sb-toolbar">
-                        <button class="sb-icon-btn" type="button" id="movePageUpBtn" title="Переместить страницу вверх">↑</button>
-                        <button class="sb-icon-btn" type="button" id="movePageDownBtn" title="Переместить страницу вниз">↓</button>
-                        <button class="sb-btn sb-btn-primary sb-btn-small" type="button" id="publishPageBtn">Опубликовать</button>
+                    <div class="sb-editor-canvas-head__actions">
+                        <div
+                            class="sb-editor-zoom"
+                            role="group"
+                            aria-label="Масштаб холста"
+                        >
+                            <button
+                                type="button"
+                                id="editorZoomOutBtn"
+                                title="Уменьшить масштаб"
+                                aria-label="Уменьшить масштаб"
+                            >−</button>
+
+                            <button
+                                type="button"
+                                class="sb-editor-zoom__value"
+                                id="editorZoomValue"
+                                title="Сбросить масштаб до 100%"
+                            >100%</button>
+
+                            <button
+                                type="button"
+                                id="editorZoomInBtn"
+                                title="Увеличить масштаб"
+                                aria-label="Увеличить масштаб"
+                            >+</button>
+
+                            <button
+                                type="button"
+                                class="sb-editor-zoom__fit"
+                                id="editorZoomFitBtn"
+                                aria-pressed="false"
+                                title="Вписать страницу в рабочую область"
+                            >Вписать</button>
+                        </div>
+
+                        <div class="sb-toolbar">
+                            <button class="sb-icon-btn" type="button" id="movePageUpBtn" title="Переместить страницу вверх">↑</button>
+                            <button class="sb-icon-btn" type="button" id="movePageDownBtn" title="Переместить страницу вниз">↓</button>
+                            <button class="sb-btn sb-btn-primary sb-btn-small" type="button" id="publishPageBtn">Опубликовать</button>
+                        </div>
                     </div>
                 </div>
 
@@ -413,23 +469,6 @@ if (!$canOpenEditor) {
                         </select>
                     </div>
 
-                    <details class="sb-seo-panel" style="margin-top:14px;">
-                        <summary>SEO и соцсети</summary>
-                        <div class="sb-seo-panel__body">
-                            <div class="sb-field"><label for="pageSeoTitleInput">Meta title</label><input class="sb-input" id="pageSeoTitleInput" maxlength="255" placeholder="По умолчанию — название страницы"><small id="pageSeoTitleCounter">0/60</small></div>
-                            <div class="sb-field"><label for="pageSeoDescriptionInput">Meta description</label><textarea class="sb-textarea" id="pageSeoDescriptionInput" maxlength="500" rows="4"></textarea><small id="pageSeoDescriptionCounter">0/160</small></div>
-                            <div class="sb-field"><label for="pageSeoKeywordsInput">Ключевые слова</label><input class="sb-input" id="pageSeoKeywordsInput" maxlength="500"></div>
-                            <div class="sb-field"><label for="pageSeoCanonicalInput">Canonical URL</label><input class="sb-input" id="pageSeoCanonicalInput" placeholder="https://... или /path"></div>
-                            <div class="sb-form-grid sb-form-grid--2">
-                                <label class="sb-checkbox"><input type="checkbox" id="pageSeoIndexInput" checked><span>Разрешить индексацию</span></label>
-                                <label class="sb-checkbox"><input type="checkbox" id="pageSeoFollowInput" checked><span>Переходить по ссылкам</span></label>
-                            </div>
-                            <div class="sb-field"><label for="pageSeoOgTitleInput">OG title</label><input class="sb-input" id="pageSeoOgTitleInput" maxlength="255"></div>
-                            <div class="sb-field"><label for="pageSeoOgDescriptionInput">OG description</label><textarea class="sb-textarea" id="pageSeoOgDescriptionInput" maxlength="500" rows="3"></textarea></div>
-                            <div class="sb-field"><label for="pageSeoOgImageInput">OG image</label><div class="sb-input-with-action"><input class="sb-input" id="pageSeoOgImageInput" placeholder="URL изображения"><button class="sb-btn sb-btn-light sb-btn-small" type="button" data-open-media data-media-target="pageSeoOgImageInput">Медиатека</button></div></div>
-                            <a class="sb-btn sb-btn-light sb-btn-small" id="pageSitemapLink" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/sitemap.php?siteId=<?= (int)$siteId ?>" target="_blank" rel="noopener">Открыть sitemap.xml ↗</a>
-                        </div>
-                    </details>
 
                     <div class="sb-editor-inspector-actions">
                         <button class="sb-btn sb-btn-primary" type="button" id="savePageBtn">Сохранить страницу</button>
@@ -745,7 +784,8 @@ if (!$canOpenEditor) {
                                 <label for="diskPermissionModeInput">Режим прав</label>
                                 <select class="sb-select" id="diskPermissionModeInput">
                                     <option value="inherit_site">Наследовать права сайта</option>
-                                    <option value="custom">Собственные ограничения блока</option>
+                                    <option value="custom">Индивидуальные права папок SiteBuilder</option>
+                                    <option value="bitrix_disk">Точные права Битрикс24.Диск</option>
                                 </select>
                             </div>
 
@@ -800,12 +840,12 @@ if (!$canOpenEditor) {
                             </div>
                         </div>
 
-                        <div class="sb-editor-json-actions">
+                        <div class="sb-editor-json-actions" aria-label="Действия с блоком">
                             <button class="sb-btn sb-btn-primary" type="button" id="saveBlockBtn">Сохранить блок</button>
-                            <button class="sb-btn sb-btn-light" type="button" id="duplicateBlockBtn">Дублировать</button>
-                            <button class="sb-btn sb-btn-light" type="button" id="moveBlockUpBtn">Блок ↑</button>
-                            <button class="sb-btn sb-btn-light" type="button" id="moveBlockDownBtn">Блок ↓</button>
-                            <button class="sb-btn sb-btn-danger" type="button" id="deleteBlockBtn">Удалить</button>
+                            <button class="sb-btn sb-btn-light" type="button" id="duplicateBlockBtn">⧉ Дублировать</button>
+                            <button class="sb-btn sb-btn-light" type="button" id="moveBlockUpBtn" title="Переместить блок выше">↑ Выше</button>
+                            <button class="sb-btn sb-btn-light" type="button" id="moveBlockDownBtn" title="Переместить блок ниже">↓ Ниже</button>
+                            <button class="sb-btn sb-btn-danger" type="button" id="deleteBlockBtn">Удалить блок</button>
                         </div>
                     </div>
                 </div>
@@ -828,7 +868,54 @@ if (!$canOpenEditor) {
                     <div id="historyList" class="sb-history-list"></div>
                 </div>
 
-                <div class="sb-panel sb-inspector-panel" data-inspector-panel="access" id="siteGroupPanel" hidden>
+                <div
+                    class="sb-inspector-panel sb-access-inspector"
+                    data-inspector-panel="access"
+                    id="accessInspectorPanel"
+                    <?= $canManagePageAccess ? '' : 'hidden' ?>
+                >
+                    <div
+                        class="sb-panel sb-access-scope-panel"
+                        id="pageAccessPanel"
+                        <?= $canManagePageAccess ? '' : 'hidden' ?>
+                    >
+                    <h2 class="sb-panel-title">Права выбранной страницы</h2>
+                    <p class="sb-access-help">
+                        <strong id="pageAccessPageTitle">Страница не выбрана</strong><br>
+                        Выдайте пользователю просмотр или редактирование только этой страницы. Право можно распространить на дочерние страницы.
+                    </p>
+
+                    <div class="sb-access-form">
+                        <div class="sb-field sb-access-search-wrap">
+                            <label for="pageAccessUserSearchInput">Пользователь</label>
+                            <input class="sb-input" type="text" id="pageAccessUserSearchInput" autocomplete="off" placeholder="ФИО, логин, email или ID">
+
+                            <div id="pageAccessUserSearchResults" class="sb-access-search-results sb-hidden"></div>
+                            <div id="pageAccessSelectedUser" class="sb-access-selected sb-hidden"></div>
+                        </div>
+
+                        <div class="sb-page-access-permissions" aria-label="Права страницы">
+                            <label class="sb-switch"><input type="checkbox" id="pageAccessCanView" checked><span>Просмотр страницы</span></label>
+                            <label class="sb-switch"><input type="checkbox" id="pageAccessCanEdit"><span>Редактирование страницы</span></label>
+                            <label class="sb-switch"><input type="checkbox" id="pageAccessCanDiskView"><span>Просмотр файлов страницы</span></label>
+                            <label class="sb-switch"><input type="checkbox" id="pageAccessCanDiskEdit"><span>Изменение файлов страницы</span></label>
+                            <label class="sb-switch"><input type="checkbox" id="pageAccessIncludeChildren"><span>Также для дочерних страниц</span></label>
+                        </div>
+                    </div>
+
+                    <div class="sb-editor-inspector-actions">
+                        <button class="sb-btn sb-btn-primary" type="button" id="savePageAccessBtn">Сохранить права</button>
+                        <button class="sb-btn sb-btn-light" type="button" id="reloadPageAccessBtn">Обновить</button>
+                    </div>
+
+                    <div id="pageAccessMessage" class="sb-empty sb-hidden" style="margin-top:12px;"></div>
+
+                    <div id="pageAccessList" class="sb-access-list">
+                        <div class="sb-empty">Выберите страницу</div>
+                    </div>
+                </div>
+
+                    <div class="sb-panel sb-access-scope-panel" id="siteGroupPanel" hidden>
                     <h2 class="sb-panel-title">Группа Битрикс24 и права</h2>
                     <p class="sb-editor-note">
                         Группа используется для связки сайта с пользователями Битрикс24.
@@ -846,8 +933,8 @@ if (!$canOpenEditor) {
                     <div id="syncAccessResult" class="sb-output" style="margin-top:12px;"></div>
                 </div>
 
-                <div class="sb-panel sb-inspector-panel" data-inspector-panel="access" id="siteAccessPanel" hidden>
-                    <h2 class="sb-panel-title">Права пользователей</h2>
+                    <div class="sb-panel sb-access-scope-panel" id="siteAccessPanel" hidden>
+                    <h2 class="sb-panel-title">Права на весь сайт</h2>
                     <p class="sb-access-help">
                         OWNER управляет сайтом и правами. ADMIN редактирует структуру сайта. EDITOR работает с файлами диска. VIEWER только смотрит.
                     </p>
@@ -881,6 +968,7 @@ if (!$canOpenEditor) {
 
                     <div id="accessList" class="sb-access-list">
                         <div class="sb-empty">Права не загружены</div>
+                    </div>
                     </div>
                 </div>
 
@@ -1065,26 +1153,36 @@ window.SB_EDITOR_CONFIG = {
     apiUrl: '<?= CUtil::JSEscape($basePath) ?>/api/index.php',
     siteId: <?= (int)$siteId ?>,
     isBitrixAdmin: <?= $USER->IsAdmin() ? 'true' : 'false' ?>,
+    canManagePageAccess: <?= $canManagePageAccess ? 'true' : 'false' ?>,
     sessid: '<?= CUtil::JSEscape(bitrix_sessid()) ?>'
 };
 </script>
 
 <script src="/bitrix/js/main/core/core.js"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=20.1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=21"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=20"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=23"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=24"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=20"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/34-editor-ux.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/36-content-tools.js?v=18"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=22"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/34-editor-ux.js?v=18"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/42-workspace-shell.js?v=1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/36-content-tools.js?v=20"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/38-design-tools.js?v=19"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/39-global-blocks.js?v=19"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/39-global-blocks.js?v=20"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/41-business-blocks.js?v=20"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/43-block-inspector-tabs.js?v=1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/44-responsive-blocks.js?v=1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/45-responsive-stage2.js?v=1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/46-responsive-business.js?v=1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/47-responsive-ux.js?v=1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/48-library-dnd.js?v=3"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/49-sections2.js?v=1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/52-forms2.js?v=2"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/35-history.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=23"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=22"></script>
 
 </body>
 </html>

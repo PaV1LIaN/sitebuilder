@@ -2,8 +2,8 @@
 
 global $USER;
 
-if (!function_exists('sb_user_search_require_owner')) {
-    function sb_user_search_require_owner(int $siteId): void
+if (!function_exists('sb_user_search_require_admin')) {
+    function sb_user_search_require_admin(int $siteId): void
     {
         global $USER;
 
@@ -11,7 +11,13 @@ if (!function_exists('sb_user_search_require_owner')) {
             return;
         }
 
-        sb_require_owner($siteId);
+        /*
+         * ADMIN может управлять точечными правами страниц,
+         * поэтому ему также нужен поиск получателя права.
+         * Управление глобальными ролями сайта по-прежнему
+         * защищено отдельной проверкой OWNER в site.php.
+         */
+        sb_require_admin($siteId);
     }
 }
 
@@ -244,7 +250,7 @@ if ($action === 'user.search') {
         sb_json_error('SITE_ID_REQUIRED', 422);
     }
 
-    sb_user_search_require_owner($siteId);
+    sb_user_search_require_admin($siteId);
 
     if ($query === '') {
         sb_json_ok([

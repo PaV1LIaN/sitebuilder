@@ -4,6 +4,7 @@ async function loadSite() {
     });
 
     state.site = res.site || null;
+    state.siteAccessContext = res.access || null;
 }
 
 async function loadPages() {
@@ -24,6 +25,10 @@ async function loadPages() {
 }
 
 async function loadBlocks() {
+    if (typeof loadPageAccessList === 'function') {
+        await loadPageAccessList();
+    }
+
     if (!state.currentPageId) {
         state.blocks = [];
         state.currentBlockId = 0;
@@ -234,7 +239,6 @@ function fillPageForm() {
     var slugInput = document.getElementById('pageSlugInput');
     var statusInput = document.getElementById('pageStatusInput');
     var parentSelect = document.getElementById('pageParentInput');
-    var seo = page && page.seo && typeof page.seo === 'object' ? page.seo : {};
 
     if (titleInput) {
         titleInput.value = page ? (page.title || '') : '';
@@ -251,48 +255,6 @@ function fillPageForm() {
     if (parentSelect) {
         parentSelect.value = page ? String(page.parentId || 0) : '0';
     }
-
-    setInputValue('pageSeoTitleInput', seo.title || '');
-    setInputValue('pageSeoDescriptionInput', seo.description || '');
-    setInputValue('pageSeoKeywordsInput', seo.keywords || '');
-    setInputValue('pageSeoCanonicalInput', seo.canonical || '');
-    setInputValue('pageSeoOgTitleInput', seo.ogTitle || '');
-    setInputValue('pageSeoOgDescriptionInput', seo.ogDescription || '');
-    setInputValue('pageSeoOgImageInput', seo.ogImage || '');
-    var indexInput = document.getElementById('pageSeoIndexInput');
-    var followInput = document.getElementById('pageSeoFollowInput');
-    if (indexInput) indexInput.checked = !Object.prototype.hasOwnProperty.call(seo, 'robotsIndex') || !!seo.robotsIndex;
-    if (followInput) followInput.checked = !Object.prototype.hasOwnProperty.call(seo, 'robotsFollow') || !!seo.robotsFollow;
-    updateSeoCounters();
-}
-
-function updateSeoCounters() {
-    var title = getInputValue('pageSeoTitleInput');
-    var description = getInputValue('pageSeoDescriptionInput');
-    var titleCounter = document.getElementById('pageSeoTitleCounter');
-    var descriptionCounter = document.getElementById('pageSeoDescriptionCounter');
-    if (titleCounter) {
-        titleCounter.textContent = title.length + '/60';
-        titleCounter.classList.toggle('is-warning', title.length > 60);
-    }
-    if (descriptionCounter) {
-        descriptionCounter.textContent = description.length + '/160';
-        descriptionCounter.classList.toggle('is-warning', description.length > 160);
-    }
-}
-
-function collectPageSeo() {
-    return {
-        title: getInputValue('pageSeoTitleInput').trim(),
-        description: getInputValue('pageSeoDescriptionInput').trim(),
-        keywords: getInputValue('pageSeoKeywordsInput').trim(),
-        canonical: getInputValue('pageSeoCanonicalInput').trim(),
-        robotsIndex: !!(document.getElementById('pageSeoIndexInput') || {}).checked,
-        robotsFollow: !!(document.getElementById('pageSeoFollowInput') || {}).checked,
-        ogTitle: getInputValue('pageSeoOgTitleInput').trim(),
-        ogDescription: getInputValue('pageSeoOgDescriptionInput').trim(),
-        ogImage: getInputValue('pageSeoOgImageInput').trim()
-    };
 }
 
 async function createPage() {
@@ -352,7 +314,6 @@ async function savePage() {
         slug: getInputValue('pageSlugInput').trim(),
         parentId: Number(getInputValue('pageParentInput') || 0),
         status: getInputValue('pageStatusInput'),
-        seo: JSON.stringify(collectPageSeo()),
         expectedVersion: entityVersion(page)
     });
 

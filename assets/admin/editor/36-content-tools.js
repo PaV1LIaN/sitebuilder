@@ -41,9 +41,31 @@
 
     function ctSafeMediaUrl(value) {
         value = String(value || '').trim();
-        if (value.indexOf(BASE_PATH + '/media_preview.php?') === 0) return value;
-        if (value.indexOf('/local/sitebuilder/media_preview.php?') === 0) return value;
-        return '';
+
+        if (!value) {
+            return '';
+        }
+
+        try {
+            var parsed = new URL(
+                value,
+                window.location.origin
+            );
+
+            /*
+             * file.list возвращает URL, сформированный Bitrix.Disk.
+             * В медиатеке принимаем только URL текущего портала.
+             */
+            if (parsed.origin !== window.location.origin) {
+                return '';
+            }
+
+            return parsed.pathname
+                + parsed.search
+                + parsed.hash;
+        } catch (error) {
+            return '';
+        }
     }
 
     /* -----------------------------------------------------
@@ -240,11 +262,18 @@
         }
 
         mediaGrid.innerHTML = items.map(function (file) {
-            var previewUrl = ctSafeMediaUrl(file.previewUrl) || (BASE_PATH + '/media_preview.php?siteId=' + siteId + '&fileId=' + Number(file.id || 0));
+            var previewUrl =
+                ctSafeMediaUrl(file.previewUrl)
+                || ctSafeMediaUrl(file.downloadUrl);
+
+            var imageHtml = previewUrl
+                ? '<img src="' + ctEscape(previewUrl) + '" alt="" loading="lazy">'
+                : '<span class="sb-media-card__no-preview">Нет предпросмотра</span>';
+
             return ''
                 + '<article class="sb-media-card" data-media-id="' + Number(file.id || 0) + '" data-media-url="' + ctEscape(previewUrl) + '" data-media-name="' + ctEscape(file.name || '') + '">'
                 + '  <button class="sb-media-card__choose" type="button" data-media-choose title="Выбрать изображение">'
-                + '    <span class="sb-media-card__image"><img src="' + ctEscape(previewUrl) + '" alt="" loading="lazy"></span>'
+                + '    <span class="sb-media-card__image">' + imageHtml + '</span>'
                 + '    <span class="sb-media-card__name">' + ctEscape(file.name || 'Изображение') + '</span>'
                 + '    <span class="sb-media-card__meta">' + ctEscape(ctBytes(file.size)) + '</span>'
                 + '  </button>'

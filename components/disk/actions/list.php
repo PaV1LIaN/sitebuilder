@@ -22,9 +22,6 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 );
 
 $rootFolderId = DiskRootResolver::resolve($context, $settings);
-$permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId);
-
-DiskValidator::assertCan($permissions, 'canView');
 
 if ($rootFolderId === null) {
     DiskResponse::success([
@@ -40,6 +37,13 @@ if ($rootFolderId === null) {
 
 $currentFolderId = (int)($data['currentFolderId'] ?? $rootFolderId);
 DiskValidator::assertFolderInsideRoot($currentFolderId, $rootFolderId, $context);
+$permissions = DiskPermissionService::resolve(
+    $context,
+    $settings,
+    $currentFolderId,
+    $rootFolderId
+);
+DiskValidator::assertCan($permissions, 'canView');
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 
@@ -48,6 +52,13 @@ $items = $adapter->listItems($context, $currentFolderId, [
     'sortDir' => $data['sortDir'] ?? 'desc',
     'filters' => $data['filters'] ?? [],
 ]);
+$items = DiskValidator::filterVisibleItems(
+    $context,
+    $settings,
+    $items,
+    $currentFolderId,
+    $rootFolderId
+);
 
 $breadcrumbs = $adapter->getBreadcrumbs($context, $currentFolderId);
 
@@ -58,6 +69,7 @@ DiskResponse::success([
     ],
     'breadcrumbs' => $breadcrumbs,
     'items' => $items,
+    'permissions' => $permissions,
 ], [
     'isEmpty' => empty($items),
     'total' => count($items),

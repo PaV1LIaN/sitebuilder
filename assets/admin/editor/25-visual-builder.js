@@ -74,6 +74,17 @@ function setInspectorTab(tab) {
         state.inspectorTab = tab;
     }
 
+    /*
+     * Контекст плавающих controls на холсте.
+     * Секция и блок больше не показывают панели одновременно.
+     */
+    if (document.body) {
+        document.body.setAttribute(
+            'data-editor-inspector-tab',
+            tab
+        );
+    }
+
     document.querySelectorAll('[data-inspector-tab]').forEach(function (button) {
         button.classList.toggle('is-active', button.getAttribute('data-inspector-tab') === tab);
         button.setAttribute('aria-selected', button.getAttribute('data-inspector-tab') === tab ? 'true' : 'false');
@@ -85,18 +96,46 @@ function setInspectorTab(tab) {
     });
 }
 
+/* SiteBuilder page access structural fix v2 */
 function refreshInspectorAccessTab() {
     var tab = document.getElementById('inspectorAccessTab');
-    if (!tab) return;
+    var inspector = document.getElementById(
+        'accessInspectorPanel'
+    );
 
-    var groupPanel = document.getElementById('siteGroupPanel');
-    var accessPanel = document.getElementById('siteAccessPanel');
-    var visible = !!((groupPanel && !groupPanel.hidden) || (accessPanel && !accessPanel.hidden));
+    if (!tab || !inspector) {
+        return;
+    }
 
+    var scopePanels = [
+        document.getElementById('pageAccessPanel'),
+        document.getElementById('siteGroupPanel'),
+        document.getElementById('siteAccessPanel')
+    ].filter(Boolean);
+
+    var visible = scopePanels.some(function (panel) {
+        return !panel.hidden;
+    });
+
+    inspector.hidden = !visible;
     tab.hidden = !visible;
 
-    if (!visible && state && state.inspectorTab === 'access') {
-        setInspectorTab('page');
+    if (!visible) {
+        inspector.classList.remove('is-active');
+
+        if (state && state.inspectorTab === 'access') {
+            setInspectorTab('page');
+        }
+
+        return;
+    }
+
+    if (state && state.inspectorTab === 'access') {
+        /*
+         * Теперь у вкладки только один настоящий inspector-panel.
+         * Внутренние карточки больше не конкурируют за is-active.
+         */
+        setInspectorTab('access');
     }
 }
 
@@ -284,7 +323,11 @@ function updatePublicPageLink() {
         }
     });
 
-    var accessObserverTargets = [document.getElementById('siteGroupPanel'), document.getElementById('siteAccessPanel')].filter(Boolean);
+    var accessObserverTargets = [
+        document.getElementById('siteGroupPanel'),
+        document.getElementById('siteAccessPanel'),
+        document.getElementById('pageAccessPanel')
+    ].filter(Boolean);
     if (accessObserverTargets.length && typeof MutationObserver === 'function') {
         var accessObserver = new MutationObserver(refreshInspectorAccessTab);
         accessObserverTargets.forEach(function (node) {

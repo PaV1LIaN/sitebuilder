@@ -1,0 +1,263 @@
+/* =========================================================
+   SITEBUILDER DRAG & DROP 2.0 / STAGE 1
+   Nearest insertion point, large drop zones, target column
+   highlighting, drag HUD and source ghost.
+   ========================================================= */
+
+body.sb-dnd2-active {
+    cursor: grabbing;
+}
+
+body.sb-dnd2-active * {
+    cursor: grabbing !important;
+}
+
+/* During block dragging all insertion zones become easy targets. */
+body.sb-dnd2-block-dragging .sb-editor-block-drop-slot {
+    height: 18px !important;
+    margin: 1px 3px !important;
+    border-radius: 10px !important;
+    background: rgba(37, 99, 235, .025);
+}
+
+body.sb-dnd2-block-dragging .sb-editor-block-drop-slot::after {
+    right: 8px !important;
+    left: 8px !important;
+    height: 2px !important;
+    background: rgba(37, 99, 235, .16);
+}
+
+body.sb-dnd2-block-dragging
+.sb-editor-block-drop-slot.is-drag-over {
+    height: 30px !important;
+    margin-top: 3px !important;
+    margin-bottom: 3px !important;
+    background: rgba(37, 99, 235, .08) !important;
+    box-shadow:
+        inset 0 0 0 1px rgba(37, 99, 235, .10);
+}
+
+body.sb-dnd2-block-dragging
+.sb-editor-block-drop-slot.is-drag-over::after {
+    right: 4px !important;
+    left: 4px !important;
+    height: 3px !important;
+    background: #2563eb !important;
+    box-shadow:
+        0 0 0 4px rgba(37, 99, 235, .10) !important;
+}
+
+body.sb-dnd2-block-dragging
+.sb-editor-block-drop-slot.is-drag-over::before {
+    content: attr(data-dnd2-label) !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: auto !important;
+    min-width: max-content;
+    height: 22px !important;
+    padding: 0 9px;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    background: #2563eb !important;
+    color: #fff;
+    box-shadow: 0 5px 16px rgba(37, 99, 235, .28);
+    font: 800 9px/18px Inter, ui-sans-serif, sans-serif !important;
+    letter-spacing: .01em;
+    transform: translate(-50%, -50%) !important;
+}
+
+body.sb-dnd2-block-dragging
+.sb-editor-block-drop-slot.is-drag-over.is-dnd2-noop {
+    background: rgba(100, 116, 139, .07) !important;
+}
+
+body.sb-dnd2-block-dragging
+.sb-editor-block-drop-slot.is-drag-over.is-dnd2-noop::after {
+    background: #94a3b8 !important;
+    box-shadow:
+        0 0 0 4px rgba(100, 116, 139, .09) !important;
+}
+
+body.sb-dnd2-block-dragging
+.sb-editor-block-drop-slot.is-drag-over.is-dnd2-noop::before {
+    background: #64748b !important;
+    box-shadow: 0 5px 16px rgba(71, 85, 105, .24);
+}
+
+/* Target section and target column are explicit. */
+body.sb-dnd2-block-dragging
+.sb-editor-section-preview__column {
+    transition:
+        border-color .12s ease,
+        background .12s ease,
+        box-shadow .12s ease,
+        opacity .12s ease;
+}
+
+body.sb-dnd2-block-dragging
+.sb-editor-section-preview__column:not(.is-dnd2-target) {
+    opacity: .82;
+}
+
+.sb-editor-section-preview__column.is-dnd2-target {
+    opacity: 1 !important;
+    border-color: #60a5fa !important;
+    background: rgba(239, 246, 255, .74) !important;
+    box-shadow:
+        inset 0 0 0 2px rgba(37, 99, 235, .12),
+        0 0 0 3px rgba(37, 99, 235, .05) !important;
+}
+
+.sb-editor-section-preview.is-dnd2-target-section {
+    z-index: 12 !important;
+    border-color: rgba(37, 99, 235, .60) !important;
+    box-shadow:
+        inset 0 0 0 1px rgba(37, 99, 235, .08),
+        0 12px 28px rgba(37, 99, 235, .08) !important;
+}
+
+.sb-editor-section-preview__column.is-dnd2-target
+.sb-editor-section-preview__empty {
+    border-color: #60a5fa;
+    background: rgba(219, 234, 254, .45);
+    color: #1d4ed8;
+}
+
+/* Source remains visible but clearly detached from layout. */
+body.sb-dnd2-active .sb-editor-block.is-dragging,
+body.sb-dnd2-active .sb-editor-section-preview.is-dragging {
+    opacity: .24 !important;
+    filter: saturate(.6);
+}
+
+/* Section insertion also gets a real hit area. */
+body.sb-dnd2-section-dragging
+.sb-editor-section-drop-slot {
+    height: 24px !important;
+    margin: 2px 10px !important;
+    background: rgba(37, 99, 235, .025);
+}
+
+body.sb-dnd2-section-dragging
+.sb-editor-section-drop-slot::after {
+    right: 10px !important;
+    left: 10px !important;
+    background: rgba(37, 99, 235, .18);
+}
+
+body.sb-dnd2-section-dragging
+.sb-editor-section-drop-slot.is-drag-over {
+    height: 36px !important;
+    background: rgba(37, 99, 235, .08) !important;
+}
+
+body.sb-dnd2-section-dragging
+.sb-editor-section-drop-slot.is-drag-over::after {
+    height: 3px !important;
+    background: #2563eb !important;
+    box-shadow:
+        0 0 0 4px rgba(37, 99, 235, .10) !important;
+}
+
+body.sb-dnd2-section-dragging
+.sb-editor-section-drop-slot.is-drag-over::before {
+    content: attr(data-dnd2-label) !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: auto !important;
+    min-width: max-content;
+    height: 23px !important;
+    padding: 0 10px;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    background: #2563eb !important;
+    color: #fff;
+    box-shadow: 0 5px 16px rgba(37, 99, 235, .28);
+    font: 800 9px/19px Inter, ui-sans-serif, sans-serif !important;
+    transform: translate(-50%, -50%) !important;
+}
+
+/* Cursor HUD follows the pointer and names the exact destination. */
+.sb-dnd2-hud {
+    position: fixed;
+    z-index: 12000;
+    max-width: min(360px, calc(100vw - 24px));
+    padding: 7px 10px;
+    border: 1px solid rgba(255, 255, 255, .9);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, .94);
+    color: #fff;
+    box-shadow: 0 12px 34px rgba(15, 23, 42, .24);
+    backdrop-filter: blur(10px);
+    pointer-events: none;
+    font-size: 10px;
+    font-weight: 760;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+
+.sb-dnd2-hud[hidden] {
+    display: none !important;
+}
+
+/* Native drag image is replaced by a small predictable card. */
+.sb-dnd2-ghost {
+    position: fixed;
+    top: -1000px;
+    left: -1000px;
+    z-index: -1;
+    width: 220px;
+    display: grid;
+    gap: 3px;
+    padding: 10px 12px;
+    border: 1px solid #bfdbfe;
+    border-radius: 11px;
+    background: #fff;
+    color: #0f172a;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, .20);
+}
+
+.sb-dnd2-ghost strong {
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sb-dnd2-ghost span {
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+/* Dark editor. */
+body.sb-editor-theme-dark
+.sb-editor-section-preview__column.is-dnd2-target {
+    border-color: #60a5fa !important;
+    background: rgba(30, 64, 175, .16) !important;
+    box-shadow:
+        inset 0 0 0 2px rgba(96, 165, 250, .16),
+        0 0 0 3px rgba(96, 165, 250, .06) !important;
+}
+
+body.sb-editor-theme-dark .sb-dnd2-ghost {
+    border-color: #334155;
+    background: #111827;
+    color: #e2e8f0;
+}
+
+body.sb-editor-theme-dark .sb-dnd2-ghost span {
+    color: #94a3b8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.sb-dnd2-active
+    .sb-editor-section-preview__column,
+    body.sb-dnd2-active
+    .sb-editor-block-drop-slot,
+    body.sb-dnd2-active
+    .sb-editor-section-drop-slot {
+        transition: none !important;
+    }
+}

@@ -34,20 +34,18 @@ try {
     );
 
     $rootInfo = DiskRootResolver::resolveWithSource($context, $settings, false);
-    $permissions = DiskPermissionService::resolve($context, $settings, $rootInfo['rootFolderId']);
-
-    if (empty($permissions['canView'])) {
-        throw new RuntimeException('ACCESS_DENIED');
-    }
-
-    if ($mode === 'edit' && empty($permissions['canUpload'])) {
-        throw new RuntimeException('ACCESS_DENIED');
-    }
-
     DiskValidator::assertFileInsideRoot(
         $fileId,
         $rootInfo['rootFolderId'],
         $context
+    );
+    DiskValidator::assertCanForItemParent(
+        $context,
+        $settings,
+        'file',
+        $fileId,
+        (int)$rootInfo['rootFolderId'],
+        $mode === 'edit' ? 'canEditFile' : 'canView'
     );
 
     $file = File::loadById($fileId);

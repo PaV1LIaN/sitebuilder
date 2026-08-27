@@ -601,11 +601,498 @@
 
     window.renderBlocks = renderBlocks17;
 
-    function clearCanvasDragClasses() {
+
+    /* -----------------------------------------------------
+       Drag & Drop 2.0
+       Large hit areas, nearest insertion point, target HUD
+       and canvas auto-scroll.
+       ----------------------------------------------------- */
+
+    function clearCanvasDropTargets() {
         if (!blocksList) return;
-        blocksList.querySelectorAll('.is-drag-over').forEach(function (node) { node.classList.remove('is-drag-over'); });
-        blocksList.querySelectorAll('.is-dragging').forEach(function (node) { node.classList.remove('is-dragging'); });
+
+        blocksList.querySelectorAll(
+            '.is-drag-over,'
+            + '.is-dnd2-target,'
+            + '.is-dnd2-target-section,'
+            + '.is-dnd2-noop'
+        ).forEach(function (node) {
+            node.classList.remove(
+                'is-drag-over',
+                'is-dnd2-target',
+                'is-dnd2-target-section',
+                'is-dnd2-noop'
+            );
+        });
+
+        blocksList.querySelectorAll(
+            '[data-dnd2-label]'
+        ).forEach(function (node) {
+            node.removeAttribute('data-dnd2-label');
+        });
+
+        var hud = document.getElementById('sbDnd2Hud');
+        if (hud) hud.hidden = true;
     }
+
+    function clearCanvasDragClasses() {
+        clearCanvasDropTargets();
+
+        if (blocksList) {
+            blocksList.querySelectorAll('.is-dragging')
+                .forEach(function (node) {
+                    node.classList.remove('is-dragging');
+                    node.removeAttribute('aria-grabbed');
+                });
+        }
+
+        body.classList.remove(
+            'sb-dnd2-active',
+            'sb-dnd2-block-dragging',
+            'sb-dnd2-section-dragging'
+        );
+    }
+
+    function dnd2Hud() {
+        var hud = document.getElementById('sbDnd2Hud');
+
+        if (hud) {
+            return hud;
+        }
+
+        hud = document.createElement('div');
+        hud.id = 'sbDnd2Hud';
+        hud.className = 'sb-dnd2-hud';
+        hud.hidden = true;
+        hud.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(hud);
+
+        return hud;
+    }
+
+    function dnd2ShowHud(text, event) {
+        var hud = dnd2Hud();
+        hud.textContent = String(text || '');
+        hud.hidden = false;
+
+        var x = Number(event && event.clientX || 0) + 18;
+        var y = Number(event && event.clientY || 0) + 18;
+
+        hud.style.left = x + 'px';
+        hud.style.top = y + 'px';
+
+        var rect = hud.getBoundingClientRect();
+
+        if (rect.right > window.innerWidth - 10) {
+            hud.style.left = Math.max(
+                10,
+                window.innerWidth - rect.width - 10
+            ) + 'px';
+        }
+
+        if (rect.bottom > window.innerHeight - 10) {
+            hud.style.top = Math.max(
+                10,
+                Number(event && event.clientY || 0)
+                    - rect.height
+                    - 18
+            ) + 'px';
+        }
+    }
+
+    function dnd2DirectChildren(container, selector) {
+        if (!container) return [];
+
+        return Array.prototype.slice
+            .call(container.querySelectorAll(selector))
+            .filter(function (node) {
+                return node.parentElement === container;
+            });
+    }
+
+    function dnd2NearestSlot(slots, clientY) {
+        if (!slots || !slots.length) {
+            return null;
+        }
+
+        var best = null;
+        var bestDistance = Infinity;
+
+        slots.forEach(function (slot) {
+            var rect = slot.getBoundingClientRect();
+            var center = rect.top + rect.height / 2;
+            var distance = Math.abs(
+                Number(clientY || 0) - center
+            );
+
+            if (distance < bestDistance) {
+                best = slot;
+                bestDistance = distance;
+            }
+        });
+
+        return best;
+    }
+
+    function dnd2ResolveBlockSlot(event) {
+        if (!event || !event.target || !blocksList) {
+            return null;
+        }
+
+        var direct = event.target.closest(
+            '[data-block-drop-slot]'
+        );
+
+        if (direct && blocksList.contains(direct)) {
+            return direct;
+        }
+
+        var column = event.target.closest(
+            '.sb-editor-section-preview__column'
+            + '[data-section-id][data-column]'
+        );
+
+        if (column && blocksList.contains(column)) {
+            return dnd2NearestSlot(
+                dnd2DirectChildren(
+                    column,
+                    '[data-block-drop-slot]'
+                ),
+                event.clientY
+            );
+        }
+
+        if (
+            !state.pageSections.length
+            && blocksList.contains(event.target)
+        ) {
+            return dnd2NearestSlot(
+                dnd2DirectChildren(
+                    blocksList,
+                    '[data-block-drop-slot]'
+                ),
+                event.clientY
+            );
+        }
+
+        return null;
+    }
+
+    function dnd2ResolveSectionSlot(event) {
+        if (!event || !event.target || !blocksList) {
+            return null;
+        }
+
+        var direct = event.target.closest(
+            '[data-section-drop-slot]'
+        );
+
+        if (direct && blocksList.contains(direct)) {
+            return direct;
+        }
+
+        var section = event.target.closest(
+            '.sb-editor-section-preview'
+            + '[data-editor-section-id]'
+        );
+
+        if (section && blocksList.contains(section)) {
+            var rect = section.getBoundingClientRect();
+            var before = section.previousElementSibling;
+            var after = section.nextElementSibling;
+
+            before = before
+                && before.matches('[data-section-drop-slot]')
+                    ? before
+                    : null;
+
+            after = after
+                && after.matches('[data-section-drop-slot]')
+                    ? after
+                    : null;
+
+            if (
+                Number(event.clientY || 0)
+                < rect.top + rect.height / 2
+            ) {
+                return before || after;
+            }
+
+            return after || before;
+        }
+
+        if (blocksList.contains(event.target)) {
+            return dnd2NearestSlot(
+                dnd2DirectChildren(
+                    blocksList,
+                    '[data-section-drop-slot]'
+                ),
+                event.clientY
+            );
+        }
+
+        return null;
+    }
+
+    function dnd2BlockName(blockId) {
+        var block = blockById(blockId);
+
+        if (!block) {
+            return 'блок';
+        }
+
+        if (typeof blockTypeMeta === 'function') {
+            return blockTypeMeta(block.type).title;
+        }
+
+        return String(block.type || 'блок');
+    }
+
+    function dnd2SectionName(sectionId) {
+        var section = sectionById(sectionId);
+
+        return section
+            ? String(
+                section.title
+                || ('Секция #' + sectionId)
+            )
+            : (
+                sectionId > 0
+                    ? 'Секция #' + sectionId
+                    : 'Страница'
+            );
+    }
+
+    function dnd2BlockSlotIsNoop(
+        blockId,
+        sectionId,
+        column,
+        beforeBlockId
+    ) {
+        var block = blockById(blockId);
+
+        if (!block) {
+            return false;
+        }
+
+        if (
+            getBlockSectionId(block) !== Number(sectionId || 0)
+            || getBlockColumn(block) !== Number(column || 1)
+        ) {
+            return false;
+        }
+
+        var currentIds = sortedBlocks(state.blocks)
+            .filter(function (item) {
+                return getBlockSectionId(item)
+                        === Number(sectionId || 0)
+                    && getBlockColumn(item)
+                        === Number(column || 1);
+            })
+            .map(function (item) {
+                return Number(item.id || 0);
+            });
+
+        var index = currentIds.indexOf(
+            Number(blockId || 0)
+        );
+
+        if (index < 0) {
+            return false;
+        }
+
+        var nextId = currentIds[index + 1]
+            ? Number(currentIds[index + 1])
+            : 0;
+
+        return Number(beforeBlockId || 0)
+                === Number(blockId || 0)
+            || Number(beforeBlockId || 0)
+                === nextId;
+    }
+
+    function dnd2MarkBlockTarget(slot, event) {
+        if (!slot) return;
+
+        clearCanvasDropTargets();
+
+        var sectionId = Number(
+            slot.getAttribute('data-section-id') || 0
+        );
+        var column = Number(
+            slot.getAttribute('data-column') || 1
+        );
+        var beforeBlockId = Number(
+            slot.getAttribute('data-before-block-id') || 0
+        );
+        var noop = dnd2BlockSlotIsNoop(
+            draggedBlockId,
+            sectionId,
+            column,
+            beforeBlockId
+        );
+
+        slot.classList.add('is-drag-over');
+        slot.classList.toggle('is-dnd2-noop', noop);
+        slot.setAttribute(
+            'data-dnd2-label',
+            noop
+                ? 'Уже здесь'
+                : (
+                    beforeBlockId > 0
+                        ? 'Вставить перед'
+                        : 'Вставить в конец'
+                )
+        );
+
+        var targetColumn = slot.closest(
+            '.sb-editor-section-preview__column'
+        );
+
+        if (targetColumn) {
+            targetColumn.classList.add('is-dnd2-target');
+
+            var targetSection = targetColumn.closest(
+                '.sb-editor-section-preview'
+            );
+
+            if (targetSection) {
+                targetSection.classList.add(
+                    'is-dnd2-target-section'
+                );
+            }
+        }
+
+        var positionText = beforeBlockId > 0
+            ? 'перед «'
+                + dnd2BlockName(beforeBlockId)
+                + '»'
+            : 'в конец';
+
+        dnd2ShowHud(
+            noop
+                ? 'Блок уже находится здесь'
+                : (
+                    dnd2SectionName(sectionId)
+                    + ' · Колонка '
+                    + column
+                    + ' · '
+                    + positionText
+                ),
+            event
+        );
+    }
+
+    function dnd2MarkSectionTarget(slot, event) {
+        if (!slot) return;
+
+        clearCanvasDropTargets();
+
+        var beforeSectionId = Number(
+            slot.getAttribute(
+                'data-before-section-id'
+            ) || 0
+        );
+
+        slot.classList.add('is-drag-over');
+        slot.setAttribute(
+            'data-dnd2-label',
+            beforeSectionId > 0
+                ? 'Вставить секцию перед'
+                : 'Переместить в конец'
+        );
+
+        dnd2ShowHud(
+            beforeSectionId > 0
+                ? 'Секция · перед «'
+                    + dnd2SectionName(beforeSectionId)
+                    + '»'
+                : 'Секция · в конец страницы',
+            event
+        );
+    }
+
+    function dnd2AutoScroll(clientY) {
+        var canvasBody = document.getElementById(
+            'editorCanvasBody'
+        );
+
+        if (!canvasBody) {
+            return;
+        }
+
+        var rect = canvasBody.getBoundingClientRect();
+        var threshold = Math.min(
+            96,
+            Math.max(54, rect.height * 0.14)
+        );
+        var y = Number(clientY || 0);
+        var delta = 0;
+
+        if (y < rect.top + threshold) {
+            delta = -Math.ceil(
+                (rect.top + threshold - y)
+                / threshold
+                * 24
+            );
+        } else if (
+            y > rect.bottom - threshold
+        ) {
+            delta = Math.ceil(
+                (y - (rect.bottom - threshold))
+                / threshold
+                * 24
+            );
+        }
+
+        if (delta !== 0) {
+            canvasBody.scrollTop += delta;
+        }
+    }
+
+    function dnd2SetDragImage(
+        event,
+        title,
+        subtitle
+    ) {
+        if (
+            !event
+            || !event.dataTransfer
+            || typeof event.dataTransfer.setDragImage
+                !== 'function'
+        ) {
+            return;
+        }
+
+        var ghost = document.createElement('div');
+        ghost.className = 'sb-dnd2-ghost';
+        ghost.innerHTML = ''
+            + '<strong>'
+            + escapeHtml(String(title || 'Перемещение'))
+            + '</strong>'
+            + '<span>'
+            + escapeHtml(String(subtitle || ''))
+            + '</span>';
+
+        document.body.appendChild(ghost);
+
+        try {
+            event.dataTransfer.setDragImage(
+                ghost,
+                24,
+                18
+            );
+        } catch (error) {
+            // Native fallback is fine.
+        }
+
+        window.setTimeout(function () {
+            if (ghost.parentNode) {
+                ghost.parentNode.removeChild(ghost);
+            }
+        }, 0);
+    }
+
 
     function blockVisualOrder(movedBlockId, targetSectionId, targetColumn, beforeBlockId) {
         var order = [];
@@ -659,6 +1146,20 @@
         beforeBlockId = Number(beforeBlockId || 0);
         var block = blockById(blockId);
         if (!block) return;
+
+        if (
+            dnd2BlockSlotIsNoop(
+                blockId,
+                sectionId,
+                column,
+                beforeBlockId
+            )
+        ) {
+            state.currentBlockId = blockId;
+            state.currentSectionId = sectionId;
+            state.currentColumn = column;
+            return;
+        }
 
         if (sectionId > 0 && (getBlockSectionId(block) !== sectionId || getBlockColumn(block) !== column)) {
             await assignBlockToSection(blockId, sectionId, column);
@@ -1279,6 +1780,7 @@
         if (pageContextMenu && !event.target.closest('.sb-page-context-menu')) closePageContextMenu();
     }, true);
 
+
     document.addEventListener('dragstart', function (event) {
         var pageRow = event.target.closest('[data-page-tree-row]');
         if (pageRow && !event.target.closest('button, a')) {
@@ -1297,11 +1799,28 @@
             event.stopImmediatePropagation();
             draggedBlockId = Number(blockHandle.getAttribute('data-block-drag-handle') || 0);
             state.draggedBlockId = draggedBlockId;
+
+            clearCanvasDropTargets();
+            body.classList.add(
+                'sb-dnd2-active',
+                'sb-dnd2-block-dragging'
+            );
+
             var blockNode = blockHandle.closest('.sb-editor-block');
-            if (blockNode) blockNode.classList.add('is-dragging');
+            if (blockNode) {
+                blockNode.classList.add('is-dragging');
+                blockNode.setAttribute('aria-grabbed', 'true');
+            }
+
             if (event.dataTransfer) {
                 event.dataTransfer.effectAllowed = 'move';
                 event.dataTransfer.setData('text/plain', 'block:' + draggedBlockId);
+
+                dnd2SetDragImage(
+                    event,
+                    dnd2BlockName(draggedBlockId),
+                    'Перемещение блока'
+                );
             }
             return;
         }
@@ -1310,11 +1829,28 @@
         if (sectionHandle) {
             event.stopImmediatePropagation();
             draggedSectionId = Number(sectionHandle.getAttribute('data-section-drag-handle') || 0);
+
+            clearCanvasDropTargets();
+            body.classList.add(
+                'sb-dnd2-active',
+                'sb-dnd2-section-dragging'
+            );
+
             var sectionNode = sectionHandle.closest('.sb-editor-section-preview');
-            if (sectionNode) sectionNode.classList.add('is-dragging');
+            if (sectionNode) {
+                sectionNode.classList.add('is-dragging');
+                sectionNode.setAttribute('aria-grabbed', 'true');
+            }
+
             if (event.dataTransfer) {
                 event.dataTransfer.effectAllowed = 'move';
                 event.dataTransfer.setData('text/plain', 'section:' + draggedSectionId);
+
+                dnd2SetDragImage(
+                    event,
+                    dnd2SectionName(draggedSectionId),
+                    'Перемещение секции'
+                );
             }
         }
     }, true);
@@ -1331,27 +1867,71 @@
             return;
         }
 
-        var blockSlot = event.target.closest('[data-block-drop-slot]');
-        if (draggedBlockId > 0 && blockSlot) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            clearCanvasDragClasses();
-            blockSlot.classList.add('is-drag-over');
-            var currentBlock = blocksList && blocksList.querySelector('.sb-editor-block[data-block-id="' + draggedBlockId + '"]');
-            if (currentBlock) currentBlock.classList.add('is-dragging');
-            if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-            return;
+        if (draggedBlockId > 0) {
+            var blockSlot = dnd2ResolveBlockSlot(event);
+
+            if (blockSlot) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+
+                dnd2AutoScroll(event.clientY);
+                dnd2MarkBlockTarget(
+                    blockSlot,
+                    event
+                );
+
+                var currentBlock = blocksList
+                    && blocksList.querySelector(
+                        '.sb-editor-block[data-block-id="'
+                        + draggedBlockId
+                        + '"]'
+                    );
+
+                if (currentBlock) {
+                    currentBlock.classList.add(
+                        'is-dragging'
+                    );
+                }
+
+                if (event.dataTransfer) {
+                    event.dataTransfer.dropEffect = 'move';
+                }
+                return;
+            }
         }
 
-        var sectionSlot = event.target.closest('[data-section-drop-slot]');
-        if (draggedSectionId > 0 && sectionSlot) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            clearCanvasDragClasses();
-            sectionSlot.classList.add('is-drag-over');
-            var currentSection = blocksList && blocksList.querySelector('[data-editor-section-id="' + draggedSectionId + '"]');
-            if (currentSection) currentSection.classList.add('is-dragging');
-            if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+        if (draggedSectionId > 0) {
+            var sectionSlot = dnd2ResolveSectionSlot(
+                event
+            );
+
+            if (sectionSlot) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+
+                dnd2AutoScroll(event.clientY);
+                dnd2MarkSectionTarget(
+                    sectionSlot,
+                    event
+                );
+
+                var currentSection = blocksList
+                    && blocksList.querySelector(
+                        '[data-editor-section-id="'
+                        + draggedSectionId
+                        + '"]'
+                    );
+
+                if (currentSection) {
+                    currentSection.classList.add(
+                        'is-dragging'
+                    );
+                }
+
+                if (event.dataTransfer) {
+                    event.dataTransfer.dropEffect = 'move';
+                }
+            }
         }
     }, true);
 
@@ -1383,37 +1963,109 @@
             return;
         }
 
-        var blockSlot = event.target.closest('[data-block-drop-slot]');
-        if (draggedBlockId > 0 && blockSlot) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            var blockId = draggedBlockId;
-            draggedBlockId = 0;
-            state.draggedBlockId = 0;
-            var sectionId = Number(blockSlot.getAttribute('data-section-id') || 0);
-            var column = Number(blockSlot.getAttribute('data-column') || 1);
-            var beforeBlockId = Number(blockSlot.getAttribute('data-before-block-id') || 0);
-            clearCanvasDragClasses();
-            moveBlockToSlot(blockId, sectionId, column, beforeBlockId).catch(function (error) {
-                console.error(error);
-                if (typeof showEditorToast === 'function') showEditorToast('Не удалось переместить блок', 'error');
-            });
-            return;
+        if (draggedBlockId > 0) {
+            var blockSlot = dnd2ResolveBlockSlot(event);
+
+            if (blockSlot) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+
+                var blockId = draggedBlockId;
+                var sectionId = Number(
+                    blockSlot.getAttribute(
+                        'data-section-id'
+                    ) || 0
+                );
+                var column = Number(
+                    blockSlot.getAttribute(
+                        'data-column'
+                    ) || 1
+                );
+                var beforeBlockId = Number(
+                    blockSlot.getAttribute(
+                        'data-before-block-id'
+                    ) || 0
+                );
+                var noop = dnd2BlockSlotIsNoop(
+                    blockId,
+                    sectionId,
+                    column,
+                    beforeBlockId
+                );
+
+                draggedBlockId = 0;
+                state.draggedBlockId = 0;
+                clearCanvasDragClasses();
+
+                if (noop) {
+                    state.currentBlockId = blockId;
+                    state.currentSectionId = sectionId;
+                    state.currentColumn = column;
+
+                    if (typeof setInspectorTab === 'function') {
+                        setInspectorTab('block');
+                    }
+                    return;
+                }
+
+                moveBlockToSlot(
+                    blockId,
+                    sectionId,
+                    column,
+                    beforeBlockId
+                ).catch(function (error) {
+                    console.error(error);
+                    if (typeof showEditorToast === 'function') {
+                        showEditorToast(
+                            'Не удалось переместить блок',
+                            'error'
+                        );
+                    }
+                });
+                return;
+            }
         }
 
-        var sectionSlot = event.target.closest('[data-section-drop-slot]');
-        if (draggedSectionId > 0 && sectionSlot) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            var sectionIdToMove = draggedSectionId;
-            draggedSectionId = 0;
-            var beforeSectionId = Number(sectionSlot.getAttribute('data-before-section-id') || 0);
-            clearCanvasDragClasses();
-            if (sectionIdToMove === beforeSectionId) return;
-            reorderSections(sectionIdToMove, beforeSectionId).catch(function (error) {
-                console.error(error);
-                if (typeof showEditorToast === 'function') showEditorToast('Не удалось переместить секцию', 'error');
-            });
+        if (draggedSectionId > 0) {
+            var sectionSlot = dnd2ResolveSectionSlot(
+                event
+            );
+
+            if (sectionSlot) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+
+                var sectionIdToMove = draggedSectionId;
+                draggedSectionId = 0;
+
+                var beforeSectionId = Number(
+                    sectionSlot.getAttribute(
+                        'data-before-section-id'
+                    ) || 0
+                );
+
+                clearCanvasDragClasses();
+
+                if (
+                    sectionIdToMove
+                    === beforeSectionId
+                ) {
+                    return;
+                }
+
+                reorderSections(
+                    sectionIdToMove,
+                    beforeSectionId
+                ).catch(function (error) {
+                    console.error(error);
+                    if (typeof showEditorToast === 'function') {
+                        showEditorToast(
+                            'Не удалось переместить секцию',
+                            'error'
+                        );
+                    }
+                });
+            }
         }
     }, true);
 

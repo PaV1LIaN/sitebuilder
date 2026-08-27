@@ -22,10 +22,6 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 );
 
 $rootFolderId = DiskRootResolver::resolve($context, $settings);
-$permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId);
-
-DiskValidator::assertCan($permissions, 'canRename');
-
 $entityType = trim((string)($data['entityType'] ?? ''));
 $entityId = (int)($data['entityId'] ?? 0);
 $newName = trim((string)($data['newName'] ?? ''));
@@ -40,6 +36,14 @@ if ($entityId <= 0) {
 
 DiskValidator::assertNonEmptyString($newName, 'EMPTY_NAME');
 DiskValidator::assertItemInsideRoot($entityType, $entityId, $rootFolderId, $context);
+DiskValidator::assertCanForItemParent(
+    $context,
+    $settings,
+    $entityType,
+    $entityId,
+    (int)$rootFolderId,
+    'canRename'
+);
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 $item = $adapter->rename($context, $entityType, $entityId, $newName);

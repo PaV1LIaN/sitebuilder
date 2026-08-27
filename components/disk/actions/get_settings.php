@@ -14,12 +14,16 @@ $context = DiskContextFactory::fromArray([
 
 DiskValidator::assertContext($context);
 
-$settings = DiskSettingsRepository::ensureExistsForBlock(
-    $context->blockId,
-    $context->siteId,
-    $context->pageId,
-    $context->currentUserId
-);
+$settings = DiskSettingsRepository::getByBlockId($context->blockId);
+
+if (!$settings) {
+    $settings = DiskSettingsRepository::ensureExistsForBlock(
+        $context->blockId,
+        $context->siteId,
+        $context->pageId,
+        $context->currentUserId
+    );
+}
 
 $block = BlockRepository::getById($context->blockId);
 

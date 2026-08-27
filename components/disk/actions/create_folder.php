@@ -22,14 +22,17 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 );
 
 $rootFolderId = DiskRootResolver::resolve($context, $settings);
-$permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId);
-
-DiskValidator::assertCan($permissions, 'canCreateFolder');
-
 $currentFolderId = (int)($data['currentFolderId'] ?? 0);
 $name = trim((string)($data['name'] ?? ''));
 
 DiskValidator::assertFolderInsideRoot($currentFolderId, $rootFolderId, $context);
+DiskValidator::assertCanForFolder(
+    $context,
+    $settings,
+    $currentFolderId,
+    (int)$rootFolderId,
+    'canCreateFolder'
+);
 DiskValidator::assertNonEmptyString($name, 'EMPTY_FOLDER_NAME');
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);

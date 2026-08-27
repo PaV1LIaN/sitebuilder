@@ -98,33 +98,87 @@ if (pagesList) {
         renderPages();
         fillPageForm();
 
+        if (typeof setInspectorTab === 'function') {
+            setInspectorTab('page');
+        }
+
         await loadBlocks();
     });
 }
 
 if (blocksList) {
+    /* SiteBuilder contextual entity selection v2 */
     blocksList.addEventListener('click', function (e) {
-        var item = e.target.closest('[data-block-id]');
-        if (!item) return;
+        var blockItem = e.target.closest('[data-block-id]');
 
-        state.currentBlockId = Number(item.getAttribute('data-block-id') || 0);
+        if (blockItem) {
+            state.currentBlockId = Number(
+                blockItem.getAttribute('data-block-id') || 0
+            );
 
-        var selectedBlock = getCurrentBlock();
+            var selectedBlock = getCurrentBlock();
 
-        if (selectedBlock) {
-            var selectedSectionId = getBlockSectionId(selectedBlock);
-            var selectedColumn = getBlockColumn(selectedBlock);
+            if (selectedBlock) {
+                var selectedSectionId =
+                    getBlockSectionId(selectedBlock);
+                var selectedColumn =
+                    getBlockColumn(selectedBlock);
 
-            if (selectedSectionId > 0) {
-                state.currentSectionId = selectedSectionId;
+                if (selectedSectionId > 0) {
+                    state.currentSectionId = selectedSectionId;
+                }
+
+                state.currentColumn =
+                    selectedColumn > 0 ? selectedColumn : 1;
             }
 
-            state.currentColumn = selectedColumn > 0 ? selectedColumn : 1;
+            renderPageSectionsPanel();
+            renderBlocks();
+            fillBlockForm();
+
+            if (typeof setInspectorTab === 'function') {
+                setInspectorTab('block');
+            }
+
+            return;
         }
+
+        var sectionItem = e.target.closest(
+            '[data-editor-section-id]'
+        );
+
+        if (!sectionItem) {
+            return;
+        }
+
+        var sectionId = Number(
+            sectionItem.getAttribute('data-editor-section-id') || 0
+        );
+
+        if (sectionId <= 0) {
+            return;
+        }
+
+        var columnItem = e.target.closest(
+            '.sb-editor-section-preview__column[data-column]'
+        );
+
+        state.currentBlockId = 0;
+        state.currentSectionId = sectionId;
+        state.currentColumn = columnItem
+            ? Math.max(
+                1,
+                Number(columnItem.getAttribute('data-column') || 1)
+            )
+            : 1;
 
         renderPageSectionsPanel();
         renderBlocks();
         fillBlockForm();
+
+        if (typeof setInspectorTab === 'function') {
+            setInspectorTab('section');
+        }
     });
 
     blocksList.addEventListener('dragstart', function (e) {
@@ -237,6 +291,38 @@ if (blocksList) {
     });
 }
 
+var editorViewportContext =
+    document.getElementById('editorViewport');
+
+if (editorViewportContext) {
+    editorViewportContext.addEventListener('click', function (e) {
+        if (
+            e.target.closest(
+                '.sb-editor-block,'
+                + '[data-editor-section-id],'
+                + '.sb-editor-addbar,'
+                + 'button,a,input,textarea,select,'
+                + '[contenteditable="true"]'
+            )
+        ) {
+            return;
+        }
+
+        if (!e.target.closest('.sb-editor-page')) {
+            return;
+        }
+
+        state.currentBlockId = 0;
+
+        fillBlockForm();
+        renderBlocks();
+
+        if (typeof setInspectorTab === 'function') {
+            setInspectorTab('page');
+        }
+    });
+}
+
 var addPageSectionBtn = document.getElementById('addPageSectionBtn');
 if (addPageSectionBtn) {
     addPageSectionBtn.addEventListener('click', createPageSection);
@@ -249,11 +335,17 @@ document.addEventListener('click', function (e) {
         var targetColumn = Number(addTargetBtn.getAttribute('data-column') || 1);
 
         if (targetSectionId > 0) {
+            state.currentBlockId = 0;
             state.currentSectionId = targetSectionId;
             state.currentColumn = targetColumn > 0 ? targetColumn : 1;
 
             renderPageSectionsPanel();
             renderBlocks();
+            fillBlockForm();
+
+            if (typeof setInspectorTab === 'function') {
+                setInspectorTab('section');
+            }
 
             setPageSectionsMessage(
                 'Новые компоненты будут добавляться в секцию #' + targetSectionId + ', колонку ' + state.currentColumn,
@@ -274,10 +366,17 @@ document.addEventListener('click', function (e) {
         );
 
         if (sectionId > 0) {
+            state.currentBlockId = 0;
             state.currentSectionId = sectionId;
             state.currentColumn = 1;
+
             renderPageSectionsPanel();
             renderBlocks();
+            fillBlockForm();
+
+            if (typeof setInspectorTab === 'function') {
+                setInspectorTab('section');
+            }
         }
 
         return;
@@ -481,6 +580,19 @@ if (reloadAccessBtn) {
     reloadAccessBtn.addEventListener('click', loadAccessList);
 }
 
+var savePageAccessBtn = document.getElementById('savePageAccessBtn');
+if (savePageAccessBtn) {
+    savePageAccessBtn.addEventListener('click', savePageAccess);
+}
+
+var reloadPageAccessBtn = document.getElementById('reloadPageAccessBtn');
+if (reloadPageAccessBtn) {
+    reloadPageAccessBtn.addEventListener('click', function () {
+        state.pageAccessLoadedPageId = 0;
+        loadPageAccessList(true);
+    });
+}
+
 var accessUserSearchInput = document.getElementById('accessUserSearchInput');
 if (accessUserSearchInput) {
     accessUserSearchInput.addEventListener('input', function () {
@@ -502,7 +614,74 @@ if (accessUserSearchInput) {
     });
 }
 
+var pageAccessUserSearchInput = document.getElementById('pageAccessUserSearchInput');
+if (pageAccessUserSearchInput) {
+    pageAccessUserSearchInput.addEventListener('input', function () {
+        clearTimeout(state.pageAccessUserSearchTimer);
+
+        state.pageAccessUserSearchTimer = setTimeout(function () {
+            searchPageAccessUsers();
+        }, 300);
+    });
+
+    pageAccessUserSearchInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+
+            if (state.pageAccessUserSearchResults.length) {
+                selectPageAccessUser(state.pageAccessUserSearchResults[0]);
+            }
+        }
+    });
+}
+
+[
+    'pageAccessCanView',
+    'pageAccessCanEdit',
+    'pageAccessCanDiskView',
+    'pageAccessCanDiskEdit'
+].forEach(function (id) {
+    var input = document.getElementById(id);
+    if (input) {
+        input.addEventListener('change', function () {
+            syncPageAccessPermissionInputs(id);
+        });
+    }
+});
+
 document.addEventListener('click', function (e) {
+    var selectPageAccessBtn = e.target.closest('[data-select-page-access-user]');
+    if (selectPageAccessBtn) {
+        var pageAccessUserId = Number(selectPageAccessBtn.getAttribute('data-select-page-access-user') || 0);
+        var pageAccessUser = (state.pageAccessUserSearchResults || []).find(function (item) {
+            return Number(item.id || 0) === pageAccessUserId;
+        });
+
+        if (pageAccessUser) {
+            selectPageAccessUser(pageAccessUser);
+        }
+
+        return;
+    }
+
+    var clearPageAccessBtn = e.target.closest('[data-clear-page-access-user]');
+    if (clearPageAccessBtn) {
+        clearSelectedPageAccessUser();
+        return;
+    }
+
+    var editPageAccessBtn = e.target.closest('[data-page-access-edit-id]');
+    if (editPageAccessBtn) {
+        editPageAccessItem(Number(editPageAccessBtn.getAttribute('data-page-access-edit-id') || 0));
+        return;
+    }
+
+    var deletePageAccessBtn = e.target.closest('[data-page-access-delete-id]');
+    if (deletePageAccessBtn) {
+        deletePageAccessItem(Number(deletePageAccessBtn.getAttribute('data-page-access-delete-id') || 0));
+        return;
+    }
+
     var selectBtn = e.target.closest('[data-select-access-user]');
     if (selectBtn) {
         var userId = Number(selectBtn.getAttribute('data-select-access-user') || 0);
@@ -531,9 +710,12 @@ document.addEventListener('click', function (e) {
 });
 
 document.addEventListener('mousedown', function (e) {
-    var wrap = e.target.closest('.sb-access-search-wrap');
-    if (!wrap) {
+    if (!e.target.closest('#siteAccessPanel .sb-access-search-wrap')) {
         renderAccessUserSearchResults([]);
+    }
+
+    if (!e.target.closest('#pageAccessPanel .sb-access-search-wrap')) {
+        renderPageAccessUserSearchResults([]);
     }
 });
 

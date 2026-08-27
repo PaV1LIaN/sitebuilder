@@ -1,0 +1,587 @@
+/* =========================================================
+   SITEBUILDER EDITOR WORKSPACE / STAGE 21
+   Full-height shell, independent panels and canvas zoom.
+   Existing save/page/block logic is not changed.
+   ========================================================= */
+
+:root {
+    --sb-editor-workspace-gap: 8px;
+    --sb-editor-canvas-zoom: 1;
+    --sb-editor-shell-radius: 14px;
+}
+
+/* Full-height application shell */
+html {
+    height: 100%;
+}
+
+body.sb-admin-body {
+    height: 100%;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    overscroll-behavior: none;
+}
+
+body.sb-admin-body > .sb-page {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100vh;
+    min-height: 0;
+    margin: 0 !important;
+    padding: 8px !important;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: var(--sb-editor-workspace-gap);
+    overflow: hidden;
+}
+
+/* Compact top application bar */
+.sb-editor-appbar {
+    position: relative !important;
+    top: auto !important;
+    min-height: 54px !important;
+    margin: 0 !important;
+    padding: 7px 10px !important;
+    border-radius: 13px !important;
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, .05),
+        0 8px 24px rgba(15, 23, 42, .07) !important;
+}
+
+.sb-editor-appbar__back,
+.sb-editor-toptool {
+    width: 32px !important;
+    height: 32px !important;
+    flex-basis: 32px !important;
+    border-radius: 9px !important;
+}
+
+.sb-editor-appbar__eyebrow {
+    font-size: 9px !important;
+}
+
+.sb-editor-appbar__title {
+    font-size: 15px !important;
+}
+
+.sb-editor-appbar__actions {
+    flex-wrap: nowrap !important;
+}
+
+.sb-editor-appbar__actions .sb-btn {
+    min-height: 32px;
+    white-space: nowrap;
+}
+
+/* The permanent hotkey paragraph consumed vertical space.
+   The current selection remains as a slim context line. */
+.sb-editor-contextbar {
+    min-height: 32px !important;
+    margin: 0 !important;
+    padding: 5px 10px !important;
+    justify-content: flex-end !important;
+    border-radius: 10px !important;
+}
+
+.sb-editor-contextbar__hint {
+    display: none !important;
+}
+
+.sb-editor-contextbar__selection {
+    width: 100%;
+    max-width: none !important;
+    justify-content: flex-end;
+}
+
+/* Five-column grid: panel / resizer / canvas / resizer / panel */
+.sb-editor-shell {
+    min-height: 0 !important;
+    height: 100%;
+    align-items: stretch !important;
+    overflow: hidden;
+    border-radius: var(--sb-editor-shell-radius);
+}
+
+.sb-editor-col {
+    min-height: 0;
+    height: 100%;
+}
+
+.sb-editor-col--pages {
+    padding: 0 7px 0 0 !important;
+}
+
+.sb-editor-col--canvas {
+    padding: 0 7px !important;
+    overflow: hidden;
+}
+
+.sb-editor-col--right {
+    padding: 0 0 0 7px !important;
+}
+
+/* Side panels have their own scroll areas */
+.sb-editor-sticky {
+    position: static !important;
+    top: auto !important;
+    width: 100%;
+    height: 100%;
+    max-height: none !important;
+    min-height: 0;
+    overflow: auto !important;
+    scrollbar-width: thin;
+    overscroll-behavior: contain;
+}
+
+.sb-editor-col--pages .sb-editor-sticky > .sb-panel {
+    min-height: 100%;
+}
+
+.sb-editor-col--right .sb-editor-sticky {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden !important;
+}
+
+.sb-editor-col--right .sb-inspector-tabs {
+    position: relative;
+    top: auto;
+    z-index: 4;
+    margin: 0 0 7px;
+}
+
+.sb-editor-col--right .sb-inspector-panel {
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
+
+/* Resizers now visibly belong to the workspace */
+.sb-editor-resizer {
+    position: relative !important;
+    top: auto !important;
+    height: 100% !important;
+    min-height: 0;
+}
+
+.sb-editor-resizer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: transparent;
+    transition: background .14s ease;
+}
+
+.sb-editor-resizer:hover::before,
+.sb-editor-resizer.is-resizing::before,
+.sb-editor-resizer:focus-visible::before {
+    background: rgba(37, 99, 235, .07);
+}
+
+/* Canvas is one application surface with its own scrolling */
+.sb-editor-canvas {
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden !important;
+    border-radius: var(--sb-editor-shell-radius) !important;
+}
+
+.sb-editor-canvas-head {
+    position: relative !important;
+    top: auto !important;
+    z-index: 30;
+    min-height: 52px !important;
+    padding: 8px 11px !important;
+    border-bottom: 1px solid var(--sb-vb-border, #dfe6ef);
+}
+
+.sb-editor-canvas-head__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sb-editor-canvas-head__actions .sb-toolbar {
+    flex-wrap: nowrap;
+}
+
+.sb-editor-canvas-body {
+    height: auto;
+    min-height: 0 !important;
+    overflow: auto !important;
+    padding: 30px clamp(18px, 3vw, 48px) 56px !important;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
+
+/* Zoom control */
+.sb-editor-zoom {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 32px;
+    padding: 3px;
+    border: 1px solid var(--sb-vb-border, #dfe6ef);
+    border-radius: 10px;
+    background: var(--sb-vb-surface, #fff);
+}
+
+.sb-editor-zoom button {
+    min-width: 28px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 7px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--sb-vb-muted, #667085);
+    cursor: pointer;
+    font: 800 12px/1 inherit;
+}
+
+.sb-editor-zoom button:hover,
+.sb-editor-zoom button:focus-visible {
+    background: var(--sb-vb-primary-soft, #eaf2ff);
+    color: var(--sb-vb-primary, #2563eb);
+    outline: none;
+}
+
+.sb-editor-zoom__value {
+    min-width: 48px !important;
+    font-variant-numeric: tabular-nums !important;
+}
+
+.sb-editor-zoom__fit {
+    min-width: 62px !important;
+}
+
+.sb-editor-zoom__fit.is-active {
+    background: var(--sb-vb-primary-soft, #eaf2ff);
+    color: var(--sb-vb-primary, #2563eb);
+}
+
+/* Native CSS zoom keeps scroll geometry correct in the canvas */
+#editorViewport {
+    zoom: var(--sb-editor-canvas-zoom);
+    transition:
+        zoom .16s ease,
+        width .2s ease,
+        filter .2s ease;
+}
+
+/* The page should clearly differ from the editor chrome */
+.sb-editor-viewport {
+    margin-inline: auto !important;
+}
+
+.sb-editor-page {
+    border: 1px solid #d9e1eb !important;
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, .04),
+        0 24px 70px rgba(15, 23, 42, .16) !important;
+}
+
+/* Compact block quick-add bar; it no longer dominates the canvas */
+.sb-editor-addbar {
+    position: relative;
+    z-index: 10;
+    display: flex !important;
+    align-items: stretch;
+    gap: 5px !important;
+    overflow-x: auto;
+    padding: 5px !important;
+    margin-bottom: 14px !important;
+    border: 1px solid #dde5ef;
+    border-radius: 12px;
+    background: rgba(248, 250, 252, .94);
+    scrollbar-width: thin;
+}
+
+.sb-editor-add-card {
+    min-width: max-content !important;
+    min-height: 34px !important;
+    display: inline-flex !important;
+    grid-template-columns: none !important;
+    gap: 6px !important;
+    padding: 5px 9px !important;
+    border: 0 !important;
+    border-radius: 8px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.sb-editor-add-card:hover {
+    background: #eaf2ff !important;
+    color: #1d4ed8;
+    transform: none !important;
+}
+
+.sb-editor-add-card__icon {
+    width: 22px !important;
+    height: 22px !important;
+    min-width: 22px;
+    border-radius: 7px !important;
+    font-size: 10px !important;
+}
+
+.sb-editor-add-card__title {
+    font-size: 11px !important;
+    white-space: nowrap;
+}
+
+.sb-editor-add-card__text {
+    display: none !important;
+}
+
+/* Improve visual separation of the selected block */
+.sb-editor-block.is-selected,
+.sb-editor-block[data-selected="true"] {
+    outline-width: 2px !important;
+    outline-offset: 3px !important;
+}
+
+/* Panel collapsed state remains available but animates more cleanly */
+body.sb-editor-left-collapsed .sb-editor-col--canvas,
+body.sb-editor-right-collapsed .sb-editor-col--canvas,
+body.sb-editor-focus-mode .sb-editor-col--canvas {
+    padding-inline: 0 !important;
+}
+
+/* Dark theme */
+body.sb-editor-theme-dark .sb-editor-zoom {
+    border-color: #334155;
+    background: #111827;
+}
+
+body.sb-editor-theme-dark .sb-editor-zoom button {
+    color: #cbd5e1;
+}
+
+body.sb-editor-theme-dark .sb-editor-addbar {
+    border-color: #334155;
+    background: rgba(15, 23, 42, .92);
+}
+
+/* Smaller desktop */
+@media (max-width: 1320px) {
+    .sb-editor-appbar {
+        grid-template-columns:
+            minmax(210px, 1fr)
+            auto
+            minmax(210px, 1fr) !important;
+    }
+
+    .sb-editor-appbar__actions .sb-btn-light {
+        padding-inline: 9px;
+    }
+
+    .sb-editor-canvas-head__actions {
+        gap: 5px;
+    }
+}
+
+@media (max-width: 1080px) {
+    body.sb-admin-body {
+        overflow: auto !important;
+    }
+
+    body.sb-admin-body > .sb-page {
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
+    }
+
+    .sb-editor-shell {
+        height: auto;
+        min-height: calc(100vh - 112px) !important;
+        overflow: visible;
+    }
+
+    .sb-editor-canvas {
+        min-height: calc(100vh - 112px);
+    }
+
+    .sb-editor-sticky {
+        height: auto;
+    }
+}
+
+/* Existing mobile drawer/dock behavior stays in control below 760 px */
+@media (max-width: 760px) {
+    body.sb-admin-body > .sb-page {
+        padding: 6px !important;
+    }
+
+    .sb-editor-appbar__center {
+        display: none !important;
+    }
+
+    .sb-editor-appbar {
+        grid-template-columns: minmax(0, 1fr) auto !important;
+    }
+
+    .sb-editor-contextbar {
+        display: none !important;
+    }
+
+    .sb-editor-canvas-head {
+        align-items: flex-start !important;
+    }
+
+    .sb-editor-canvas-head__actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .sb-editor-zoom__fit {
+        display: none !important;
+    }
+
+    .sb-editor-canvas-body {
+        padding: 12px 8px 84px !important;
+    }
+
+    #editorViewport {
+        zoom: 1 !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #editorViewport,
+    .sb-editor-shell,
+    .sb-editor-resizer::before {
+        transition: none !important;
+    }
+}
+
+
+/* =========================================================
+   SiteBuilder page access structural fix v2
+   ========================================================= */
+
+.sb-editor-col--right .sb-access-inspector {
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+    padding-right: 2px;
+    scrollbar-width: thin;
+    overscroll-behavior: contain;
+}
+
+.sb-editor-col--right .sb-access-inspector.is-active {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+}
+
+.sb-editor-col--right
+.sb-access-inspector
+> .sb-access-scope-panel {
+    display: block;
+    width: 100%;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0;
+    overflow: visible !important;
+}
+
+.sb-editor-col--right
+.sb-access-inspector
+> .sb-access-scope-panel[hidden] {
+    display: none !important;
+}
+
+/* =========================================================
+   SiteBuilder access inspector scroll fix v1
+   All access cards keep their natural height. The complete
+   access tab uses one predictable vertical scrollbar.
+   ========================================================= */
+
+.sb-editor-col--right .sb-access-inspector {
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    height: 100% !important;
+    max-height: 100%;
+    box-sizing: border-box;
+}
+
+.sb-editor-col--right .sb-access-inspector.is-active {
+    display: flex !important;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 8px;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: 0 3px 24px 0;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    overscroll-behavior-y: contain;
+}
+
+/*
+ * Earlier grid rules could distribute the available height
+ * between cards and clip their inner controls. Access cards
+ * must always use their real content height.
+ */
+.sb-editor-col--right
+.sb-access-inspector.is-active
+> .sb-access-scope-panel {
+    flex: 0 0 auto !important;
+    align-self: stretch;
+    display: block;
+    width: 100%;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    box-sizing: border-box;
+    overflow: visible !important;
+}
+
+.sb-editor-col--right
+.sb-access-inspector.is-active
+> .sb-access-scope-panel[hidden] {
+    display: none !important;
+}
+
+/* Prevent inner access elements from creating a second scroll area. */
+.sb-access-inspector .sb-access-form,
+.sb-access-inspector .sb-page-access-permissions,
+.sb-access-inspector .sb-access-list,
+.sb-access-inspector .sb-editor-inspector-actions {
+    min-height: 0;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+.sb-access-inspector .sb-page-access-permissions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+}
+
+.sb-access-inspector .sb-switch {
+    min-width: 0;
+}
+
+/* Leave enough room below the final role list. */
+.sb-access-inspector > .sb-access-scope-panel:last-child {
+    margin-bottom: 8px;
+}
+
+@media (max-width: 1080px) {
+    .sb-editor-col--right .sb-access-inspector.is-active {
+        max-height: calc(100vh - 170px);
+        padding-bottom: 32px;
+    }
+}

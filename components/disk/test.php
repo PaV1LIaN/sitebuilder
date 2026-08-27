@@ -26,6 +26,7 @@ echo '</pre>';
     <meta charset="UTF-8">
     <title>Тест компонента Disk</title>
     <link rel="stylesheet" href="/local/sitebuilder/components/disk/styles.css">
+    <link rel="stylesheet" href="/local/sitebuilder/components/disk/access.css">
 </head>
 <body style="margin:0; padding:24px; background:#f5f7fb;">
     <div style="max-width:1200px; margin:0 auto;">
@@ -42,5 +43,6 @@ echo '</pre>';
 
     <script src="/bitrix/js/main/core/core.js"></script>
     <script src="/local/sitebuilder/components/disk/script.js"></script>
+    <script src="/local/sitebuilder/components/disk/access.js"></script>
 </body>
 </html>

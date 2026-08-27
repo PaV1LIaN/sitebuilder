@@ -4,6 +4,18 @@ require_once __DIR__ . '/db.php';
 
 class PageAccessRepository
 {
+    /*
+     * SiteBuilder page access independent boolean parameters v1
+     *
+     * execute(array) связывает параметры без явного PDO-типа.
+     * Строки true/false однозначно принимаются PostgreSQL
+     * независимо от значения флага.
+     */
+    private static function sqlBoolean(bool $value): string
+    {
+        return $value ? 'true' : 'false';
+    }
+
     public static function userAccessCode(int $userId): string
     {
         if ($userId <= 0) {
@@ -286,11 +298,13 @@ class PageAccessRepository
             ':site_id' => $siteId,
             ':page_id' => $pageId,
             ':access_code' => $accessCode,
-            ':can_view' => $canView,
-            ':can_edit' => $canEdit,
-            ':can_disk_view' => $canDiskView,
-            ':can_disk_edit' => $canDiskEdit,
-            ':include_children' => $includeChildren,
+            ':can_view' => self::sqlBoolean($canView),
+            ':can_edit' => self::sqlBoolean($canEdit),
+            ':can_disk_view' => self::sqlBoolean($canDiskView),
+            ':can_disk_edit' => self::sqlBoolean($canDiskEdit),
+            ':include_children' => self::sqlBoolean(
+                $includeChildren
+            ),
             ':created_by' => $createdBy > 0
                 ? $createdBy
                 : null,
@@ -392,12 +406,16 @@ class PageAccessRepository
             ':site_id' => $siteId,
             ':page_id' => $pageId,
             ':access_code' => $accessCode,
-            ':can_view' => $canView,
-            ':can_edit' => $canEdit,
-            ':can_disk_view' => $canDiskView,
-            ':can_disk_edit' => $canDiskEdit,
-            ':include_children' => $includeChildren,
-            ':created_by' => $createdBy > 0 ? $createdBy : null,
+            ':can_view' => self::sqlBoolean($canView),
+            ':can_edit' => self::sqlBoolean($canEdit),
+            ':can_disk_view' => self::sqlBoolean($canDiskView),
+            ':can_disk_edit' => self::sqlBoolean($canDiskEdit),
+            ':include_children' => self::sqlBoolean(
+                $includeChildren
+            ),
+            ':created_by' => $createdBy > 0
+                ? $createdBy
+                : null,
         ]);
 
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
