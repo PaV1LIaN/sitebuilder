@@ -560,6 +560,10 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
         <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=10">
     <?php endif; ?>
 
+    <?php if ($pageHasDiskBlock && !$isLayoutPreview): ?>
+        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/settings-v2.css?v=1">
+    <?php endif; ?>
+
     <style>
         :root {
             --sb-accent: <?= sb_public_h($appearance['accent']) ?>;
@@ -696,6 +700,7 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
 
 <?php if ($pageHasDiskBlock && !$isLayoutPreview): ?>
     <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=9"></script>
+    <script src="<?= sb_public_h($basePath) ?>/components/disk/settings-v2.js?v=1"></script>
 <?php endif; ?>
 
 <?php

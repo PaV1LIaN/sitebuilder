@@ -1,0 +1,415 @@
+/* =========================================================
+   SITEBUILDER / DISK SETTINGS 2.0 / v1
+   ========================================================= */
+
+.sb-disk-settings2-dialog {
+    width: min(980px, calc(100vw - 32px)) !important;
+    max-width: 980px !important;
+    max-height: calc(100vh - 32px) !important;
+    margin: auto !important;
+    border-radius: 18px !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    box-shadow:
+        0 24px 80px rgba(15, 23, 42, .24) !important;
+    overflow: hidden !important;
+}
+
+.sb-disk-settings2-title {
+    margin: 0 !important;
+    padding: 20px 26px 0 !important;
+    color: #0f172a !important;
+    font-size: 20px !important;
+    line-height: 1.25 !important;
+    font-weight: 850 !important;
+}
+
+.sb-disk-settings2-subtitle {
+    margin: 6px 0 0 !important;
+    padding: 0 26px 16px !important;
+    border-bottom: 1px solid #e2e8f0;
+    color: #64748b !important;
+    font-size: 12px !important;
+    line-height: 1.45 !important;
+}
+
+.sb-disk-settings2-form {
+    max-height: calc(100vh - 116px) !important;
+    overflow: auto !important;
+    padding: 0 24px 0 !important;
+    background: #fff !important;
+    scrollbar-gutter: stable;
+}
+
+.sb-disk-settings2-old-heading {
+    display: none !important;
+}
+
+.sb-disk-settings2-workspace {
+    display: grid;
+    gap: 14px;
+    padding: 14px 0 18px;
+}
+
+.sb-disk-settings2-summary {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 0 -24px;
+    padding: 10px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    background: rgba(255, 255, 255, .96);
+    backdrop-filter: blur(7px);
+}
+
+.sb-disk-settings2-summary > span {
+    min-height: 29px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 9px;
+    border: 1px solid #dbe4ef;
+    border-radius: 999px;
+    background: #f8fafc;
+}
+
+.sb-disk-settings2-summary small {
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 750;
+}
+
+.sb-disk-settings2-summary strong {
+    max-width: 210px;
+    overflow: hidden;
+    color: #334155;
+    font-size: 10px;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sb-disk-settings2-section {
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.sb-disk-settings2-section__head {
+    display: grid;
+    gap: 3px;
+    margin-bottom: 13px;
+}
+
+.sb-disk-settings2-section__head strong {
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 850;
+}
+
+.sb-disk-settings2-section__head span {
+    color: #64748b;
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+.sb-disk-settings2-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    gap: 11px 14px;
+}
+
+.sb-disk-settings2-field {
+    min-width: 0;
+    display: grid !important;
+    align-content: start;
+    gap: 6px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #475569 !important;
+    font-size: 10px !important;
+    line-height: 1.35 !important;
+}
+
+.sb-disk-settings2-field.is-wide {
+    grid-column: 1 / -1;
+}
+
+.sb-disk-settings2-field input:not([type="checkbox"]):not(.sb-disk-settings2-native-bytes),
+.sb-disk-settings2-field select,
+.sb-disk-settings2-field textarea,
+.sb-disk-settings2-size-input {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 40px !important;
+    margin: 0 !important;
+    padding: 8px 10px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 9px !important;
+    outline: none !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    font: 500 12px/1.35 inherit !important;
+    transition:
+        border-color .12s ease,
+        box-shadow .12s ease !important;
+}
+
+.sb-disk-settings2-field input:not([type="checkbox"]):focus,
+.sb-disk-settings2-field select:focus,
+.sb-disk-settings2-field textarea:focus,
+.sb-disk-settings2-size-input:focus {
+    border-color: #60a5fa !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .10) !important;
+}
+
+.sb-disk-settings2-native-bytes {
+    display: none !important;
+}
+
+.sb-disk-settings2-size-row {
+    display: grid;
+    grid-template-columns:
+        minmax(0, 1fr) auto;
+    align-items: stretch;
+}
+
+.sb-disk-settings2-size-row > span {
+    min-width: 48px;
+    display: grid;
+    place-items: center;
+    padding: 0 10px;
+    border: 1px solid #cbd5e1;
+    border-left: 0;
+    border-radius: 0 9px 9px 0;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 850;
+}
+
+.sb-disk-settings2-size-row
+.sb-disk-settings2-size-input {
+    border-radius: 9px 0 0 9px !important;
+}
+
+.sb-disk-settings2-help {
+    display: block;
+    margin: 0 !important;
+    color: #94a3b8 !important;
+    font-size: 9px !important;
+    line-height: 1.4 !important;
+}
+
+.sb-disk-settings2-field.is-toggle {
+    min-height: 44px;
+    display: flex !important;
+    align-items: center !important;
+    gap: 9px !important;
+    padding: 9px 10px !important;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #334155 !important;
+    cursor: pointer;
+}
+
+.sb-disk-settings2-field.is-toggle:hover {
+    border-color: #bfdbfe;
+    background: #f8fbff;
+}
+
+.sb-disk-settings2-field.is-toggle
+input[type="checkbox"] {
+    width: 17px !important;
+    height: 17px !important;
+    flex: 0 0 17px;
+    margin: 0 !important;
+    accent-color: #2563eb;
+}
+
+.sb-disk-settings2-presets,
+.sb-disk-settings2-ext-tools {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.sb-disk-settings2-presets {
+    margin: -3px 0 12px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.sb-disk-settings2-presets > span {
+    margin-right: 2px;
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 800;
+}
+
+.sb-disk-settings2-mini-btn {
+    min-height: 27px;
+    padding: 4px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    color: #475569;
+    cursor: pointer;
+    font: 750 9px/1.2 inherit;
+}
+
+.sb-disk-settings2-mini-btn:hover {
+    border-color: #93c5fd;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.sb-disk-settings2-ext-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.sb-disk-settings2-ext-chips > span {
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 9px;
+    font-weight: 800;
+}
+
+.sb-disk-settings2-ext-chips > span.is-empty {
+    background: #f1f5f9;
+    color: #94a3b8;
+    font-weight: 650;
+}
+
+.sb-disk-settings2-actions {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 10 !important;
+    min-height: 62px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    margin: 0 -24px !important;
+    padding: 10px 24px !important;
+    border-top: 1px solid #e2e8f0 !important;
+    background: rgba(255, 255, 255, .97) !important;
+    backdrop-filter: blur(8px);
+}
+
+.sb-disk-settings2-action-note {
+    max-width: 430px;
+    color: #64748b;
+    font-size: 9px;
+    line-height: 1.4;
+}
+
+.sb-disk-settings2-actions__buttons {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.sb-disk-settings2-save {
+    min-height: 38px !important;
+    padding: 8px 14px !important;
+    border: 1px solid #2563eb !important;
+    border-radius: 9px !important;
+    background: #2563eb !important;
+    color: #fff !important;
+    cursor: pointer;
+    font-weight: 800 !important;
+}
+
+.sb-disk-settings2-save:hover {
+    background: #1d4ed8 !important;
+}
+
+.sb-disk-settings2-cancel {
+    min-height: 38px !important;
+    padding: 8px 12px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 9px !important;
+    background: #fff !important;
+    color: #475569 !important;
+}
+
+.sb-disk-settings2-close {
+    width: 34px !important;
+    height: 34px !important;
+    border: 0 !important;
+    border-radius: 9px !important;
+    background: #f1f5f9 !important;
+    color: #64748b !important;
+}
+
+.sb-disk-settings2-close:hover {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+}
+
+@media (max-width: 760px) {
+    .sb-disk-settings2-dialog {
+        width: calc(100vw - 16px) !important;
+        max-height: calc(100vh - 16px) !important;
+        border-radius: 14px !important;
+    }
+
+    .sb-disk-settings2-title {
+        padding-inline: 16px !important;
+    }
+
+    .sb-disk-settings2-subtitle {
+        padding-inline: 16px !important;
+    }
+
+    .sb-disk-settings2-form {
+        max-height: calc(100vh - 96px) !important;
+        padding-inline: 14px !important;
+    }
+
+    .sb-disk-settings2-summary,
+    .sb-disk-settings2-actions {
+        margin-inline: -14px !important;
+        padding-inline: 14px !important;
+    }
+
+    .sb-disk-settings2-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .sb-disk-settings2-field.is-wide {
+        grid-column: auto;
+    }
+
+    .sb-disk-settings2-actions {
+        align-items: stretch !important;
+        flex-direction: column !important;
+    }
+
+    .sb-disk-settings2-action-note {
+        max-width: none;
+    }
+
+    .sb-disk-settings2-actions__buttons {
+        justify-content: stretch;
+    }
+
+    .sb-disk-settings2-actions__buttons > * {
+        flex: 1;
+    }
+}
