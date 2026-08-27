@@ -3416,7 +3416,6 @@
       return;
     }
 
-    modal.hidden = false;
     this.setSettingsMessage('Загрузка настроек...');
 
     try {
@@ -3436,13 +3435,8 @@
         throw new Error((rootOptionsRes && (rootOptionsRes.message || rootOptionsRes.error)) || 'GET_ROOT_OPTIONS_ERROR');
       }
 
-      /*
-       * getRootOptions is the last settings-related request before the
-       * modal becomes editable. Use its blockVersion when available so
-       * saveSettings does not start from an older page/render version.
-       */
       this.state.blockVersion = Number(
-        rootOptionsRes.data.blockVersion
+        (rootOptionsRes.data && rootOptionsRes.data.blockVersion)
         || settingsRes.data.blockVersion
         || this.state.blockVersion
         || 1
@@ -3454,8 +3448,12 @@
       );
 
       this.arrangeSettingsModal();
+      this.activateSettingsTab('main');
 
       this.setSettingsMessage('');
+
+      modal.hidden = false;
+      document.body.classList.add('sb-disk-settings-modal-open');
     } catch (e) {
       console.error(e);
       this.setSettingsMessage('Не удалось загрузить настройки.');
@@ -3463,94 +3461,148 @@
   };
 
   DiskComponent.prototype.arrangeSettingsModal = function () {
-    var modal = this.root.querySelector('[data-role="settings-modal"]');
-    var form = this.root.querySelector('[data-role="settings-form"]');
+    /*
+     * Native v14: no DOM moving, no duplicate UI.
+     * The template already has the final structure.
+     */
+    this.bindNativeSettingsUi();
+  };
 
-    if (!modal || !form) {
+  DiskComponent.prototype.activateSettingsTab = function (name) {
+    var modal = this.root.querySelector('[data-role="settings-modal"]');
+    if (!modal) {
       return;
     }
 
-    modal.classList.add('sb-disk-settings-modal');
+    name = String(name || 'main');
 
-    var shell = modal.firstElementChild;
-    if (shell) {
-      shell.classList.add('sb-disk-settings-shell');
-    }
-
-    if (!form.querySelector('.sb-disk-settings-section-main')) {
-      var mainTitle = document.createElement('div');
-      mainTitle.className = 'sb-disk-settings-section-main';
-      mainTitle.textContent = 'Основные настройки';
-      form.insertBefore(mainTitle, form.firstChild);
-    }
-
-    var checkboxLabels = Array.prototype.slice.call(
-      form.querySelectorAll('label')
-    ).filter(function (label) {
-      return !!label.querySelector('input[type="checkbox"]');
+    Array.prototype.slice.call(
+      modal.querySelectorAll('[data-settings-tab]')
+    ).forEach(function (button) {
+      button.classList.toggle(
+        'is-active',
+        button.getAttribute('data-settings-tab') === name
+      );
     });
 
-    if (checkboxLabels.length && !form.querySelector('.sb-disk-settings-checks')) {
-      var checksTitle = document.createElement('div');
-      checksTitle.className = 'sb-disk-settings-section-title';
-      checksTitle.textContent = 'Возможности';
+    Array.prototype.slice.call(
+      modal.querySelectorAll('[data-settings-panel]')
+    ).forEach(function (panel) {
+      panel.hidden =
+        panel.getAttribute('data-settings-panel') !== name;
+    });
+  };
 
-      var checksWrap = document.createElement('div');
-      checksWrap.className = 'sb-disk-settings-checks';
-
-      checkboxLabels.forEach(function (label) {
-        checksWrap.appendChild(label);
-      });
-
-      form.appendChild(checksTitle);
-      form.appendChild(checksWrap);
+  DiskComponent.prototype.applySettingsAccessPreset = function (preset) {
+    var form = this.root.querySelector('[data-role="settings-form"]');
+    if (!form) {
+      return;
     }
 
-    /*
-     * Only real button/input controls may be moved into the footer.
-     * The old generic [data-action] selector could select an ancestor
-     * container carrying data-action. Moving that container into footer and
-     * then appending footer back to its descendant produced:
-     * HierarchyRequestError: new child element contains the parent.
-     */
-    var actionButtons = Array.prototype.slice.call(
-      modal.querySelectorAll(
-        'button[data-action="save-settings"], '
-        + 'button[data-action="close-settings"], '
-        + 'input[type="button"][data-action="save-settings"], '
-        + 'input[type="button"][data-action="close-settings"], '
-        + 'input[type="submit"][data-action="save-settings"]'
-      )
-    ).filter(function (button) {
-      var text = String(button.textContent || button.value || '').trim().toLowerCase();
-
-      if (text === '×' || text === 'x') {
-        return false;
+    var map = {
+      view: {
+        allowUpload: false,
+        allowCreateFolder: false,
+        allowRename: false,
+        allowDelete: false,
+        allowDownload: true,
+        showSearch: true,
+        showBreadcrumbs: true
+      },
+      edit: {
+        allowUpload: true,
+        allowCreateFolder: true,
+        allowRename: true,
+        allowDelete: false,
+        allowDownload: true,
+        showSearch: true,
+        showBreadcrumbs: true
+      },
+      all: {
+        allowUpload: true,
+        allowCreateFolder: true,
+        allowRename: true,
+        allowDelete: true,
+        allowDownload: true,
+        showSearch: true,
+        showBreadcrumbs: true
       }
+    };
 
-      if (button === shell || button.contains(shell)) {
-        return false;
-      }
+    var values = map[preset];
+    if (!values) {
+      return;
+    }
 
-      return true;
+    Object.keys(values).forEach(function (name) {
+      setFormCheckbox(
+        form,
+        name,
+        values[name]
+      );
     });
+  };
 
-    if (actionButtons.length && !modal.querySelector('.sb-disk-settings-footer')) {
-      var footer = document.createElement('div');
-      footer.className = 'sb-disk-settings-footer';
+  DiskComponent.prototype.applySettingsExtensionPreset = function (preset) {
+    var form = this.root.querySelector('[data-role="settings-form"]');
+    if (!form) {
+      return;
+    }
 
-      actionButtons.forEach(function (button) {
-        footer.appendChild(button);
-      });
+    var input = form.querySelector('[name="allowedExtensions"]');
+    if (!input) {
+      return;
+    }
 
-      if (shell && !footer.contains(shell)) {
-        shell.appendChild(footer);
-      } else if (!shell) {
-        modal.appendChild(footer);
-      }
+    var values = {
+      documents: 'pdf doc docx xls xlsx ppt pptx',
+      images: 'jpg jpeg png gif webp',
+      all: 'pdf doc docx xls xlsx ppt pptx jpg jpeg png gif webp'
+    };
+
+    if (values[preset]) {
+      input.value = values[preset];
     }
   };
 
+  DiskComponent.prototype.bindNativeSettingsUi = function () {
+    var modal = this.root.querySelector('[data-role="settings-modal"]');
+    if (!modal || modal.dataset.nativeSettingsBound === '1') {
+      return;
+    }
+
+    modal.dataset.nativeSettingsBound = '1';
+
+    var self = this;
+
+    modal.addEventListener('click', function (event) {
+      var tab = event.target.closest('[data-settings-tab]');
+      if (tab) {
+        event.preventDefault();
+        self.activateSettingsTab(
+          tab.getAttribute('data-settings-tab')
+        );
+        return;
+      }
+
+      var accessPreset = event.target.closest('[data-access-preset]');
+      if (accessPreset) {
+        event.preventDefault();
+        self.applySettingsAccessPreset(
+          accessPreset.getAttribute('data-access-preset')
+        );
+        return;
+      }
+
+      var extensionPreset = event.target.closest('[data-extension-preset]');
+      if (extensionPreset) {
+        event.preventDefault();
+        self.applySettingsExtensionPreset(
+          extensionPreset.getAttribute('data-extension-preset')
+        );
+      }
+    });
+  };
   DiskComponent.prototype.closeSettingsModal = function () {
     var modal = this.root.querySelector('[data-role="settings-modal"]');
     if (!modal) {
@@ -3558,6 +3610,7 @@
     }
 
     modal.hidden = true;
+    document.body.classList.remove('sb-disk-settings-modal-open');
   };
 
   DiskComponent.prototype.setSettingsMessage = function (message) {
@@ -3593,7 +3646,7 @@
     setFormValue(form, 'viewMode', settings.viewMode || 'table');
     setFormValue(form, 'defaultSort', settings.defaultSort || 'updatedAt');
     setFormValue(form, 'defaultSortDirection', settings.defaultSortDirection || 'desc');
-    setFormValue(form, 'maxFileSize', settings.maxFileSize || 52428800);
+    setFormValue(form, 'maxFileSizeMb', Math.max(1, Math.round((Number(settings.maxFileSize || 52428800) / 1048576) * 100) / 100));
     setFormValue(form, 'permissionMode', settings.permissionMode || 'inherit_site');
 
     var extValue = Array.isArray(settings.allowedExtensions)
@@ -3759,10 +3812,11 @@
       viewMode: getFormValue(form, 'viewMode'),
       defaultSort: getFormValue(form, 'defaultSort'),
       defaultSortDirection: getFormValue(form, 'defaultSortDirection'),
-      maxFileSize: Number(getFormValue(form, 'maxFileSize') || 0),
+      maxFileSize: Math.round(Math.max(1, Number(getFormValue(form, 'maxFileSizeMb') || 50)) * 1048576),
       allowedExtensions: String(getFormValue(form, 'allowedExtensions') || '')
         .trim()
-        .split(/\s+/)
+        .split(/[\s,;]+/)
+        .map(function (value) { return String(value || '').toLowerCase().replace(/^\.+/, ''); })
         .filter(Boolean),
       permissionMode: getFormValue(form, 'permissionMode'),
       allowUpload: getFormCheckbox(form, 'allowUpload'),
