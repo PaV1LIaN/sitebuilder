@@ -561,7 +561,7 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
     <?php endif; ?>
 
     <?php if ($pageHasDiskBlock && !$isLayoutPreview): ?>
-        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/settings-v2.css?v=4">
+        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/settings-v2.css?v=12">
     <?php endif; ?>
 
     <style>

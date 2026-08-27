@@ -260,3 +260,97 @@
     .sb-disk4-footer > div { width:100%; }
     .sb-disk4-btn { flex:1; }
 }
+
+/* === DISK SETTINGS V12: VIEWPORT MODAL BEGIN === */
+
+/*
+ * The native Disk settings container is part of the Disk block DOM.
+ * Without an explicit viewport overlay it participates in the page flow,
+ * so Settings 2.0 can appear underneath the file list.
+ *
+ * Keep the native node in place for DiskComponent querySelector calls, but
+ * make the visible modal a true viewport layer.
+ */
+[data-role="settings-modal"] {
+    box-sizing: border-box !important;
+}
+
+[data-role="settings-modal"]:not([hidden]) {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147482000 !important;
+
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 18px !important;
+
+    overflow: auto !important;
+    overscroll-behavior: contain;
+
+    background: rgba(15, 23, 42, .48) !important;
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+}
+
+[data-role="settings-modal"][hidden] {
+    display: none !important;
+}
+
+/*
+ * Settings 2.0 dialog is the inner card. It must stay relative because
+ * .sb-disk4-root uses position:absolute; inset:0 inside this card.
+ */
+[data-role="settings-modal"] .sb-disk4-dialog {
+    position: relative !important;
+
+    flex: 0 0 auto !important;
+
+    width: min(960px, calc(100vw - 36px)) !important;
+    max-width: 960px !important;
+
+    height: min(720px, calc(100vh - 36px)) !important;
+    max-height: 720px !important;
+
+    margin: auto !important;
+
+    overflow: hidden !important;
+
+    border-radius: 20px !important;
+    background: #fff !important;
+    box-shadow:
+        0 28px 90px rgba(15, 23, 42, .32),
+        0 0 0 1px rgba(148, 163, 184, .16) !important;
+}
+
+/*
+ * Protect the modal from page-level layout rules.
+ */
+[data-role="settings-modal"] .sb-disk4-root {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+@media (max-width: 760px) {
+    [data-role="settings-modal"]:not([hidden]) {
+        padding: 7px !important;
+        align-items: stretch !important;
+    }
+
+    [data-role="settings-modal"] .sb-disk4-dialog {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: none !important;
+        max-height: none !important;
+        border-radius: 14px !important;
+    }
+}
+
+/* === DISK SETTINGS V12: VIEWPORT MODAL END === */
