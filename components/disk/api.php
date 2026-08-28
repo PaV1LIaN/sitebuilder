@@ -392,7 +392,8 @@ try {
         http_response_code(500);
         DiskResponse::error(
             'DISK_RIGHTS_WRITE_VERIFICATION_FAILED',
-            'Битрикс24.Диск не подтвердил запись прямого права. Изменения отменены.'
+            'Битрикс24.Диск не подтвердил запись прямого права. Изменения отменены.',
+            ['diagnostic' => $e->getMessage()]
         );
     }
 
@@ -417,7 +418,8 @@ try {
         http_response_code(500);
         DiskResponse::error(
             'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED',
-            'Битрикс24.Диск не смог подтвердить итоговый запрет чтения. Изменения отменены.'
+            'Битрикс24.Диск не смог подтвердить итоговый запрет чтения. Изменения отменены.',
+            ['diagnostic' => $e->getMessage()]
         );
     }
 
@@ -426,12 +428,15 @@ try {
         && (
             str_starts_with($e->getMessage(), 'DISK_RIGHTS_SET_FAILED')
             || $e->getMessage() === 'DISK_RIGHTS_SET_API_UNAVAILABLE'
+            || str_starts_with($e->getMessage(), 'DISK_RIGHTS_APPEND_FAILED')
+            || $e->getMessage() === 'DISK_RIGHTS_APPEND_API_UNAVAILABLE'
         )
     ) {
         http_response_code(500);
         DiskResponse::error(
             'DISK_RIGHTS_SET_FAILED',
-            'Битрикс24.Диск не смог заменить набор прав папки. Исходные права восстановлены.'
+            'Битрикс24.Диск не смог заменить или добавить запрет прав папки. Исходные права восстановлены.',
+            ['diagnostic' => $e->getMessage()]
         );
     }
 

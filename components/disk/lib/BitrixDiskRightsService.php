@@ -158,18 +158,18 @@ class BitrixDiskRightsService
             );
 
             try {
-                if (!method_exists($manager, 'set')) {
-                    throw new RuntimeException('DISK_RIGHTS_SET_API_UNAVAILABLE');
-                }
-                self::assertManagerResult(
-                    $manager->set($folder, $replacement),
-                    'DISK_RIGHTS_SET_FAILED'
+                self::applyRequestedRights(
+                    $manager,
+                    $folder,
+                    $replacement,
+                    $normalized,
+                    $tasks
                 );
 
                 /*
-                 * set() перестраивает штатные simple-rights и поисковый индекс
-                 * Диска. Проверяем результат только после завершения set(),
-                 * перечитывая прямые правила из RightTable.
+                 * set()/append() перестраивают штатные simple-rights Диска.
+                 * Проверяем результат после обоих вызовов, перечитывая прямые
+                 * правила из RightTable и итоговый SecurityContext.
                  */
                 $externalRights = self::assertRequestedRightsWritten(
                     $manager,
@@ -339,12 +339,12 @@ class BitrixDiskRightsService
             );
 
             try {
-                if (!method_exists($manager, 'set')) {
-                    throw new RuntimeException('DISK_RIGHTS_SET_API_UNAVAILABLE');
-                }
-                self::assertManagerResult(
-                    $manager->set($folder, $replacement),
-                    'DISK_RIGHTS_SET_FAILED'
+                self::applyRequestedRights(
+                    $manager,
+                    $folder,
+                    $replacement,
+                    $changes,
+                    $tasks
                 );
                 self::assertRequestedRightsWritten(
                     $manager,
@@ -851,15 +851,12 @@ class BitrixDiskRightsService
         }
 
         if ($taskName === self::NONE) {
-            foreach ($tasks as $task) {
-                if (($task['key'] ?? '') === 'full') {
-                    return [
-                        'ACCESS_CODE' => $accessCode,
-                        'TASK_ID' => (int)$task['id'],
-                        'NEGATIVE' => true,
-                    ];
-                }
-            }
+            /*
+             * Отрицательные строки нельзя конструировать вручную: их набор
+             * зависит от унаследованных операций. После set() персональный
+             * запрет будет добавлен штатным RightsManager::append().
+             */
+            return null;
         }
 
         if (!isset($tasks[$taskName])) {
@@ -909,7 +906,96 @@ class BitrixDiskRightsService
         return self::sortSpecificRights($replacement);
     }
 
-    /** @return array<int,string> Фактические прямые права после set(). */
+    /**
+     * set() надёжно заменяет положительные ACL, но отрицательные правила
+     * Bitrix создаёт отдельным append(). Поэтому сначала удаляем/заменяем весь
+     * прямой набор через set(), затем возвращаем все отрицательные строки и
+     * добавляем персональный TASK_FULL для каждого запрошенного `none`.
+     */
+    private static function applyRequestedRights(
+        $manager,
+        Folder $folder,
+        array $replacement,
+        array $requestedRights,
+        array $tasks
+    ): void {
+        if (!method_exists($manager, 'set')) {
+            throw new RuntimeException('DISK_RIGHTS_SET_API_UNAVAILABLE');
+        }
+
+        $fullTaskId = 0;
+        foreach ($tasks as $task) {
+            if ((string)($task['key'] ?? '') === 'full') {
+                $fullTaskId = (int)($task['id'] ?? 0);
+                break;
+            }
+        }
+        if ($fullTaskId <= 0) {
+            throw new RuntimeException('DISK_ACCESS_TASK_NOT_FOUND_FULL');
+        }
+
+        $positiveRights = [];
+        $negativeRights = [];
+        foreach ($replacement as $right) {
+            if (!empty($right['NEGATIVE'])) {
+                $negativeRights[] = $right;
+            } else {
+                $positiveRights[] = $right;
+            }
+        }
+
+        foreach ($requestedRights as $userId => $taskName) {
+            if ((string)$taskName === self::NONE && (int)$userId > 0) {
+                $negativeRights[] = [
+                    'ACCESS_CODE' => 'U' . (int)$userId,
+                    'TASK_ID' => $fullTaskId,
+                    'NEGATIVE' => 1,
+                ];
+            }
+        }
+
+        $positiveRights = self::sortSpecificRights($positiveRights);
+        $negativeRights = self::uniqueSpecificRights($negativeRights);
+
+        self::assertManagerResult(
+            $manager->set($folder, $positiveRights),
+            'DISK_RIGHTS_SET_FAILED'
+        );
+
+        if (empty($negativeRights)) {
+            return;
+        }
+
+        if (!method_exists($manager, 'append')) {
+            throw new RuntimeException('DISK_RIGHTS_APPEND_API_UNAVAILABLE');
+        }
+
+        self::assertManagerResult(
+            $manager->append($folder, $negativeRights),
+            'DISK_RIGHTS_APPEND_FAILED'
+        );
+    }
+
+    /**
+     * Убирает точные дубли перед append(), не объединяя разные DOMAIN/TASK_ID.
+     */
+    private static function uniqueSpecificRights(array $rights): array
+    {
+        $unique = [];
+        foreach (self::sortSpecificRights($rights) as $right) {
+            $key = implode('|', [
+                (string)($right['ACCESS_CODE'] ?? ''),
+                (int)($right['TASK_ID'] ?? 0),
+                !empty($right['NEGATIVE']) ? '1' : '0',
+                (string)($right['DOMAIN'] ?? ''),
+            ]);
+            $unique[$key] = $right;
+        }
+
+        return array_values($unique);
+    }
+
+    /** @return array<int,string> Фактические прямые права после set()/append(). */
     private static function assertRequestedRightsWritten(
         $manager,
         Folder $folder,
@@ -928,17 +1014,29 @@ class BitrixDiskRightsService
             );
             $externalRights[(int)$userId] = $writtenTaskName;
 
-            /*
-             * Bitrix удаляет отрицательную строку, если она не перекрывает
-             * унаследованное чтение. Это штатное представление `Нет доступа`:
-             * прямой строки нет, а SecurityContext запрещает чтение.
-             */
-            if (
-                (string)$taskName === self::NONE
-                && $writtenTaskName === self::INHERIT
-                && !self::userCanReadStrict($folder, (int)$userId)
-            ) {
-                continue;
+            if ((string)$taskName === self::NONE) {
+                $canRead = self::userCanReadStrict($folder, (int)$userId);
+                if (
+                    ($writtenTaskName === self::NONE
+                        || $writtenTaskName === self::INHERIT)
+                    && !$canRead
+                ) {
+                    continue;
+                }
+
+                if ($writtenTaskName !== self::NONE) {
+                    throw new RuntimeException(
+                        'DISK_RIGHTS_WRITE_VERIFICATION_FAILED: '
+                        . $accessCode
+                        . '; expected=none; direct=' . $writtenTaskName
+                    );
+                }
+
+                throw new RuntimeException(
+                    'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED: '
+                    . $accessCode
+                    . '; direct=none; canRead=1'
+                );
             }
 
             if (!hash_equals((string)$taskName, $writtenTaskName)) {
@@ -1028,10 +1126,36 @@ class BitrixDiskRightsService
             if (!method_exists($manager, 'set')) {
                 throw new RuntimeException('DISK_RIGHTS_SET_API_UNAVAILABLE');
             }
+
+            $positiveRights = [];
+            $negativeRights = [];
+            foreach ($backup as $right) {
+                if (!empty($right['NEGATIVE'])) {
+                    $negativeRights[] = $right;
+                } else {
+                    $positiveRights[] = $right;
+                }
+            }
+
             self::assertManagerResult(
-                $manager->set($folder, array_values($backup)),
+                $manager->set($folder, self::sortSpecificRights($positiveRights)),
                 'DISK_RIGHTS_ROLLBACK_FAILED'
             );
+
+            if (!empty($negativeRights)) {
+                if (!method_exists($manager, 'append')) {
+                    throw new RuntimeException(
+                        'DISK_RIGHTS_ROLLBACK_APPEND_API_UNAVAILABLE'
+                    );
+                }
+                self::assertManagerResult(
+                    $manager->append(
+                        $folder,
+                        self::uniqueSpecificRights($negativeRights)
+                    ),
+                    'DISK_RIGHTS_ROLLBACK_APPEND_FAILED'
+                );
+            }
         } catch (Throwable $exception) {
             error_log('Disk ACL rollback failed: ' . $exception->getMessage());
         }
