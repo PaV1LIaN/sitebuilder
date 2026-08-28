@@ -3848,7 +3848,10 @@
 
       var res = await this.api('saveSettings', payload);
       if (!res || !res.ok) {
-        throw new Error((res && (res.message || res.error)) || 'SAVE_SETTINGS_ERROR');
+        var saveError = new Error((res && (res.message || res.error)) || 'SAVE_SETTINGS_ERROR');
+        saveError.code = String((res && res.error) || 'SAVE_SETTINGS_ERROR');
+        saveError.details = (res && res.details) || {};
+        throw saveError;
       }
 
       this.state.settings = res.data.settings || this.state.settings;
@@ -3857,13 +3860,39 @@
 
       this.applyInitialViewMode();
 
-      this.setSettingsMessage('Настройки сохранены.');
+      var accessController = this.root.__diskAccessController;
+      if (
+        accessController
+        && typeof accessController.hasPendingChanges === 'function'
+        && accessController.hasPendingChanges()
+      ) {
+        this.setSettingsMessage('Настройки сохранены. Применение прав в Битрикс24.Диске...');
+        var rightsSaved = await accessController.save();
+        if (!rightsSaved) {
+          this.setSettingsMessage('Настройки сохранены, но итоговые права требуют проверки. Окно оставлено открытым.');
+          return false;
+        }
+      }
+
+      this.setSettingsMessage('Настройки и права сохранены.');
       this.closeSettingsModal();
 
       await this.loadResolvedRoot();
+      return true;
     } catch (e) {
       console.error(e);
+
+      if (e && e.code === 'VERSION_CONFLICT') {
+        var currentVersion = Number(e.details && e.details.currentVersion || 0);
+        if (currentVersion > 0) {
+          this.state.blockVersion = currentVersion;
+        }
+        this.setSettingsMessage('Настройки изменились после открытия окна. Проверьте значения и нажмите «Сохранить» повторно.');
+        return false;
+      }
+
       this.setSettingsMessage('Не удалось сохранить настройки.');
+      return false;
     }
   };
 
