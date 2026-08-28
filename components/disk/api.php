@@ -396,6 +396,20 @@ try {
         );
     }
 
+    if (
+        $e instanceof RuntimeException
+        && (
+            str_starts_with($e->getMessage(), 'DISK_RIGHTS_SET_FAILED')
+            || $e->getMessage() === 'DISK_RIGHTS_SET_API_UNAVAILABLE'
+        )
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_RIGHTS_SET_FAILED',
+            'Битрикс24.Диск не смог заменить набор прав папки. Исходные права восстановлены.'
+        );
+    }
+
     error_log(sprintf(
         'SiteBuilder Disk API error: %s in %s:%d',
         $e->getMessage(),

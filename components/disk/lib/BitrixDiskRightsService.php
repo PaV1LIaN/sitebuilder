@@ -5,7 +5,6 @@ declare(strict_types=1);
 use Bitrix\Disk\Driver;
 use Bitrix\Disk\Folder;
 use Bitrix\Disk\Security\DiskSecurityContext;
-use Bitrix\Main\Application;
 
 class DiskRightsVersionConflictException extends RuntimeException
 {
@@ -110,8 +109,6 @@ class BitrixDiskRightsService
         }
 
         $lock = self::acquireLock($folderId);
-        $connection = null;
-        $transactionStarted = false;
 
         try {
             $currentMatrix = self::getAccessMatrix($context, $folderId);
@@ -133,85 +130,34 @@ class BitrixDiskRightsService
             $manager = Driver::getInstance()->getRightsManager();
             $tasks = self::taskDefinitions($manager);
             $specificRights = self::specificRights($manager, $folder);
-            $directByAccessCode = self::groupRightsByAccessCode($specificRights);
-            $backup = [];
+            $replacement = self::replaceSpecificUserRights(
+                $specificRights,
+                $normalized,
+                $tasks
+            );
 
             try {
-                $connection = Application::getConnection();
-                if (method_exists($connection, 'startTransaction')) {
-                    $connection->startTransaction();
-                    $transactionStarted = true;
+                if (!method_exists($manager, 'set')) {
+                    throw new RuntimeException('DISK_RIGHTS_SET_API_UNAVAILABLE');
                 }
-            } catch (Throwable $exception) {
-                $connection = null;
-                $transactionStarted = false;
-            }
-
-            try {
-                foreach ($normalized as $userId => $taskName) {
-                    $accessCode = 'U' . $userId;
-                    $backup[$accessCode] = $directByAccessCode[$accessCode] ?? [];
-
-                    self::assertManagerResult(
-                        $manager->revokeByAccessCodes($folder, [$accessCode]),
-                        'DISK_RIGHTS_REVOKE_FAILED'
-                    );
-
-                    $right = self::rightForTask(
-                        $accessCode,
-                        $taskName,
-                        $tasks
-                    );
-
-                    if ($right !== null) {
-                        self::assertManagerResult(
-                            $manager->append($folder, [$right]),
-                            'DISK_RIGHTS_APPEND_FAILED'
-                        );
-                    }
-                }
-
-                /*
-                 * RightsManager может вернуть успешный результат, даже если
-                 * конкретная версия модуля не сохранила ACL в ожидаемом виде.
-                 * Не подтверждаем сохранение, пока не прочитаем правило обратно.
-                 */
-                $writtenByAccessCode = self::groupRightsByAccessCode(
-                    self::specificRights($manager, $folder)
+                self::assertManagerResult(
+                    $manager->set($folder, $replacement),
+                    'DISK_RIGHTS_SET_FAILED'
                 );
-                foreach ($normalized as $userId => $taskName) {
-                    $accessCode = 'U' . $userId;
-                    $writtenTaskName = self::canonicalDirectTaskName(
-                        $writtenByAccessCode[$accessCode] ?? [],
-                        $tasks
-                    );
-                    if (!hash_equals($taskName, $writtenTaskName)) {
-                        throw new RuntimeException(
-                            'DISK_RIGHTS_WRITE_VERIFICATION_FAILED: ' . $accessCode
-                        );
-                    }
-                }
-
-                if ($transactionStarted && $connection !== null) {
-                    $connection->commitTransaction();
-                    $transactionStarted = false;
-                }
-            } catch (Throwable $exception) {
-                if ($transactionStarted && $connection !== null) {
-                    try {
-                        $connection->rollbackTransaction();
-                    } catch (Throwable $rollbackException) {
-                        error_log('Disk ACL transaction rollback failed: ' . $rollbackException->getMessage());
-                    }
-                    $transactionStarted = false;
-                }
 
                 /*
-                 * Повторное восстановление через публичный RightsManager
-                 * синхронизирует и БД, и управляемый кеш ACL.
+                 * set() перестраивает штатные simple-rights и поисковый индекс
+                 * Диска. Проверяем результат только после завершения set(),
+                 * перечитывая прямые правила из RightTable.
                  */
-                self::restoreRights($manager, $folder, $backup);
-
+                self::assertRequestedRightsWritten(
+                    $manager,
+                    $folder,
+                    $normalized,
+                    $tasks
+                );
+            } catch (Throwable $exception) {
+                self::restoreRightsSet($manager, $folder, $specificRights);
                 throw $exception;
             }
 
@@ -271,8 +217,6 @@ class BitrixDiskRightsService
         }
 
         $lock = self::acquireLock($folderId);
-        $connection = null;
-        $transactionStarted = false;
 
         try {
             $folder = self::loadFolder($folderId);
@@ -327,63 +271,32 @@ class BitrixDiskRightsService
                 ];
             }
 
-            $backup = [];
-            try {
-                $connection = Application::getConnection();
-                if (method_exists($connection, 'startTransaction')) {
-                    $connection->startTransaction();
-                    $transactionStarted = true;
-                }
-            } catch (Throwable $exception) {
-                $connection = null;
-                $transactionStarted = false;
-            }
+            $replacement = self::replaceSpecificUserRights(
+                $specificRights,
+                $changes,
+                $tasks
+            );
 
             try {
-                foreach ($changes as $userId => $taskName) {
-                    $accessCode = 'U' . $userId;
-                    $backup[$accessCode] = $directByAccessCode[$accessCode] ?? [];
-
-                    self::assertManagerResult(
-                        $manager->revokeByAccessCodes($folder, [$accessCode]),
-                        'DISK_RIGHTS_REVOKE_FAILED'
-                    );
-
-                    $right = self::rightForTask($accessCode, $taskName, $tasks);
-                    if ($right !== null) {
-                        self::assertManagerResult(
-                            $manager->append($folder, [$right]),
-                            'DISK_RIGHTS_APPEND_FAILED'
-                        );
-                    }
+                if (!method_exists($manager, 'set')) {
+                    throw new RuntimeException('DISK_RIGHTS_SET_API_UNAVAILABLE');
                 }
-
-                if ($transactionStarted && $connection !== null) {
-                    $connection->commitTransaction();
-                    $transactionStarted = false;
-                }
+                self::assertManagerResult(
+                    $manager->set($folder, $replacement),
+                    'DISK_RIGHTS_SET_FAILED'
+                );
+                self::assertRequestedRightsWritten(
+                    $manager,
+                    $folder,
+                    $changes,
+                    $tasks
+                );
             } catch (Throwable $exception) {
-                if ($transactionStarted && $connection !== null) {
-                    try {
-                        $connection->rollbackTransaction();
-                    } catch (Throwable $rollbackException) {
-                        error_log('Disk ACL transaction rollback failed: ' . $rollbackException->getMessage());
-                    }
-                    $transactionStarted = false;
-                }
-
-                self::restoreRights($manager, $folder, $backup);
+                self::restoreRightsSet($manager, $folder, $specificRights);
                 throw $exception;
             }
 
             $after = self::getDirectUserRightsSnapshot($folderId);
-            foreach ($changes as $userId => $taskName) {
-                if (($after[$userId] ?? self::INHERIT) !== $taskName) {
-                    throw new DiskRightsVersionConflictException(
-                        hash('sha256', json_encode($after))
-                    );
-                }
-            }
             return [
                 'folderId' => $folderId,
                 'changedUserIds' => array_map('intval', array_keys($changes)),
@@ -557,18 +470,17 @@ class BitrixDiskRightsService
             }
 
             $rights[] = [
+                'OBJECT_ID' => (int)($row['OBJECT_ID'] ?? $folder->getId()),
                 'ACCESS_CODE' => mb_strtoupper($accessCode),
                 'TASK_ID' => $taskId,
+                'DOMAIN' => array_key_exists('DOMAIN', $row)
+                    ? ($row['DOMAIN'] === null ? null : (string)$row['DOMAIN'])
+                    : null,
                 'NEGATIVE' => self::boolValue($row['NEGATIVE'] ?? false),
             ];
         }
 
-        usort($rights, static function (array $left, array $right): int {
-            return [$left['ACCESS_CODE'], $left['TASK_ID'], (int)$left['NEGATIVE']]
-                <=> [$right['ACCESS_CODE'], $right['TASK_ID'], (int)$right['NEGATIVE']];
-        });
-
-        return $rights;
+        return self::sortSpecificRights($rights);
     }
 
     private static function groupRightsByAccessCode(array $rights): array
@@ -900,6 +812,83 @@ class BitrixDiskRightsService
         ];
     }
 
+    /**
+     * Удаляет только выбранные прямые U-строки из полного набора ACL и
+     * добавляет их каноническую замену. Группы, DOMAIN и чужие U-коды остаются.
+     */
+    private static function replaceSpecificUserRights(
+        array $specificRights,
+        array $requestedRights,
+        array $tasks
+    ): array {
+        $targetAccessCodes = [];
+        foreach (array_keys($requestedRights) as $userId) {
+            $targetAccessCodes['U' . (int)$userId] = true;
+        }
+
+        $replacement = [];
+        foreach ($specificRights as $right) {
+            $accessCode = (string)($right['ACCESS_CODE'] ?? '');
+            if (!isset($targetAccessCodes[$accessCode])) {
+                $replacement[] = $right;
+            }
+        }
+
+        foreach ($requestedRights as $userId => $taskName) {
+            $right = self::rightForTask(
+                'U' . (int)$userId,
+                (string)$taskName,
+                $tasks
+            );
+            if ($right !== null) {
+                $replacement[] = $right;
+            }
+        }
+
+        return self::sortSpecificRights($replacement);
+    }
+
+    private static function assertRequestedRightsWritten(
+        $manager,
+        Folder $folder,
+        array $requestedRights,
+        array $tasks
+    ): void {
+        $writtenByAccessCode = self::groupRightsByAccessCode(
+            self::specificRights($manager, $folder)
+        );
+        foreach ($requestedRights as $userId => $taskName) {
+            $accessCode = 'U' . (int)$userId;
+            $writtenTaskName = self::canonicalDirectTaskName(
+                $writtenByAccessCode[$accessCode] ?? [],
+                $tasks
+            );
+            if (!hash_equals((string)$taskName, $writtenTaskName)) {
+                throw new RuntimeException(
+                    'DISK_RIGHTS_WRITE_VERIFICATION_FAILED: ' . $accessCode
+                );
+            }
+        }
+    }
+
+    private static function sortSpecificRights(array $rights): array
+    {
+        usort($rights, static function (array $left, array $right): int {
+            return [
+                (string)($left['ACCESS_CODE'] ?? ''),
+                (int)($left['TASK_ID'] ?? 0),
+                (int)!empty($left['NEGATIVE']),
+                (string)($left['DOMAIN'] ?? ''),
+            ] <=> [
+                (string)($right['ACCESS_CODE'] ?? ''),
+                (int)($right['TASK_ID'] ?? 0),
+                (int)!empty($right['NEGATIVE']),
+                (string)($right['DOMAIN'] ?? ''),
+            ];
+        });
+        return array_values($rights);
+    }
+
     private static function revision(
         int $folderId,
         array $users,
@@ -918,21 +907,22 @@ class BitrixDiskRightsService
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
-    private static function restoreRights($manager, Folder $folder, array $backup): void
+    private static function restoreRightsSet(
+        $manager,
+        Folder $folder,
+        array $backup
+    ): void
     {
-        foreach ($backup as $accessCode => $rights) {
-            try {
-                $manager->revokeByAccessCodes($folder, [$accessCode]);
-                if (!empty($rights)) {
-                    $manager->append($folder, array_values($rights));
-                }
-            } catch (Throwable $exception) {
-                error_log(sprintf(
-                    'Disk ACL rollback failed for %s: %s',
-                    $accessCode,
-                    $exception->getMessage()
-                ));
+        try {
+            if (!method_exists($manager, 'set')) {
+                throw new RuntimeException('DISK_RIGHTS_SET_API_UNAVAILABLE');
             }
+            self::assertManagerResult(
+                $manager->set($folder, array_values($backup)),
+                'DISK_RIGHTS_ROLLBACK_FAILED'
+            );
+        } catch (Throwable $exception) {
+            error_log('Disk ACL rollback failed: ' . $exception->getMessage());
         }
     }
 
