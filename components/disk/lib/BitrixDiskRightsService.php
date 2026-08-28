@@ -48,6 +48,10 @@ class BitrixDiskRightsService
             $context->siteId,
             $context->pageId
         );
+        $managedBindings = DiskAclBindingRepository::listManagedForFolder(
+            $context->siteId,
+            $folderId
+        );
 
         $users = [];
         foreach ($pageUsers as $pageUser) {
@@ -62,21 +66,37 @@ class BitrixDiskRightsService
             $capabilities = $isAclProtected
                 ? self::fullCapabilities()
                 : self::effectiveCapabilities($folder, $userId);
+            $physicalDirectTaskName = self::directTaskName(
+                $directRows,
+                $tasks
+            );
+            $binding = $managedBindings[$accessCode] ?? null;
+            $managedAppliedTaskName = is_array($binding)
+                ? (string)($binding['appliedLevel'] ?? '')
+                : '';
+            $implicitManagedDeny = !$isAclProtected
+                && $physicalDirectTaskName === self::INHERIT
+                && $managedAppliedTaskName === self::NONE
+                && self::effectiveTaskName($capabilities) === self::NONE;
 
             $pageUser['accessCode'] = $accessCode;
             $pageUser['isCurrentUser'] = $userId === $context->currentUserId;
             $pageUser['isAclProtected'] = $isAclProtected;
-            $pageUser['directTaskName'] = self::directTaskName(
-                $directRows,
-                $tasks
-            );
+            $pageUser['physicalDirectTaskName'] = $physicalDirectTaskName;
+            $pageUser['directTaskName'] = $implicitManagedDeny
+                ? self::NONE
+                : $physicalDirectTaskName;
+            $pageUser['managedTaskName'] = $managedAppliedTaskName;
+            $pageUser['isImplicitManagedDeny'] = $implicitManagedDeny;
             $pageUser['effectiveTaskName'] = self::effectiveTaskName(
                 $capabilities
             );
             $pageUser['effectiveCapabilities'] = $capabilities;
             $pageUser['rightSource'] = $isAclProtected
                 ? 'system_admin'
-                : (empty($directRows) ? 'inherited' : 'direct');
+                : ($implicitManagedDeny
+                    ? 'managed_none'
+                    : (empty($directRows) ? 'inherited' : 'direct'));
 
             $users[] = $pageUser;
         }
@@ -88,7 +108,8 @@ class BitrixDiskRightsService
             'rightsRevision' => self::revision(
                 $folderId,
                 $users,
-                $specificRights
+                $specificRights,
+                $managedBindings
             ),
         ];
     }
@@ -150,11 +171,17 @@ class BitrixDiskRightsService
                  * Диска. Проверяем результат только после завершения set(),
                  * перечитывая прямые правила из RightTable.
                  */
-                self::assertRequestedRightsWritten(
+                $externalRights = self::assertRequestedRightsWritten(
                     $manager,
                     $folder,
                     $normalized,
                     $tasks
+                );
+                DiskAclBindingRepository::saveManagedIntents(
+                    $context,
+                    $folderId,
+                    $normalized,
+                    $externalRights
                 );
             } catch (Throwable $exception) {
                 self::restoreRightsSet($manager, $folder, $specificRights);
@@ -174,7 +201,10 @@ class BitrixDiskRightsService
      *
      * @return array<int,string> userId => taskName
      */
-    public static function getDirectUserRightsSnapshot(int $folderId): array
+    public static function getDirectUserRightsSnapshot(
+        int $folderId,
+        ?int $siteId = null
+    ): array
     {
         $folder = self::loadFolder($folderId);
         $manager = Driver::getInstance()->getRightsManager();
@@ -193,6 +223,28 @@ class BitrixDiskRightsService
                 $rights,
                 $tasks
             );
+        }
+
+        if ($siteId !== null && $siteId > 0) {
+            foreach (DiskAclBindingRepository::listManagedForFolder(
+                $siteId,
+                $folderId
+            ) as $accessCode => $binding) {
+                if (
+                    (string)($binding['appliedLevel'] ?? '') !== self::NONE
+                    || !preg_match('/^U([1-9]\d*)$/', $accessCode, $matches)
+                ) {
+                    continue;
+                }
+
+                $userId = (int)$matches[1];
+                if (
+                    !isset($result[$userId])
+                    && !self::userCanReadStrict($folder, $userId)
+                ) {
+                    $result[$userId] = self::NONE;
+                }
+            }
         }
 
         ksort($result, SORT_NUMERIC);
@@ -245,29 +297,38 @@ class BitrixDiskRightsService
                 );
             }
 
+            $semanticCurrent = $current;
             foreach ($expectedRights as $userId => $expectedTask) {
                 $currentTask = $current[$userId] ?? self::INHERIT;
+                if (
+                    $expectedTask === self::NONE
+                    && $currentTask === self::INHERIT
+                    && !self::userCanReadStrict($folder, (int)$userId)
+                ) {
+                    $currentTask = self::NONE;
+                    $semanticCurrent[$userId] = self::NONE;
+                }
                 if (!hash_equals($expectedTask, $currentTask)) {
                     throw new DiskRightsVersionConflictException(
-                        hash('sha256', json_encode($current))
+                        hash('sha256', json_encode($semanticCurrent))
                     );
                 }
             }
 
             $changes = [];
             foreach ($requestedRights as $userId => $taskName) {
-                if (($current[$userId] ?? self::INHERIT) !== $taskName) {
+                if (($semanticCurrent[$userId] ?? self::INHERIT) !== $taskName) {
                     $changes[$userId] = $taskName;
                 }
             }
 
             if (empty($changes)) {
-                ksort($current, SORT_NUMERIC);
+                ksort($semanticCurrent, SORT_NUMERIC);
                 return [
                     'folderId' => $folderId,
                     'changedUserIds' => [],
-                    'before' => $current,
-                    'after' => $current,
+                    'before' => $semanticCurrent,
+                    'after' => $semanticCurrent,
                 ];
             }
 
@@ -300,7 +361,7 @@ class BitrixDiskRightsService
             return [
                 'folderId' => $folderId,
                 'changedUserIds' => array_map('intval', array_keys($changes)),
-                'before' => $current,
+                'before' => $semanticCurrent,
                 'after' => $after,
             ];
         } finally {
@@ -848,26 +909,74 @@ class BitrixDiskRightsService
         return self::sortSpecificRights($replacement);
     }
 
+    /** @return array<int,string> Фактические прямые права после set(). */
     private static function assertRequestedRightsWritten(
         $manager,
         Folder $folder,
         array $requestedRights,
         array $tasks
-    ): void {
+    ): array {
         $writtenByAccessCode = self::groupRightsByAccessCode(
             self::specificRights($manager, $folder)
         );
+        $externalRights = [];
         foreach ($requestedRights as $userId => $taskName) {
             $accessCode = 'U' . (int)$userId;
             $writtenTaskName = self::canonicalDirectTaskName(
                 $writtenByAccessCode[$accessCode] ?? [],
                 $tasks
             );
+            $externalRights[(int)$userId] = $writtenTaskName;
+
+            /*
+             * Bitrix удаляет отрицательную строку, если она не перекрывает
+             * унаследованное чтение. Это штатное представление `Нет доступа`:
+             * прямой строки нет, а SecurityContext запрещает чтение.
+             */
+            if (
+                (string)$taskName === self::NONE
+                && $writtenTaskName === self::INHERIT
+                && !self::userCanReadStrict($folder, (int)$userId)
+            ) {
+                continue;
+            }
+
             if (!hash_equals((string)$taskName, $writtenTaskName)) {
                 throw new RuntimeException(
                     'DISK_RIGHTS_WRITE_VERIFICATION_FAILED: ' . $accessCode
                 );
             }
+        }
+
+        return $externalRights;
+    }
+
+    /**
+     * Строгая проверка для подтверждения запрета. В отличие от отображения
+     * матрицы, исключение Bitrix здесь нельзя превращать в false: иначе сбой
+     * SecurityContext выглядел бы как успешно применённое `Нет доступа`.
+     */
+    private static function userCanReadStrict(
+        Folder $folder,
+        int $userId
+    ): bool {
+        if ($userId <= 0) {
+            throw new RuntimeException('DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED');
+        }
+
+        $securityContext = new DiskSecurityContext($userId);
+        if (!method_exists($securityContext, 'canRead')) {
+            throw new RuntimeException('DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED');
+        }
+
+        try {
+            return (bool)$securityContext->canRead((int)$folder->getId());
+        } catch (Throwable $exception) {
+            throw new RuntimeException(
+                'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED: U' . $userId,
+                0,
+                $exception
+            );
         }
     }
 
@@ -892,7 +1001,8 @@ class BitrixDiskRightsService
     private static function revision(
         int $folderId,
         array $users,
-        array $specificRights
+        array $specificRights,
+        array $managedBindings = []
     ): string {
         $userIds = [];
         foreach ($users as $user) {
@@ -904,6 +1014,7 @@ class BitrixDiskRightsService
             'folderId' => $folderId,
             'userIds' => $userIds,
             'specificRights' => $specificRights,
+            'managedBindings' => $managedBindings,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 

@@ -398,6 +398,31 @@ try {
 
     if (
         $e instanceof RuntimeException
+        && $e->getMessage() === 'DISK_ACL_INTENT_STORAGE_UNAVAILABLE'
+    ) {
+        http_response_code(503);
+        DiskResponse::error(
+            'DISK_ACL_INTENT_STORAGE_UNAVAILABLE',
+            'Не применена миграция этапа 22 для контроллера прав. Изменения ACL отменены.'
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
+        && str_starts_with(
+            $e->getMessage(),
+            'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED'
+        )
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED',
+            'Битрикс24.Диск не смог подтвердить итоговый запрет чтения. Изменения отменены.'
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
         && (
             str_starts_with($e->getMessage(), 'DISK_RIGHTS_SET_FAILED')
             || $e->getMessage() === 'DISK_RIGHTS_SET_API_UNAVAILABLE'

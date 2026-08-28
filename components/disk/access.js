@@ -354,6 +354,11 @@
       var effectiveTaskName = String(user.effectiveTaskName || 'none');
       var effectiveLabel = TASK_LABELS[effectiveTaskName] || effectiveTaskName || 'Нет доступа';
       var effectiveClass = effectiveTaskName;
+      var rightSourceLabel = user.rightSource === 'system_admin'
+        ? 'Системный полный доступ'
+        : (user.rightSource === 'managed_none'
+          ? 'Запрет контроллера; лишнюю ACL-строку Bitrix не хранит'
+          : (user.rightSource === 'direct' ? 'Прямое правило' : 'Прямого правила нет'));
 
       if (isPending) {
         effectiveLabel = 'После сохранения: ' + (TASK_LABELS[pendingTaskName] || pendingTaskName);
@@ -379,7 +384,7 @@
         '    <select class="sb-disk-form__select sb-disk-access__select" data-user-right="' + userId + '"' + (user.isAclProtected ? ' disabled' : '') + '>',
         taskOptions,
         '    </select>',
-        '    <div class="sb-disk-access__source">' + (user.rightSource === 'system_admin' ? 'Системный полный доступ' : (user.rightSource === 'direct' ? 'Прямое правило' : 'Прямого правила нет')) + '</div>',
+        '    <div class="sb-disk-access__source">' + escapeHtml(rightSourceLabel) + '</div>',
         '  </td>',
         '  <td>',
         '    <span class="sb-disk-access__effective sb-disk-access__effective--' + escapeHtml(effectiveClass) + '">' + escapeHtml(effectiveLabel) + '</span>',

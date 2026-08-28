@@ -24,6 +24,7 @@ require_once $diskLib . '/SiteRepository.php';
 require_once $diskLib . '/DiskSettingsRepository.php';
 require_once $diskLib . '/DiskRootResolver.php';
 require_once $diskLib . '/DiskPageUserRepository.php';
+require_once $diskLib . '/DiskAclBindingRepository.php';
 require_once $diskLib . '/BitrixDiskRightsService.php';
 
 /**
@@ -446,7 +447,8 @@ final class UnifiedAccessReconciliationService
             $folderMissing = false;
             try {
                 $current = BitrixDiskRightsService::getDirectUserRightsSnapshot(
-                    (int)$folderId
+                    (int)$folderId,
+                    $siteId
                 );
             } catch (RuntimeException $exception) {
                 if ($exception->getMessage() !== 'DISK_ROOT_FOLDER_NOT_FOUND') {
