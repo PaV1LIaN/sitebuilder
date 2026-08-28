@@ -382,6 +382,20 @@ try {
         );
     }
 
+    if (
+        $e instanceof RuntimeException
+        && str_starts_with(
+            $e->getMessage(),
+            'DISK_RIGHTS_WRITE_VERIFICATION_FAILED'
+        )
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_RIGHTS_WRITE_VERIFICATION_FAILED',
+            'Битрикс24.Диск не подтвердил запись прямого права. Изменения отменены.'
+        );
+    }
+
     error_log(sprintf(
         'SiteBuilder Disk API error: %s in %s:%d',
         $e->getMessage(),

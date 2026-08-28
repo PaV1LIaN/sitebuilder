@@ -16,6 +16,8 @@ class DiskPermissionService
 
         if (
             $permissionMode === 'bitrix_disk'
+            && $rolePermissions['role'] !== 'bitrix_admin'
+            && $rolePermissions['role'] !== 'site_admin'
             && $folderId !== null
             && $folderId > 0
         ) {

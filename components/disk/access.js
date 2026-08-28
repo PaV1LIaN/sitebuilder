@@ -225,12 +225,16 @@
     }
 
     var self = this;
-    var rights = (Array.isArray(this.matrix.users) ? this.matrix.users : []).map(function (user) {
-      return {
-        userId: Number(user.userId || 0),
-        taskName: String(self.selections[Number(user.userId || 0)] || user.directTaskName || 'inherit')
-      };
-    });
+    var rights = (Array.isArray(this.matrix.users) ? this.matrix.users : [])
+      .filter(function (user) {
+        return !user.isAclProtected;
+      })
+      .map(function (user) {
+        return {
+          userId: Number(user.userId || 0),
+          taskName: String(self.selections[Number(user.userId || 0)] || user.directTaskName || 'inherit')
+        };
+      });
 
     this.saving = true;
     this.setStatus('Сохранение прав в Битрикс24.Диск…', 'loading');
@@ -341,8 +345,8 @@
         badges.push('<span class="sb-disk-access__badge sb-disk-access__badge--accent">Вы</span>');
       }
 
-      var adminNote = user.isBitrixAdmin
-        ? '<div class="sb-disk-access__admin-note">Администратор Битрикс24 сохраняет полный доступ независимо от ACL.</div>'
+      var adminNote = user.isAclProtected
+        ? '<div class="sb-disk-access__admin-note">Администратор или владелец сохраняет полный доступ независимо от ACL папки.</div>'
         : '';
 
       var isPending = !!controller.dirtyUserIds[userId];
@@ -372,10 +376,10 @@
         '    </div>',
         '  </td>',
         '  <td>',
-        '    <select class="sb-disk-form__select sb-disk-access__select" data-user-right="' + userId + '"' + (user.isBitrixAdmin ? ' disabled' : '') + '>',
+        '    <select class="sb-disk-form__select sb-disk-access__select" data-user-right="' + userId + '"' + (user.isAclProtected ? ' disabled' : '') + '>',
         taskOptions,
         '    </select>',
-        '    <div class="sb-disk-access__source">' + (user.rightSource === 'direct' ? 'Прямое правило' : 'Прямого правила нет') + '</div>',
+        '    <div class="sb-disk-access__source">' + (user.rightSource === 'system_admin' ? 'Системный полный доступ' : (user.rightSource === 'direct' ? 'Прямое правило' : 'Прямого правила нет')) + '</div>',
         '  </td>',
         '  <td>',
         '    <span class="sb-disk-access__effective sb-disk-access__effective--' + escapeHtml(effectiveClass) + '">' + escapeHtml(effectiveLabel) + '</span>',
@@ -423,7 +427,7 @@
     });
 
     return (Array.isArray(this.matrix && this.matrix.users) ? this.matrix.users : []).filter(function (user) {
-      if (user.isBitrixAdmin) {
+      if (user.isAclProtected) {
         return false;
       }
       var requested = requestedByUser[Number(user.userId || 0)] || 'inherit';

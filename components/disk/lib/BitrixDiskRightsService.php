@@ -59,10 +59,14 @@ class BitrixDiskRightsService
 
             $accessCode = 'U' . $userId;
             $directRows = $directByAccessCode[$accessCode] ?? [];
-            $capabilities = self::effectiveCapabilities($folder, $userId);
+            $isAclProtected = self::isAclProtectedPageUser($pageUser);
+            $capabilities = $isAclProtected
+                ? self::fullCapabilities()
+                : self::effectiveCapabilities($folder, $userId);
 
             $pageUser['accessCode'] = $accessCode;
             $pageUser['isCurrentUser'] = $userId === $context->currentUserId;
+            $pageUser['isAclProtected'] = $isAclProtected;
             $pageUser['directTaskName'] = self::directTaskName(
                 $directRows,
                 $tasks
@@ -71,9 +75,9 @@ class BitrixDiskRightsService
                 $capabilities
             );
             $pageUser['effectiveCapabilities'] = $capabilities;
-            $pageUser['rightSource'] = empty($directRows)
-                ? 'inherited'
-                : 'direct';
+            $pageUser['rightSource'] = $isAclProtected
+                ? 'system_admin'
+                : (empty($directRows) ? 'inherited' : 'direct');
 
             $users[] = $pageUser;
         }
@@ -163,6 +167,27 @@ class BitrixDiskRightsService
                         self::assertManagerResult(
                             $manager->append($folder, [$right]),
                             'DISK_RIGHTS_APPEND_FAILED'
+                        );
+                    }
+                }
+
+                /*
+                 * RightsManager может вернуть успешный результат, даже если
+                 * конкретная версия модуля не сохранила ACL в ожидаемом виде.
+                 * Не подтверждаем сохранение, пока не прочитаем правило обратно.
+                 */
+                $writtenByAccessCode = self::groupRightsByAccessCode(
+                    self::specificRights($manager, $folder)
+                );
+                foreach ($normalized as $userId => $taskName) {
+                    $accessCode = 'U' . $userId;
+                    $writtenTaskName = self::canonicalDirectTaskName(
+                        $writtenByAccessCode[$accessCode] ?? [],
+                        $tasks
+                    );
+                    if (!hash_equals($taskName, $writtenTaskName)) {
+                        throw new RuntimeException(
+                            'DISK_RIGHTS_WRITE_VERIFICATION_FAILED: ' . $accessCode
                         );
                     }
                 }
@@ -634,15 +659,16 @@ class BitrixDiskRightsService
         }
 
         $securityContext = new DiskSecurityContext($userId);
-        $canRead = self::contextAllows($securityContext, 'canRead', $folder);
-        $canAdd = self::contextAllows($securityContext, 'canAdd', $folder);
-        $canUpdate = self::contextAllows($securityContext, 'canUpdate', $folder);
-        $canRename = self::contextAllows($securityContext, 'canRename', $folder)
+        $objectId = (int)$folder->getId();
+        $canRead = self::contextAllows($securityContext, 'canRead', $objectId);
+        $canAdd = self::contextAllows($securityContext, 'canAdd', $objectId);
+        $canUpdate = self::contextAllows($securityContext, 'canUpdate', $objectId);
+        $canRename = self::contextAllows($securityContext, 'canRename', $objectId)
             || $canUpdate;
-        $canDelete = self::contextAllows($securityContext, 'canDelete', $folder);
-        $canShare = self::contextAllows($securityContext, 'canShare', $folder)
-            || self::contextAllows($securityContext, 'canChangeRights', $folder)
-            || self::contextAllows($securityContext, 'canChangeSettings', $folder);
+        $canDelete = self::contextAllows($securityContext, 'canDelete', $objectId);
+        $canShare = self::contextAllows($securityContext, 'canShare', $objectId)
+            || self::contextAllows($securityContext, 'canChangeRights', $objectId)
+            || self::contextAllows($securityContext, 'canChangeSettings', $objectId);
 
         return [
             'canView' => $canRead,
@@ -670,17 +696,58 @@ class BitrixDiskRightsService
         ];
     }
 
-    private static function contextAllows($securityContext, string $method, Folder $folder): bool
+    private static function fullCapabilities(): array
     {
-        if (!method_exists($securityContext, $method)) {
+        return [
+            'canView' => true,
+            'canUpload' => true,
+            'canCreateFolder' => true,
+            'canEditFile' => true,
+            'canRename' => true,
+            'canDelete' => true,
+            'canDownload' => true,
+            'canShare' => true,
+        ];
+    }
+
+    /**
+     * SecurityContext принимает числовой ID объекта Диска, а не модель Folder.
+     * Передача модели приводит к исключению внутри RightsManager и ко всем false.
+     */
+    private static function contextAllows(
+        $securityContext,
+        string $method,
+        int $objectId
+    ): bool
+    {
+        if ($objectId <= 0 || !method_exists($securityContext, $method)) {
             return false;
         }
 
         try {
-            return (bool)$securityContext->{$method}($folder);
+            return (bool)$securityContext->{$method}($objectId);
         } catch (Throwable $exception) {
+            error_log(sprintf(
+                'Disk ACL check failed: %s(%d): %s',
+                $method,
+                $objectId,
+                $exception->getMessage()
+            ));
             return false;
         }
+    }
+
+    private static function isAclProtectedPageUser(array $user): bool
+    {
+        if (!empty($user['isBitrixAdmin'])) {
+            return true;
+        }
+
+        return in_array(
+            mb_strtoupper(trim((string)($user['globalRole'] ?? ''))),
+            ['ADMIN', 'OWNER'],
+            true
+        );
     }
 
     private static function effectiveTaskName(array $capabilities): string
@@ -713,14 +780,21 @@ class BitrixDiskRightsService
         }
 
         $eligibleIds = [];
+        $protectedIds = [];
         foreach ((array)($matrix['users'] ?? []) as $user) {
             $userId = (int)($user['userId'] ?? 0);
-            if ($userId > 0) {
-                $eligibleIds[$userId] = true;
+            if ($userId <= 0) {
+                continue;
             }
+            if (!empty($user['isAclProtected'])) {
+                $protectedIds[$userId] = true;
+                continue;
+            }
+            $eligibleIds[$userId] = true;
         }
 
         $normalized = [];
+        $seenIds = [];
         foreach ($rights as $right) {
             if (!is_array($right)) {
                 throw new RuntimeException('INVALID_DISK_RIGHT_ROW');
@@ -731,13 +805,20 @@ class BitrixDiskRightsService
 
             if (
                 $userId <= 0
-                || !isset($eligibleIds[$userId])
                 || !isset($allowedTasks[$taskName])
-                || isset($normalized[$userId])
+                || isset($seenIds[$userId])
             ) {
                 throw new RuntimeException('INVALID_DISK_RIGHT_ROW');
             }
 
+            $seenIds[$userId] = true;
+            if (isset($protectedIds[$userId])) {
+                /* Старые клиенты присылали disabled-строки администраторов. */
+                continue;
+            }
+            if (!isset($eligibleIds[$userId])) {
+                throw new RuntimeException('INVALID_DISK_RIGHT_ROW');
+            }
             $normalized[$userId] = $taskName;
         }
 
