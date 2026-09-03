@@ -3,6 +3,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_be
 require_once __DIR__ . '/lib/db.php';
 require_once __DIR__ . '/lib/storage_db.php';
 require_once __DIR__ . '/lib/helpers.php';
+require_once __DIR__ . '/lib/routes.php';
 
 $siteId = (int)($_GET['siteId'] ?? 0);
 $site = $siteId > 0 ? sb_find_site($siteId) : null;
@@ -24,7 +25,11 @@ foreach (sb_pages_for_site($siteId) as $page) {
     if ((string)($page['status'] ?? '') !== 'published') continue;
     $seo = is_array($page['seo'] ?? null) ? $page['seo'] : [];
     if (array_key_exists('robotsIndex', $seo) && empty($seo['robotsIndex'])) continue;
-    $url = $scheme . '://' . $host . $basePath . '/public.php?siteId=' . $siteId . '&pageId=' . (int)$page['id'];
+
+    $relativeUrl = sb_public_page_url($basePath, $siteId, (int)$page['id']);
+    if ($relativeUrl === '') continue;
+
+    $url = $scheme . '://' . $host . $relativeUrl;
     echo '<url><loc>' . htmlspecialchars($url, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</loc>';
     if (!empty($page['updatedAt'])) echo '<lastmod>' . htmlspecialchars(date(DATE_ATOM, strtotime((string)$page['updatedAt'])), ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</lastmod>';
     echo '</url>';
