@@ -237,6 +237,8 @@ final class PreflightService
                 'sitebuilder.access',
                 'sitebuilder.page_access',
                 'sitebuilder.site_section',
+                'sitebuilder.access_reconcile_run',
+                'sitebuilder.access_sync_binding',
             ];
             $missing = [];
             foreach ($baseRelations as $relation) {

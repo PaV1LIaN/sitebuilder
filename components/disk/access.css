@@ -208,6 +208,7 @@
 .sb-disk-access__effective--disk_access_add { background: #e8f2ff; color: #1459a6; }
 .sb-disk-access__effective--disk_access_edit { background: #fff4d6; color: #795b00; }
 .sb-disk-access__effective--disk_access_full { background: #e7f7eb; color: #176b35; }
+.sb-disk-access__effective--pending { background: #fff4d6; color: #795b00; }
 
 .sb-disk-access__empty {
   padding: 30px 18px;

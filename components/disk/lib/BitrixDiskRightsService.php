@@ -5,7 +5,6 @@ declare(strict_types=1);
 use Bitrix\Disk\Driver;
 use Bitrix\Disk\Folder;
 use Bitrix\Disk\Security\DiskSecurityContext;
-use Bitrix\Main\Application;
 
 class DiskRightsVersionConflictException extends RuntimeException
 {
@@ -49,6 +48,10 @@ class BitrixDiskRightsService
             $context->siteId,
             $context->pageId
         );
+        $managedBindings = DiskAclBindingRepository::listManagedForFolder(
+            $context->siteId,
+            $folderId
+        );
 
         $users = [];
         foreach ($pageUsers as $pageUser) {
@@ -59,21 +62,41 @@ class BitrixDiskRightsService
 
             $accessCode = 'U' . $userId;
             $directRows = $directByAccessCode[$accessCode] ?? [];
-            $capabilities = self::effectiveCapabilities($folder, $userId);
-
-            $pageUser['accessCode'] = $accessCode;
-            $pageUser['isCurrentUser'] = $userId === $context->currentUserId;
-            $pageUser['directTaskName'] = self::directTaskName(
+            $isAclProtected = self::isAclProtectedPageUser($pageUser);
+            $capabilities = $isAclProtected
+                ? self::fullCapabilities()
+                : self::effectiveCapabilities($folder, $userId);
+            $physicalDirectTaskName = self::directTaskName(
                 $directRows,
                 $tasks
             );
+            $binding = $managedBindings[$accessCode] ?? null;
+            $managedAppliedTaskName = is_array($binding)
+                ? (string)($binding['appliedLevel'] ?? '')
+                : '';
+            $implicitManagedDeny = !$isAclProtected
+                && $physicalDirectTaskName === self::INHERIT
+                && $managedAppliedTaskName === self::NONE
+                && self::effectiveTaskName($capabilities) === self::NONE;
+
+            $pageUser['accessCode'] = $accessCode;
+            $pageUser['isCurrentUser'] = $userId === $context->currentUserId;
+            $pageUser['isAclProtected'] = $isAclProtected;
+            $pageUser['physicalDirectTaskName'] = $physicalDirectTaskName;
+            $pageUser['directTaskName'] = $implicitManagedDeny
+                ? self::NONE
+                : $physicalDirectTaskName;
+            $pageUser['managedTaskName'] = $managedAppliedTaskName;
+            $pageUser['isImplicitManagedDeny'] = $implicitManagedDeny;
             $pageUser['effectiveTaskName'] = self::effectiveTaskName(
                 $capabilities
             );
             $pageUser['effectiveCapabilities'] = $capabilities;
-            $pageUser['rightSource'] = empty($directRows)
-                ? 'inherited'
-                : 'direct';
+            $pageUser['rightSource'] = $isAclProtected
+                ? 'system_admin'
+                : ($implicitManagedDeny
+                    ? 'managed_none'
+                    : (empty($directRows) ? 'inherited' : 'direct'));
 
             $users[] = $pageUser;
         }
@@ -85,7 +108,8 @@ class BitrixDiskRightsService
             'rightsRevision' => self::revision(
                 $folderId,
                 $users,
-                $specificRights
+                $specificRights,
+                $managedBindings
             ),
         ];
     }
@@ -106,8 +130,6 @@ class BitrixDiskRightsService
         }
 
         $lock = self::acquireLock($folderId);
-        $connection = null;
-        $transactionStarted = false;
 
         try {
             $currentMatrix = self::getAccessMatrix($context, $folderId);
@@ -129,68 +151,219 @@ class BitrixDiskRightsService
             $manager = Driver::getInstance()->getRightsManager();
             $tasks = self::taskDefinitions($manager);
             $specificRights = self::specificRights($manager, $folder);
-            $directByAccessCode = self::groupRightsByAccessCode($specificRights);
-            $backup = [];
+            $replacement = self::replaceSpecificUserRights(
+                $specificRights,
+                $normalized,
+                $tasks
+            );
 
             try {
-                $connection = Application::getConnection();
-                if (method_exists($connection, 'startTransaction')) {
-                    $connection->startTransaction();
-                    $transactionStarted = true;
-                }
-            } catch (Throwable $exception) {
-                $connection = null;
-                $transactionStarted = false;
-            }
-
-            try {
-                foreach ($normalized as $userId => $taskName) {
-                    $accessCode = 'U' . $userId;
-                    $backup[$accessCode] = $directByAccessCode[$accessCode] ?? [];
-
-                    self::assertManagerResult(
-                        $manager->revokeByAccessCodes($folder, [$accessCode]),
-                        'DISK_RIGHTS_REVOKE_FAILED'
-                    );
-
-                    $right = self::rightForTask(
-                        $accessCode,
-                        $taskName,
-                        $tasks
-                    );
-
-                    if ($right !== null) {
-                        self::assertManagerResult(
-                            $manager->append($folder, [$right]),
-                            'DISK_RIGHTS_APPEND_FAILED'
-                        );
-                    }
-                }
-
-                if ($transactionStarted && $connection !== null) {
-                    $connection->commitTransaction();
-                    $transactionStarted = false;
-                }
-            } catch (Throwable $exception) {
-                if ($transactionStarted && $connection !== null) {
-                    try {
-                        $connection->rollbackTransaction();
-                    } catch (Throwable $rollbackException) {
-                        error_log('Disk ACL transaction rollback failed: ' . $rollbackException->getMessage());
-                    }
-                    $transactionStarted = false;
-                }
+                self::applyRequestedRights(
+                    $manager,
+                    $folder,
+                    $replacement,
+                    $normalized,
+                    $tasks
+                );
 
                 /*
-                 * Повторное восстановление через публичный RightsManager
-                 * синхронизирует и БД, и управляемый кеш ACL.
+                 * set()/append() перестраивают штатные simple-rights Диска.
+                 * Проверяем результат после обоих вызовов, перечитывая прямые
+                 * правила из RightTable и итоговый SecurityContext.
                  */
-                self::restoreRights($manager, $folder, $backup);
-
+                $externalRights = self::assertRequestedRightsWritten(
+                    $manager,
+                    $folder,
+                    $normalized,
+                    $tasks
+                );
+                DiskAclBindingRepository::saveManagedIntents(
+                    $context,
+                    $folderId,
+                    $normalized,
+                    $externalRights
+                );
+            } catch (Throwable $exception) {
+                self::restoreRightsSet($manager, $folder, $specificRights);
                 throw $exception;
             }
 
             return self::getAccessMatrix($context, $folderId);
+        } finally {
+            self::releaseLock($lock);
+        }
+    }
+
+    /**
+     * Возвращает только прямые пользовательские правила корневой папки.
+     * Группы и наследование намеренно не разворачиваются: контроллер должен
+     * владеть только теми U-кодами, которые сам записал.
+     *
+     * @return array<int,string> userId => taskName
+     */
+    public static function getDirectUserRightsSnapshot(
+        int $folderId,
+        ?int $siteId = null
+    ): array
+    {
+        $folder = self::loadFolder($folderId);
+        $manager = Driver::getInstance()->getRightsManager();
+        $tasks = self::taskDefinitions($manager);
+        $byAccessCode = self::groupRightsByAccessCode(
+            self::specificRights($manager, $folder)
+        );
+
+        $result = [];
+        foreach ($byAccessCode as $accessCode => $rights) {
+            if (!preg_match('/^U([1-9]\d*)$/', $accessCode, $matches)) {
+                continue;
+            }
+
+            $result[(int)$matches[1]] = self::canonicalDirectTaskName(
+                $rights,
+                $tasks
+            );
+        }
+
+        if ($siteId !== null && $siteId > 0) {
+            foreach (DiskAclBindingRepository::listManagedForFolder(
+                $siteId,
+                $folderId
+            ) as $accessCode => $binding) {
+                if (
+                    (string)($binding['appliedLevel'] ?? '') !== self::NONE
+                    || !preg_match('/^U([1-9]\d*)$/', $accessCode, $matches)
+                ) {
+                    continue;
+                }
+
+                $userId = (int)$matches[1];
+                if (
+                    !isset($result[$userId])
+                    && !self::userCanReadStrict($folder, $userId)
+                ) {
+                    $result[$userId] = self::NONE;
+                }
+            }
+        }
+
+        ksort($result, SORT_NUMERIC);
+        return $result;
+    }
+
+    /**
+     * Идемпотентно заменяет набор прямых U-прав под файловой блокировкой.
+     * expectedRights защищает план сверки от параллельного ручного изменения.
+     * Значение inherit удаляет прямое правило, но не трогает группы и родителей.
+     *
+     * @param array<int,string> $requestedRights
+     * @param array<int,string> $expectedRights
+     */
+    public static function replaceDirectUserRights(
+        int $folderId,
+        array $requestedRights,
+        array $expectedRights
+    ): array {
+        if (count($requestedRights) > self::MAX_USERS) {
+            throw new RuntimeException('TOO_MANY_DISK_RIGHTS');
+        }
+
+        $lock = self::acquireLock($folderId);
+
+        try {
+            $folder = self::loadFolder($folderId);
+            $manager = Driver::getInstance()->getRightsManager();
+            $tasks = self::taskDefinitions($manager);
+            $requestedRights = self::normalizeDirectUserTaskMap(
+                $requestedRights,
+                $tasks
+            );
+            $expectedRights = self::normalizeDirectUserTaskMap(
+                $expectedRights,
+                $tasks
+            );
+
+            $specificRights = self::specificRights($manager, $folder);
+            $directByAccessCode = self::groupRightsByAccessCode($specificRights);
+            $current = [];
+
+            foreach ($directByAccessCode as $accessCode => $rights) {
+                if (!preg_match('/^U([1-9]\d*)$/', $accessCode, $matches)) {
+                    continue;
+                }
+                $current[(int)$matches[1]] = self::canonicalDirectTaskName(
+                    $rights,
+                    $tasks
+                );
+            }
+
+            $semanticCurrent = $current;
+            foreach ($expectedRights as $userId => $expectedTask) {
+                $currentTask = $current[$userId] ?? self::INHERIT;
+                if (
+                    $expectedTask === self::NONE
+                    && $currentTask === self::INHERIT
+                    && !self::userCanReadStrict($folder, (int)$userId)
+                ) {
+                    $currentTask = self::NONE;
+                    $semanticCurrent[$userId] = self::NONE;
+                }
+                if (!hash_equals($expectedTask, $currentTask)) {
+                    throw new DiskRightsVersionConflictException(
+                        hash('sha256', json_encode($semanticCurrent))
+                    );
+                }
+            }
+
+            $changes = [];
+            foreach ($requestedRights as $userId => $taskName) {
+                if (($semanticCurrent[$userId] ?? self::INHERIT) !== $taskName) {
+                    $changes[$userId] = $taskName;
+                }
+            }
+
+            if (empty($changes)) {
+                ksort($semanticCurrent, SORT_NUMERIC);
+                return [
+                    'folderId' => $folderId,
+                    'changedUserIds' => [],
+                    'before' => $semanticCurrent,
+                    'after' => $semanticCurrent,
+                ];
+            }
+
+            $replacement = self::replaceSpecificUserRights(
+                $specificRights,
+                $changes,
+                $tasks
+            );
+
+            try {
+                self::applyRequestedRights(
+                    $manager,
+                    $folder,
+                    $replacement,
+                    $changes,
+                    $tasks
+                );
+                self::assertRequestedRightsWritten(
+                    $manager,
+                    $folder,
+                    $changes,
+                    $tasks
+                );
+            } catch (Throwable $exception) {
+                self::restoreRightsSet($manager, $folder, $specificRights);
+                throw $exception;
+            }
+
+            $after = self::getDirectUserRightsSnapshot($folderId);
+            return [
+                'folderId' => $folderId,
+                'changedUserIds' => array_map('intval', array_keys($changes)),
+                'before' => $semanticCurrent,
+                'after' => $after,
+            ];
         } finally {
             self::releaseLock($lock);
         }
@@ -358,18 +531,17 @@ class BitrixDiskRightsService
             }
 
             $rights[] = [
+                'OBJECT_ID' => (int)($row['OBJECT_ID'] ?? $folder->getId()),
                 'ACCESS_CODE' => mb_strtoupper($accessCode),
                 'TASK_ID' => $taskId,
+                'DOMAIN' => array_key_exists('DOMAIN', $row)
+                    ? ($row['DOMAIN'] === null ? null : (string)$row['DOMAIN'])
+                    : null,
                 'NEGATIVE' => self::boolValue($row['NEGATIVE'] ?? false),
             ];
         }
 
-        usort($rights, static function (array $left, array $right): int {
-            return [$left['ACCESS_CODE'], $left['TASK_ID'], (int)$left['NEGATIVE']]
-                <=> [$right['ACCESS_CODE'], $right['TASK_ID'], (int)$right['NEGATIVE']];
-        });
-
-        return $rights;
+        return self::sortSpecificRights($rights);
     }
 
     private static function groupRightsByAccessCode(array $rights): array
@@ -417,6 +589,42 @@ class BitrixDiskRightsService
         return $selected['name'] ?? self::INHERIT;
     }
 
+    /**
+     * Контроллер распознаёт только каноническое одиночное правило, которое
+     * умеет сам записывать. Неизвестные/составные ручные ACL нельзя принимать
+     * за inherit: иначе первая сверка могла бы их молча перезаписать.
+     */
+    private static function canonicalDirectTaskName(
+        array $rights,
+        array $tasks
+    ): string {
+        if (empty($rights)) {
+            return self::INHERIT;
+        }
+
+        if (count($rights) !== 1) {
+            return 'unknown:' . substr(hash('sha256', json_encode($rights)), 0, 16);
+        }
+
+        $right = array_values($rights)[0];
+        $taskId = (int)($right['TASK_ID'] ?? 0);
+        $negative = !empty($right['NEGATIVE']);
+
+        foreach ($tasks as $taskName => $task) {
+            if ((int)($task['id'] ?? 0) !== $taskId) {
+                continue;
+            }
+            if ($negative) {
+                return (string)($task['key'] ?? '') === 'full'
+                    ? self::NONE
+                    : 'unknown:' . substr(hash('sha256', json_encode($right)), 0, 16);
+            }
+            return (string)$taskName;
+        }
+
+        return 'unknown:' . substr(hash('sha256', json_encode($right)), 0, 16);
+    }
+
     private static function effectiveCapabilities(Folder $folder, int $userId): array
     {
         if ($userId <= 0) {
@@ -424,15 +632,16 @@ class BitrixDiskRightsService
         }
 
         $securityContext = new DiskSecurityContext($userId);
-        $canRead = self::contextAllows($securityContext, 'canRead', $folder);
-        $canAdd = self::contextAllows($securityContext, 'canAdd', $folder);
-        $canUpdate = self::contextAllows($securityContext, 'canUpdate', $folder);
-        $canRename = self::contextAllows($securityContext, 'canRename', $folder)
+        $objectId = (int)$folder->getId();
+        $canRead = self::contextAllows($securityContext, 'canRead', $objectId);
+        $canAdd = self::contextAllows($securityContext, 'canAdd', $objectId);
+        $canUpdate = self::contextAllows($securityContext, 'canUpdate', $objectId);
+        $canRename = self::contextAllows($securityContext, 'canRename', $objectId)
             || $canUpdate;
-        $canDelete = self::contextAllows($securityContext, 'canDelete', $folder);
-        $canShare = self::contextAllows($securityContext, 'canShare', $folder)
-            || self::contextAllows($securityContext, 'canChangeRights', $folder)
-            || self::contextAllows($securityContext, 'canChangeSettings', $folder);
+        $canDelete = self::contextAllows($securityContext, 'canDelete', $objectId);
+        $canShare = self::contextAllows($securityContext, 'canShare', $objectId)
+            || self::contextAllows($securityContext, 'canChangeRights', $objectId)
+            || self::contextAllows($securityContext, 'canChangeSettings', $objectId);
 
         return [
             'canView' => $canRead,
@@ -460,17 +669,58 @@ class BitrixDiskRightsService
         ];
     }
 
-    private static function contextAllows($securityContext, string $method, Folder $folder): bool
+    private static function fullCapabilities(): array
     {
-        if (!method_exists($securityContext, $method)) {
+        return [
+            'canView' => true,
+            'canUpload' => true,
+            'canCreateFolder' => true,
+            'canEditFile' => true,
+            'canRename' => true,
+            'canDelete' => true,
+            'canDownload' => true,
+            'canShare' => true,
+        ];
+    }
+
+    /**
+     * SecurityContext принимает числовой ID объекта Диска, а не модель Folder.
+     * Передача модели приводит к исключению внутри RightsManager и ко всем false.
+     */
+    private static function contextAllows(
+        $securityContext,
+        string $method,
+        int $objectId
+    ): bool
+    {
+        if ($objectId <= 0 || !method_exists($securityContext, $method)) {
             return false;
         }
 
         try {
-            return (bool)$securityContext->{$method}($folder);
+            return (bool)$securityContext->{$method}($objectId);
         } catch (Throwable $exception) {
+            error_log(sprintf(
+                'Disk ACL check failed: %s(%d): %s',
+                $method,
+                $objectId,
+                $exception->getMessage()
+            ));
             return false;
         }
+    }
+
+    private static function isAclProtectedPageUser(array $user): bool
+    {
+        if (!empty($user['isBitrixAdmin'])) {
+            return true;
+        }
+
+        return in_array(
+            mb_strtoupper(trim((string)($user['globalRole'] ?? ''))),
+            ['ADMIN', 'OWNER'],
+            true
+        );
     }
 
     private static function effectiveTaskName(array $capabilities): string
@@ -503,14 +753,21 @@ class BitrixDiskRightsService
         }
 
         $eligibleIds = [];
+        $protectedIds = [];
         foreach ((array)($matrix['users'] ?? []) as $user) {
             $userId = (int)($user['userId'] ?? 0);
-            if ($userId > 0) {
-                $eligibleIds[$userId] = true;
+            if ($userId <= 0) {
+                continue;
             }
+            if (!empty($user['isAclProtected'])) {
+                $protectedIds[$userId] = true;
+                continue;
+            }
+            $eligibleIds[$userId] = true;
         }
 
         $normalized = [];
+        $seenIds = [];
         foreach ($rights as $right) {
             if (!is_array($right)) {
                 throw new RuntimeException('INVALID_DISK_RIGHT_ROW');
@@ -521,13 +778,20 @@ class BitrixDiskRightsService
 
             if (
                 $userId <= 0
-                || !isset($eligibleIds[$userId])
                 || !isset($allowedTasks[$taskName])
-                || isset($normalized[$userId])
+                || isset($seenIds[$userId])
             ) {
                 throw new RuntimeException('INVALID_DISK_RIGHT_ROW');
             }
 
+            $seenIds[$userId] = true;
+            if (isset($protectedIds[$userId])) {
+                /* Старые клиенты присылали disabled-строки администраторов. */
+                continue;
+            }
+            if (!isset($eligibleIds[$userId])) {
+                throw new RuntimeException('INVALID_DISK_RIGHT_ROW');
+            }
             $normalized[$userId] = $taskName;
         }
 
@@ -546,6 +810,37 @@ class BitrixDiskRightsService
         return $normalized;
     }
 
+    /** @return array<int,string> */
+    private static function normalizeDirectUserTaskMap(
+        array $rights,
+        array $tasks
+    ): array {
+        $allowed = [
+            self::INHERIT => true,
+            self::NONE => true,
+        ];
+        foreach ($tasks as $taskName => $task) {
+            $allowed[(string)$taskName] = true;
+        }
+
+        $normalized = [];
+        foreach ($rights as $userId => $taskName) {
+            $userId = (int)$userId;
+            $taskName = trim((string)$taskName);
+            if (
+                $userId <= 0
+                || !isset($allowed[$taskName])
+                || isset($normalized[$userId])
+            ) {
+                throw new RuntimeException('INVALID_DISK_RIGHT_ROW');
+            }
+            $normalized[$userId] = $taskName;
+        }
+
+        ksort($normalized, SORT_NUMERIC);
+        return $normalized;
+    }
+
     private static function rightForTask(
         string $accessCode,
         string $taskName,
@@ -556,15 +851,12 @@ class BitrixDiskRightsService
         }
 
         if ($taskName === self::NONE) {
-            foreach ($tasks as $task) {
-                if (($task['key'] ?? '') === 'full') {
-                    return [
-                        'ACCESS_CODE' => $accessCode,
-                        'TASK_ID' => (int)$task['id'],
-                        'NEGATIVE' => true,
-                    ];
-                }
-            }
+            /*
+             * Отрицательные строки нельзя конструировать вручную: их набор
+             * зависит от унаследованных операций. После set() персональный
+             * запрет будет добавлен штатным RightsManager::append().
+             */
+            return null;
         }
 
         if (!isset($tasks[$taskName])) {
@@ -578,10 +870,237 @@ class BitrixDiskRightsService
         ];
     }
 
+    /**
+     * Удаляет только выбранные прямые U-строки из полного набора ACL и
+     * добавляет их каноническую замену. Группы, DOMAIN и чужие U-коды остаются.
+     */
+    private static function replaceSpecificUserRights(
+        array $specificRights,
+        array $requestedRights,
+        array $tasks
+    ): array {
+        $targetAccessCodes = [];
+        foreach (array_keys($requestedRights) as $userId) {
+            $targetAccessCodes['U' . (int)$userId] = true;
+        }
+
+        $replacement = [];
+        foreach ($specificRights as $right) {
+            $accessCode = (string)($right['ACCESS_CODE'] ?? '');
+            if (!isset($targetAccessCodes[$accessCode])) {
+                $replacement[] = $right;
+            }
+        }
+
+        foreach ($requestedRights as $userId => $taskName) {
+            $right = self::rightForTask(
+                'U' . (int)$userId,
+                (string)$taskName,
+                $tasks
+            );
+            if ($right !== null) {
+                $replacement[] = $right;
+            }
+        }
+
+        return self::sortSpecificRights($replacement);
+    }
+
+    /**
+     * set() надёжно заменяет положительные ACL, но отрицательные правила
+     * Bitrix создаёт отдельным append(). Поэтому сначала удаляем/заменяем весь
+     * прямой набор через set(), затем возвращаем все отрицательные строки и
+     * добавляем персональный TASK_FULL для каждого запрошенного `none`.
+     */
+    private static function applyRequestedRights(
+        $manager,
+        Folder $folder,
+        array $replacement,
+        array $requestedRights,
+        array $tasks
+    ): void {
+        if (!method_exists($manager, 'set')) {
+            throw new RuntimeException('DISK_RIGHTS_SET_API_UNAVAILABLE');
+        }
+
+        $fullTaskId = 0;
+        foreach ($tasks as $task) {
+            if ((string)($task['key'] ?? '') === 'full') {
+                $fullTaskId = (int)($task['id'] ?? 0);
+                break;
+            }
+        }
+        if ($fullTaskId <= 0) {
+            throw new RuntimeException('DISK_ACCESS_TASK_NOT_FOUND_FULL');
+        }
+
+        $positiveRights = [];
+        $negativeRights = [];
+        foreach ($replacement as $right) {
+            if (!empty($right['NEGATIVE'])) {
+                $negativeRights[] = $right;
+            } else {
+                $positiveRights[] = $right;
+            }
+        }
+
+        foreach ($requestedRights as $userId => $taskName) {
+            if ((string)$taskName === self::NONE && (int)$userId > 0) {
+                $negativeRights[] = [
+                    'ACCESS_CODE' => 'U' . (int)$userId,
+                    'TASK_ID' => $fullTaskId,
+                    'NEGATIVE' => 1,
+                ];
+            }
+        }
+
+        $positiveRights = self::sortSpecificRights($positiveRights);
+        $negativeRights = self::uniqueSpecificRights($negativeRights);
+
+        self::assertManagerResult(
+            $manager->set($folder, $positiveRights),
+            'DISK_RIGHTS_SET_FAILED'
+        );
+
+        if (empty($negativeRights)) {
+            return;
+        }
+
+        if (!method_exists($manager, 'append')) {
+            throw new RuntimeException('DISK_RIGHTS_APPEND_API_UNAVAILABLE');
+        }
+
+        self::assertManagerResult(
+            $manager->append($folder, $negativeRights),
+            'DISK_RIGHTS_APPEND_FAILED'
+        );
+    }
+
+    /**
+     * Убирает точные дубли перед append(), не объединяя разные DOMAIN/TASK_ID.
+     */
+    private static function uniqueSpecificRights(array $rights): array
+    {
+        $unique = [];
+        foreach (self::sortSpecificRights($rights) as $right) {
+            $key = implode('|', [
+                (string)($right['ACCESS_CODE'] ?? ''),
+                (int)($right['TASK_ID'] ?? 0),
+                !empty($right['NEGATIVE']) ? '1' : '0',
+                (string)($right['DOMAIN'] ?? ''),
+            ]);
+            $unique[$key] = $right;
+        }
+
+        return array_values($unique);
+    }
+
+    /** @return array<int,string> Фактические прямые права после set()/append(). */
+    private static function assertRequestedRightsWritten(
+        $manager,
+        Folder $folder,
+        array $requestedRights,
+        array $tasks
+    ): array {
+        $writtenByAccessCode = self::groupRightsByAccessCode(
+            self::specificRights($manager, $folder)
+        );
+        $externalRights = [];
+        foreach ($requestedRights as $userId => $taskName) {
+            $accessCode = 'U' . (int)$userId;
+            $writtenTaskName = self::canonicalDirectTaskName(
+                $writtenByAccessCode[$accessCode] ?? [],
+                $tasks
+            );
+            $externalRights[(int)$userId] = $writtenTaskName;
+
+            if ((string)$taskName === self::NONE) {
+                $canRead = self::userCanReadStrict($folder, (int)$userId);
+                if (
+                    ($writtenTaskName === self::NONE
+                        || $writtenTaskName === self::INHERIT)
+                    && !$canRead
+                ) {
+                    continue;
+                }
+
+                if ($writtenTaskName !== self::NONE) {
+                    throw new RuntimeException(
+                        'DISK_RIGHTS_WRITE_VERIFICATION_FAILED: '
+                        . $accessCode
+                        . '; expected=none; direct=' . $writtenTaskName
+                    );
+                }
+
+                throw new RuntimeException(
+                    'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED: '
+                    . $accessCode
+                    . '; direct=none; canRead=1'
+                );
+            }
+
+            if (!hash_equals((string)$taskName, $writtenTaskName)) {
+                throw new RuntimeException(
+                    'DISK_RIGHTS_WRITE_VERIFICATION_FAILED: ' . $accessCode
+                );
+            }
+        }
+
+        return $externalRights;
+    }
+
+    /**
+     * Строгая проверка для подтверждения запрета. В отличие от отображения
+     * матрицы, исключение Bitrix здесь нельзя превращать в false: иначе сбой
+     * SecurityContext выглядел бы как успешно применённое `Нет доступа`.
+     */
+    private static function userCanReadStrict(
+        Folder $folder,
+        int $userId
+    ): bool {
+        if ($userId <= 0) {
+            throw new RuntimeException('DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED');
+        }
+
+        $securityContext = new DiskSecurityContext($userId);
+        if (!method_exists($securityContext, 'canRead')) {
+            throw new RuntimeException('DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED');
+        }
+
+        try {
+            return (bool)$securityContext->canRead((int)$folder->getId());
+        } catch (Throwable $exception) {
+            throw new RuntimeException(
+                'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED: U' . $userId,
+                0,
+                $exception
+            );
+        }
+    }
+
+    private static function sortSpecificRights(array $rights): array
+    {
+        usort($rights, static function (array $left, array $right): int {
+            return [
+                (string)($left['ACCESS_CODE'] ?? ''),
+                (int)($left['TASK_ID'] ?? 0),
+                (int)!empty($left['NEGATIVE']),
+                (string)($left['DOMAIN'] ?? ''),
+            ] <=> [
+                (string)($right['ACCESS_CODE'] ?? ''),
+                (int)($right['TASK_ID'] ?? 0),
+                (int)!empty($right['NEGATIVE']),
+                (string)($right['DOMAIN'] ?? ''),
+            ];
+        });
+        return array_values($rights);
+    }
+
     private static function revision(
         int $folderId,
         array $users,
-        array $specificRights
+        array $specificRights,
+        array $managedBindings = []
     ): string {
         $userIds = [];
         foreach ($users as $user) {
@@ -593,24 +1112,52 @@ class BitrixDiskRightsService
             'folderId' => $folderId,
             'userIds' => $userIds,
             'specificRights' => $specificRights,
+            'managedBindings' => $managedBindings,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
-    private static function restoreRights($manager, Folder $folder, array $backup): void
+    private static function restoreRightsSet(
+        $manager,
+        Folder $folder,
+        array $backup
+    ): void
     {
-        foreach ($backup as $accessCode => $rights) {
-            try {
-                $manager->revokeByAccessCodes($folder, [$accessCode]);
-                if (!empty($rights)) {
-                    $manager->append($folder, array_values($rights));
-                }
-            } catch (Throwable $exception) {
-                error_log(sprintf(
-                    'Disk ACL rollback failed for %s: %s',
-                    $accessCode,
-                    $exception->getMessage()
-                ));
+        try {
+            if (!method_exists($manager, 'set')) {
+                throw new RuntimeException('DISK_RIGHTS_SET_API_UNAVAILABLE');
             }
+
+            $positiveRights = [];
+            $negativeRights = [];
+            foreach ($backup as $right) {
+                if (!empty($right['NEGATIVE'])) {
+                    $negativeRights[] = $right;
+                } else {
+                    $positiveRights[] = $right;
+                }
+            }
+
+            self::assertManagerResult(
+                $manager->set($folder, self::sortSpecificRights($positiveRights)),
+                'DISK_RIGHTS_ROLLBACK_FAILED'
+            );
+
+            if (!empty($negativeRights)) {
+                if (!method_exists($manager, 'append')) {
+                    throw new RuntimeException(
+                        'DISK_RIGHTS_ROLLBACK_APPEND_API_UNAVAILABLE'
+                    );
+                }
+                self::assertManagerResult(
+                    $manager->append(
+                        $folder,
+                        self::uniqueSpecificRights($negativeRights)
+                    ),
+                    'DISK_RIGHTS_ROLLBACK_APPEND_FAILED'
+                );
+            }
+        } catch (Throwable $exception) {
+            error_log('Disk ACL rollback failed: ' . $exception->getMessage());
         }
     }
 

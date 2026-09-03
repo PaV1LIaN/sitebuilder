@@ -36,12 +36,103 @@ if (!function_exists('sb_get_role')) {
         }
 
         $directRole = sb_get_role_from_access_table($siteId, $accessCode);
+        $groupRole = sb_get_role_from_sitebuilder_groups($siteId, $accessCode);
 
-        if ($directRole !== null && $directRole !== '') {
-            return $directRole;
+        $sitebuilderRole = $directRole;
+        if (sb_role_rank($groupRole) > sb_role_rank($sitebuilderRole)) {
+            $sitebuilderRole = $groupRole;
+        }
+
+        if ($sitebuilderRole !== null && $sitebuilderRole !== '') {
+            return $sitebuilderRole;
+        }
+
+        /*
+         * После первого завершённого repair Stage 22 портал является только
+         * проекцией прав. До этого сохраняем прежний fallback, чтобы миграция
+         * и предварительный audit не вызвали внезапную потерю доступа.
+         */
+        if (sb_unified_access_is_authoritative($siteId)) {
+            return null;
         }
 
         return sb_get_role_from_bitrix_group($siteId, $accessCode);
+    }
+}
+
+if (!function_exists('sb_get_role_from_sitebuilder_groups')) {
+    function sb_get_role_from_sitebuilder_groups(
+        int $siteId,
+        string $accessCode
+    ): ?string {
+        if (
+            $siteId <= 0
+            || !preg_match('/^U([1-9]\d*)$/', trim($accessCode), $matches)
+            || !class_exists('CUser')
+            || !method_exists('CUser', 'GetUserGroup')
+        ) {
+            return null;
+        }
+
+        $bestRole = null;
+        foreach ((array)\CUser::GetUserGroup((int)$matches[1]) as $groupId) {
+            $groupId = (int)$groupId;
+            if ($groupId <= 0) {
+                continue;
+            }
+            $role = sb_get_role_from_access_table($siteId, 'G' . $groupId);
+            if (sb_role_rank($role) > sb_role_rank($bestRole)) {
+                $bestRole = $role;
+            }
+        }
+        return $bestRole;
+    }
+}
+
+if (!function_exists('sb_unified_access_is_authoritative')) {
+    function sb_unified_access_is_authoritative(int $siteId): bool
+    {
+        static $enabledBySite = [];
+        if ($siteId <= 0) {
+            return false;
+        }
+        if (array_key_exists($siteId, $enabledBySite)) {
+            return $enabledBySite[$siteId];
+        }
+        if (!function_exists('sb_db_fetch_one')) {
+            $enabledBySite[$siteId] = false;
+            return false;
+        }
+
+        try {
+            $row = sb_db_fetch_one("
+                SELECT
+                    to_regclass('sitebuilder.access_sync_binding') AS binding_table,
+                    to_regclass('sitebuilder.access_reconcile_run') AS run_table
+            ");
+            if (empty($row['binding_table']) || empty($row['run_table'])) {
+                $enabledBySite[$siteId] = false;
+                return false;
+            }
+
+            $activation = sb_db_fetch_one("
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM sitebuilder.access_reconcile_run
+                    WHERE site_id=:site_id
+                      AND mode='repair'
+                      AND status IN ('succeeded','partial')
+                ) AS activated
+            ", [':site_id' => $siteId]);
+            $enabledBySite[$siteId] = in_array(
+                $activation['activated'] ?? false,
+                [true, 1, '1', 't', 'true'],
+                true
+            );
+        } catch (Throwable $exception) {
+            $enabledBySite[$siteId] = false;
+        }
+        return $enabledBySite[$siteId];
     }
 }
 

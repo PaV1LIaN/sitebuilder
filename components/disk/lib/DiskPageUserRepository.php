@@ -8,11 +8,13 @@ declare(strict_types=1);
  * Источники доступа:
  * - прямые глобальные роли sitebuilder.access;
  * - прямые и унаследованные правила sitebuilder.page_access;
- * - участники рабочей группы Битрикс24, связанной с сайтом;
+ * - в legacy-режиме участники рабочей группы Битрикс24, связанной с сайтом;
  * - администраторы Битрикс24.
  *
  * Групповые access_code разворачиваются в пользователей, потому что ACL
  * папки Диска настраивается в интерфейсе построчно для каждого человека.
+ * Контроллер синхронизации передаёт sitebuilderOnly=true и тем самым не
+ * использует портал как обратный источник глобального доступа.
  */
 class DiskPageUserRepository
 {
@@ -20,7 +22,8 @@ class DiskPageUserRepository
 
     public static function listUsersWithPageAccess(
         int $siteId,
-        int $pageId
+        int $pageId,
+        bool $sitebuilderOnly = false
     ): array {
         if ($siteId <= 0) {
             throw new RuntimeException('INVALID_SITE_ID');
@@ -52,7 +55,9 @@ class DiskPageUserRepository
             self::collectMainGroupUsers((int)$groupId, $userIds);
         }
 
-        self::collectSiteWorkgroupUsers($siteId, $userIds);
+        if (!$sitebuilderOnly) {
+            self::collectSiteWorkgroupUsers($siteId, $userIds);
+        }
 
         /* Администраторы имеют неявный доступ ко всем страницам. */
         $adminUserIds = [];
@@ -61,9 +66,11 @@ class DiskPageUserRepository
             $userIds[(int)$adminUserId] = true;
         }
 
-        $currentUserId = DiskCurrentUser::getId();
-        if ($currentUserId > 0) {
-            $userIds[$currentUserId] = true;
+        if (!$sitebuilderOnly) {
+            $currentUserId = DiskCurrentUser::getId();
+            if ($currentUserId > 0) {
+                $userIds[$currentUserId] = true;
+            }
         }
 
         $ids = array_map('intval', array_keys($userIds));
@@ -71,21 +78,49 @@ class DiskPageUserRepository
             return $id > 0;
         }));
         sort($ids, SORT_NUMERIC);
+        if (count($ids) > self::MAX_USERS) {
+            throw new RuntimeException('TOO_MANY_PAGE_USERS');
+        }
 
         /*
          * PageAccessService проверяет администратора через текущего $USER.
          * При построении матрицы администратором это сделало бы администраторами
          * все строки. Поэтому права каждого кандидата вычисляются явно.
-         */
+        */
         $visibleIds = [];
         $pageAccessByUser = [];
+        $globalRoleByUser = [];
+        $accessCodesByUser = self::accessCodesByUsers($ids);
+        $allAccessCodes = [];
+        foreach ($accessCodesByUser as $accessCodes) {
+            foreach ($accessCodes as $accessCode) {
+                $allAccessCodes[$accessCode] = true;
+            }
+        }
+        $siteRolesByCode = self::loadSiteRolesByAccessCode(
+            $siteId,
+            array_keys($allAccessCodes)
+        );
+        $pagePermissionsByCode = self::loadPagePermissionsByAccessCode(
+            $siteId,
+            $pageId,
+            array_keys($allAccessCodes)
+        );
 
         foreach ($ids as $userId) {
-            $pageAccess = self::buildPageAccessInfo(
+            $accessCodes = $accessCodesByUser[$userId] ?? ['U' . $userId];
+            $globalRole = self::resolveGlobalRole(
                 $siteId,
-                $pageId,
                 $userId,
-                isset($adminUserIds[$userId])
+                $sitebuilderOnly,
+                $accessCodes,
+                $siteRolesByCode
+            );
+            $pageAccess = self::buildPageAccessInfo(
+                isset($adminUserIds[$userId]),
+                $globalRole,
+                $accessCodes,
+                $pagePermissionsByCode
             );
 
             if (!$pageAccess['canView']) {
@@ -94,6 +129,7 @@ class DiskPageUserRepository
 
             $visibleIds[] = $userId;
             $pageAccessByUser[$userId] = $pageAccess;
+            $globalRoleByUser[$userId] = $globalRole;
         }
 
         if (count($visibleIds) > self::MAX_USERS) {
@@ -109,10 +145,7 @@ class DiskPageUserRepository
                 continue;
             }
 
-            $profile['globalRole'] = self::resolveGlobalRole(
-                $siteId,
-                $userId
-            );
+            $profile['globalRole'] = $globalRoleByUser[$userId] ?? '';
             $profile['pageAccess'] = $pageAccessByUser[$userId];
             $profile['isBitrixAdmin'] = isset($adminUserIds[$userId]);
 
@@ -380,24 +413,39 @@ class DiskPageUserRepository
 
     private static function resolveGlobalRole(
         int $siteId,
-        int $userId
+        int $userId,
+        bool $sitebuilderOnly,
+        array $accessCodes,
+        array $siteRolesByCode
     ): string {
+        $bestRole = self::bestRoleForAccessCodes(
+            $accessCodes,
+            $siteRolesByCode
+        );
+
+        if ($sitebuilderOnly) {
+            return $bestRole;
+        }
+
         if (!function_exists('sb_get_role')) {
-            return '';
+            return $bestRole;
         }
 
         try {
-            return (string)(sb_get_role($siteId, 'U' . $userId) ?? '');
+            $fallbackRole = (string)(sb_get_role($siteId, 'U' . $userId) ?? '');
+            return self::roleRank($fallbackRole) > self::roleRank($bestRole)
+                ? $fallbackRole
+                : $bestRole;
         } catch (Throwable $exception) {
-            return '';
+            return $bestRole;
         }
     }
 
     private static function buildPageAccessInfo(
-        int $siteId,
-        int $pageId,
-        int $userId,
-        bool $isBitrixAdmin
+        bool $isBitrixAdmin,
+        string $globalRole,
+        array $accessCodes,
+        array $pagePermissionsByCode
     ): array {
         if ($isBitrixAdmin) {
             return [
@@ -408,45 +456,209 @@ class DiskPageUserRepository
             ];
         }
 
-        $role = mb_strtoupper(self::resolveGlobalRole($siteId, $userId));
-        $rankMap = [
-            'VIEWER' => 1,
-            'READER' => 1,
-            'USER' => 1,
-            'MEMBER' => 1,
+        $rank = self::roleRank($globalRole);
+        $pagePermissions = self::mergePagePermissionsForAccessCodes(
+            $accessCodes,
+            $pagePermissionsByCode
+        );
+
+        return [
+            'canView' => $rank >= 1 || $pagePermissions['canView'],
+            'canEdit' => $rank >= 3 || $pagePermissions['canEdit'],
+            'canDiskView' => $rank >= 1 || $pagePermissions['canDiskView'],
+            'canDiskEdit' => $rank >= 2 || $pagePermissions['canDiskEdit'],
+        ];
+    }
+
+    /** @return array<int,string[]> */
+    private static function accessCodesByUsers(array $userIds): array
+    {
+        $result = [];
+        foreach ($userIds as $userId) {
+            $userId = (int)$userId;
+            if ($userId > 0) {
+                $result[$userId] = ['U' . $userId];
+            }
+        }
+        if (empty($result)) {
+            return [];
+        }
+
+        if (class_exists('\Bitrix\Main\UserGroupTable')) {
+            $rows = \Bitrix\Main\UserGroupTable::getList([
+                'select' => ['USER_ID', 'GROUP_ID'],
+                'filter' => ['@USER_ID' => array_keys($result)],
+            ]);
+            while ($row = $rows->fetch()) {
+                $userId = (int)($row['USER_ID'] ?? 0);
+                $groupId = (int)($row['GROUP_ID'] ?? 0);
+                if ($userId > 0 && $groupId > 0 && isset($result[$userId])) {
+                    $result[$userId][] = 'G' . $groupId;
+                }
+            }
+        } elseif (class_exists('CUser') && method_exists('CUser', 'GetUserGroup')) {
+            foreach (array_keys($result) as $userId) {
+                foreach ((array)\CUser::GetUserGroup((int)$userId) as $groupId) {
+                    $groupId = (int)$groupId;
+                    if ($groupId > 0) {
+                        $result[$userId][] = 'G' . $groupId;
+                    }
+                }
+            }
+        }
+
+        foreach ($result as &$codes) {
+            $codes = array_values(array_unique($codes));
+            sort($codes, SORT_NATURAL);
+        }
+        unset($codes);
+        return $result;
+    }
+
+    /** @return array<string,string> */
+    private static function loadSiteRolesByAccessCode(
+        int $siteId,
+        array $accessCodes
+    ): array {
+        if ($siteId <= 0 || empty($accessCodes)) {
+            return [];
+        }
+
+        $params = [':site_id' => $siteId];
+        $placeholders = [];
+        foreach (array_values($accessCodes) as $index => $accessCode) {
+            $placeholder = ':access_code_' . $index;
+            $placeholders[] = $placeholder;
+            $params[$placeholder] = (string)$accessCode;
+        }
+
+        $rows = DiskDb::fetchAll("
+            SELECT access_code,role
+            FROM sitebuilder.access
+            WHERE site_id=:site_id
+              AND access_code IN (" . implode(',', $placeholders) . ")
+        ", $params);
+
+        $result = [];
+        foreach ($rows as $row) {
+            $accessCode = (string)($row['access_code'] ?? '');
+            if ($accessCode !== '') {
+                $result[$accessCode] = (string)($row['role'] ?? '');
+            }
+        }
+        return $result;
+    }
+
+    /** @return array<string,array> */
+    private static function loadPagePermissionsByAccessCode(
+        int $siteId,
+        int $pageId,
+        array $accessCodes
+    ): array {
+        $pageIds = PageAccessRepository::getPageAndParentIds($siteId, $pageId);
+        if (empty($accessCodes) || empty($pageIds)) {
+            return [];
+        }
+
+        $params = [':site_id' => $siteId];
+        $accessPlaceholders = [];
+        foreach (array_values($accessCodes) as $index => $accessCode) {
+            $placeholder = ':permission_access_' . $index;
+            $accessPlaceholders[] = $placeholder;
+            $params[$placeholder] = (string)$accessCode;
+        }
+        $pagePlaceholders = [];
+        foreach (array_values($pageIds) as $index => $candidatePageId) {
+            $placeholder = ':permission_page_' . $index;
+            $pagePlaceholders[] = $placeholder;
+            $params[$placeholder] = (int)$candidatePageId;
+        }
+
+        $rows = DiskDb::fetchAll("
+            SELECT access_code,page_id,can_view,can_edit,can_disk_view,can_disk_edit,
+                   include_children
+            FROM sitebuilder.page_access
+            WHERE site_id=:site_id
+              AND access_code IN (" . implode(',', $accessPlaceholders) . ")
+              AND page_id IN (" . implode(',', $pagePlaceholders) . ")
+        ", $params);
+
+        $result = [];
+        foreach ($rows as $row) {
+            $direct = (int)($row['page_id'] ?? 0) === $pageId;
+            if (!$direct && !self::boolValue($row['include_children'] ?? false)) {
+                continue;
+            }
+            $accessCode = (string)($row['access_code'] ?? '');
+            if ($accessCode === '') {
+                continue;
+            }
+            $permissions = $result[$accessCode] ?? self::emptyPagePermissions();
+            $permissions['canView'] = $permissions['canView']
+                || self::boolValue($row['can_view'] ?? false)
+                || self::boolValue($row['can_edit'] ?? false);
+            $permissions['canEdit'] = $permissions['canEdit']
+                || self::boolValue($row['can_edit'] ?? false);
+            $permissions['canDiskView'] = $permissions['canDiskView']
+                || self::boolValue($row['can_disk_view'] ?? false)
+                || self::boolValue($row['can_disk_edit'] ?? false);
+            $permissions['canDiskEdit'] = $permissions['canDiskEdit']
+                || self::boolValue($row['can_disk_edit'] ?? false);
+            $result[$accessCode] = $permissions;
+        }
+        return $result;
+    }
+
+    private static function bestRoleForAccessCodes(
+        array $accessCodes,
+        array $rolesByCode
+    ): string {
+        $bestRole = '';
+        foreach ($accessCodes as $accessCode) {
+            $role = (string)($rolesByCode[$accessCode] ?? '');
+            if (self::roleRank($role) > self::roleRank($bestRole)) {
+                $bestRole = $role;
+            }
+        }
+        return $bestRole;
+    }
+
+    private static function mergePagePermissionsForAccessCodes(
+        array $accessCodes,
+        array $permissionsByCode
+    ): array {
+        $result = self::emptyPagePermissions();
+        foreach ($accessCodes as $accessCode) {
+            $permissions = $permissionsByCode[$accessCode] ?? null;
+            if (!is_array($permissions)) {
+                continue;
+            }
+            foreach (array_keys($result) as $key) {
+                $result[$key] = $result[$key] || !empty($permissions[$key]);
+            }
+        }
+        return $result;
+    }
+
+    private static function emptyPagePermissions(): array
+    {
+        return [
+            'canView' => false,
+            'canEdit' => false,
+            'canDiskView' => false,
+            'canDiskEdit' => false,
+        ];
+    }
+
+    private static function roleRank(string $role): int
+    {
+        return match (mb_strtoupper(trim($role))) {
+            'VIEWER', 'READER', 'USER', 'MEMBER' => 1,
             'EDITOR' => 2,
             'ADMIN' => 3,
             'OWNER' => 4,
-        ];
-        $rank = $rankMap[$role] ?? 0;
-        $accessCode = PageAccessRepository::userAccessCode($userId);
-
-        return [
-            'canView' => $rank >= 1 || PageAccessRepository::hasPagePermission(
-                $siteId,
-                $pageId,
-                $accessCode,
-                'view'
-            ),
-            'canEdit' => $rank >= 3 || PageAccessRepository::hasPagePermission(
-                $siteId,
-                $pageId,
-                $accessCode,
-                'edit'
-            ),
-            'canDiskView' => $rank >= 1 || PageAccessRepository::hasPagePermission(
-                $siteId,
-                $pageId,
-                $accessCode,
-                'disk_view'
-            ),
-            'canDiskEdit' => $rank >= 2 || PageAccessRepository::hasPagePermission(
-                $siteId,
-                $pageId,
-                $accessCode,
-                'disk_edit'
-            ),
-        ];
+            default => 0,
+        };
     }
 
     private static function boolValue($value): bool
