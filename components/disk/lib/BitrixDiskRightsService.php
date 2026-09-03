@@ -162,14 +162,13 @@ class BitrixDiskRightsService
                     $manager,
                     $folder,
                     $replacement,
-                    $normalized,
-                    $tasks
+                    $normalized
                 );
 
                 /*
-                 * set()/append() перестраивают штатные simple-rights Диска.
-                 * Проверяем результат после обоих вызовов, перечитывая прямые
-                 * правила из RightTable и итоговый SecurityContext.
+                 * set()/append()/revokeByAccessCodes() перестраивают штатные
+                 * simple-rights Диска. Проверяем результат после всех вызовов,
+                 * перечитывая прямые правила и итоговый SecurityContext.
                  */
                 $externalRights = self::assertRequestedRightsWritten(
                     $manager,
@@ -219,7 +218,10 @@ class BitrixDiskRightsService
                 continue;
             }
 
-            $result[(int)$matches[1]] = self::canonicalDirectTaskName(
+            $userId = (int)$matches[1];
+            $result[$userId] = self::semanticDirectTaskName(
+                $folder,
+                $userId,
                 $rights,
                 $tasks
             );
@@ -291,7 +293,10 @@ class BitrixDiskRightsService
                 if (!preg_match('/^U([1-9]\d*)$/', $accessCode, $matches)) {
                     continue;
                 }
-                $current[(int)$matches[1]] = self::canonicalDirectTaskName(
+                $userId = (int)$matches[1];
+                $current[$userId] = self::semanticDirectTaskName(
+                    $folder,
+                    $userId,
                     $rights,
                     $tasks
                 );
@@ -343,8 +348,7 @@ class BitrixDiskRightsService
                     $manager,
                     $folder,
                     $replacement,
-                    $changes,
-                    $tasks
+                    $changes
                 );
                 self::assertRequestedRightsWritten(
                     $manager,
@@ -852,9 +856,8 @@ class BitrixDiskRightsService
 
         if ($taskName === self::NONE) {
             /*
-             * Отрицательные строки нельзя конструировать вручную: их набор
-             * зависит от унаследованных операций. После set() персональный
-             * запрет будет добавлен штатным RightsManager::append().
+             * Набор отрицательных операций зависит от унаследованных прав.
+             * После set() его вычислит штатный revokeByAccessCodes().
              */
             return null;
         }
@@ -907,31 +910,18 @@ class BitrixDiskRightsService
     }
 
     /**
-     * set() надёжно заменяет положительные ACL, но отрицательные правила
-     * Bitrix создаёт отдельным append(). Поэтому сначала удаляем/заменяем весь
-     * прямой набор через set(), затем возвращаем все отрицательные строки и
-     * добавляем персональный TASK_FULL для каждого запрошенного `none`.
+     * set() заменяет положительные ACL. Существующие чужие отрицательные строки
+     * возвращаются через append(), а `none` применяется штатным методом
+     * revokeByAccessCodes(), который сам вычисляет запреты из наследования.
      */
     private static function applyRequestedRights(
         $manager,
         Folder $folder,
         array $replacement,
-        array $requestedRights,
-        array $tasks
+        array $requestedRights
     ): void {
         if (!method_exists($manager, 'set')) {
             throw new RuntimeException('DISK_RIGHTS_SET_API_UNAVAILABLE');
-        }
-
-        $fullTaskId = 0;
-        foreach ($tasks as $task) {
-            if ((string)($task['key'] ?? '') === 'full') {
-                $fullTaskId = (int)($task['id'] ?? 0);
-                break;
-            }
-        }
-        if ($fullTaskId <= 0) {
-            throw new RuntimeException('DISK_ACCESS_TASK_NOT_FOUND_FULL');
         }
 
         $positiveRights = [];
@@ -944,16 +934,6 @@ class BitrixDiskRightsService
             }
         }
 
-        foreach ($requestedRights as $userId => $taskName) {
-            if ((string)$taskName === self::NONE && (int)$userId > 0) {
-                $negativeRights[] = [
-                    'ACCESS_CODE' => 'U' . (int)$userId,
-                    'TASK_ID' => $fullTaskId,
-                    'NEGATIVE' => 1,
-                ];
-            }
-        }
-
         $positiveRights = self::sortSpecificRights($positiveRights);
         $negativeRights = self::uniqueSpecificRights($negativeRights);
 
@@ -962,17 +942,35 @@ class BitrixDiskRightsService
             'DISK_RIGHTS_SET_FAILED'
         );
 
-        if (empty($negativeRights)) {
-            return;
+        if (!empty($negativeRights)) {
+            if (!method_exists($manager, 'append')) {
+                throw new RuntimeException('DISK_RIGHTS_APPEND_API_UNAVAILABLE');
+            }
+
+            self::assertManagerResult(
+                $manager->append($folder, $negativeRights),
+                'DISK_RIGHTS_APPEND_FAILED'
+            );
         }
 
-        if (!method_exists($manager, 'append')) {
-            throw new RuntimeException('DISK_RIGHTS_APPEND_API_UNAVAILABLE');
+        $revokedAccessCodes = [];
+        foreach ($requestedRights as $userId => $taskName) {
+            if ((string)$taskName === self::NONE && (int)$userId > 0) {
+                $revokedAccessCodes[] = 'U' . (int)$userId;
+            }
+        }
+        $revokedAccessCodes = array_values(array_unique($revokedAccessCodes));
+
+        if (empty($revokedAccessCodes)) {
+            return;
+        }
+        if (!method_exists($manager, 'revokeByAccessCodes')) {
+            throw new RuntimeException('DISK_RIGHTS_REVOKE_API_UNAVAILABLE');
         }
 
         self::assertManagerResult(
-            $manager->append($folder, $negativeRights),
-            'DISK_RIGHTS_APPEND_FAILED'
+            $manager->revokeByAccessCodes($folder, $revokedAccessCodes),
+            'DISK_RIGHTS_REVOKE_FAILED'
         );
     }
 
@@ -993,6 +991,37 @@ class BitrixDiskRightsService
         }
 
         return array_values($unique);
+    }
+
+    /**
+     * revokeByAccessCodes() может создать несколько отрицательных строк вместо
+     * одного TASK_FULL. Для контроллера это всё равно каноническое `none`, если
+     * прямой набор содержит запрет и SecurityContext реально не даёт чтение.
+     */
+    private static function semanticDirectTaskName(
+        Folder $folder,
+        int $userId,
+        array $rights,
+        array $tasks
+    ): string {
+        $canonical = self::canonicalDirectTaskName($rights, $tasks);
+        $hasNegative = false;
+        foreach ($rights as $right) {
+            if (!empty($right['NEGATIVE'])) {
+                $hasNegative = true;
+                break;
+            }
+        }
+
+        if ($hasNegative && !self::userCanReadStrict($folder, $userId)) {
+            return self::NONE;
+        }
+
+        if ($hasNegative && $canonical === self::NONE) {
+            return 'unknown:' . substr(hash('sha256', json_encode($rights)), 0, 16);
+        }
+
+        return $canonical;
     }
 
     /** @return array<int,string> Фактические прямые права после set()/append(). */
@@ -1016,26 +1045,16 @@ class BitrixDiskRightsService
 
             if ((string)$taskName === self::NONE) {
                 $canRead = self::userCanReadStrict($folder, (int)$userId);
-                if (
-                    ($writtenTaskName === self::NONE
-                        || $writtenTaskName === self::INHERIT)
-                    && !$canRead
-                ) {
+                if (!$canRead) {
+                    $externalRights[(int)$userId] = self::NONE;
                     continue;
-                }
-
-                if ($writtenTaskName !== self::NONE) {
-                    throw new RuntimeException(
-                        'DISK_RIGHTS_WRITE_VERIFICATION_FAILED: '
-                        . $accessCode
-                        . '; expected=none; direct=' . $writtenTaskName
-                    );
                 }
 
                 throw new RuntimeException(
                     'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED: '
                     . $accessCode
-                    . '; direct=none; canRead=1'
+                    . '; direct=' . $writtenTaskName
+                    . '; canRead=1'
                 );
             }
 

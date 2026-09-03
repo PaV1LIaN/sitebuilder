@@ -430,12 +430,14 @@ try {
             || $e->getMessage() === 'DISK_RIGHTS_SET_API_UNAVAILABLE'
             || str_starts_with($e->getMessage(), 'DISK_RIGHTS_APPEND_FAILED')
             || $e->getMessage() === 'DISK_RIGHTS_APPEND_API_UNAVAILABLE'
+            || str_starts_with($e->getMessage(), 'DISK_RIGHTS_REVOKE_FAILED')
+            || $e->getMessage() === 'DISK_RIGHTS_REVOKE_API_UNAVAILABLE'
         )
     ) {
         http_response_code(500);
         DiskResponse::error(
             'DISK_RIGHTS_SET_FAILED',
-            'Битрикс24.Диск не смог заменить или добавить запрет прав папки. Исходные права восстановлены.',
+            'Битрикс24.Диск не смог заменить или отозвать права папки. Исходные права восстановлены.',
             ['diagnostic' => $e->getMessage()]
         );
     }
