@@ -628,6 +628,13 @@ $isSitebuilderGuest = sitebuilder_is_guest();
             .replace(/'/g, '&#039;');
     }
 
+    function publicSiteUrl(site) {
+        var slug = String((site && site.slug) || '').trim();
+        return slug
+            ? BASE_PATH + '/s/' + encodeURIComponent(slug) + '/'
+            : '#';
+    }
+
     function getSessid() {
         if (typeof window.BX !== 'undefined' && typeof BX.bitrix_sessid === 'function') {
             return BX.bitrix_sessid();
@@ -761,7 +768,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
 
         var html = '<div class="sb-actions-stack">';
 
-        html += '<a class="sb-btn sb-btn-light sb-btn-small" href="' + BASE_PATH + '/public.php?siteId=' + siteId + '" target="_blank">Публичная</a>';
+        html += '<a class="sb-btn sb-btn-light sb-btn-small" href="' + escapeHtml(publicSiteUrl(site)) + '" target="_blank">Публичная</a>';
 
         if (userRoleRank >= 3) {
             html += '<a class="sb-btn sb-btn-primary sb-btn-small" href="' + BASE_PATH + '/editor.php?siteId=' + siteId + '">Редактор</a>';
@@ -968,7 +975,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
 
                     html += ''
                         + '<div class="sb-user-site-card">'
-                        + '  <a class="sb-user-site-link" href="' + BASE_PATH + '/public.php?siteId=' + siteId + '">'
+                        + '  <a class="sb-user-site-link" href="' + escapeHtml(publicSiteUrl(s)) + '">'
                         +        escapeHtml(s.name || '')
                         + '  </a>'
                         + '  <div class="sb-user-site-actions">'

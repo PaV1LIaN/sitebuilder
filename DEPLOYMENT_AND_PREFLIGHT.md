@@ -40,6 +40,22 @@ DOCUMENT_ROOT=/home/bitrix/www \
 php /home/bitrix/www/local/sitebuilder/tools/migrate_cli.php --apply
 ```
 
+После первой установки публичных адресов откройте `deployment.php` и нажмите
+`Установить публичные URL`. Действие регистрирует в штатном `urlrewrite.php`
+Битрикса два правила с собственными ID `sitebuilder:public` и
+`sitebuilder:sitemap`; остальные правила портала не изменяются.
+
+Канонические адреса:
+
+```text
+/local/sitebuilder/s/{site-slug}/
+/local/sitebuilder/s/{site-slug}/{parent-slug}/{page-slug}/
+/local/sitebuilder/s/{site-slug}/sitemap.xml
+```
+
+Старые ссылки `public.php?siteId=...&pageId=...` отвечают постоянным редиректом
+на канонический адрес без ID.
+
 Коды завершения CLI:
 
 - `0` — схема актуальна;

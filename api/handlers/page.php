@@ -34,6 +34,40 @@ if (!function_exists('sb_page_handler_find_index_by_id')) {
     }
 }
 
+if (!function_exists('sb_page_handler_unique_slug')) {
+    function sb_page_handler_unique_slug(
+        array $pages,
+        int $siteId,
+        int $parentId,
+        string $candidate,
+        int $excludePageId = 0
+    ): string {
+        $base = sb_slugify($candidate);
+        $slug = $base;
+        $suffix = 2;
+        $reserved = [];
+
+        foreach ($pages as $page) {
+            if (
+                (int)($page['siteId'] ?? 0) !== $siteId
+                || (int)($page['parentId'] ?? 0) !== $parentId
+                || (int)($page['id'] ?? 0) === $excludePageId
+            ) {
+                continue;
+            }
+
+            $reserved[mb_strtolower(trim((string)($page['slug'] ?? '')))] = true;
+        }
+
+        while (isset($reserved[mb_strtolower($slug)])) {
+            $slug = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $slug;
+    }
+}
+
 if (!function_exists('sb_page_handler_is_descendant')) {
     function sb_page_handler_is_descendant(
         array $pages,
@@ -573,9 +607,12 @@ if ($action === 'page.create') {
         sb_json_error('ROOT_PAGE_CREATE_ACCESS_DENIED', 403);
     }
 
-    if ($slug === '') {
-        $slug = sb_slugify($title);
-    }
+    $slug = sb_page_handler_unique_slug(
+        $pages,
+        $siteId,
+        $parentId,
+        $slug !== '' ? $slug : $title
+    );
 
     $id = RevisionService::nextEntityId(RevisionService::ENTITY_PAGE);
     $maxSort = 0;
@@ -675,10 +712,6 @@ if ($action === 'page.save') {
 
     $hasGlobalEdit = sb_page_handler_has_global_edit($siteId, $currentUserId);
 
-    if ($slug === '') {
-        $slug = sb_slugify($title);
-    }
-
     if ($parentId === $id) {
         sb_json_error('PAGE_CANNOT_BE_OWN_PARENT', 422);
     }
@@ -705,6 +738,13 @@ if ($action === 'page.save') {
     }
 
     $parentChanged = (int)($page['parentId'] ?? 0) !== $parentId;
+    $slug = sb_page_handler_unique_slug(
+        $pages,
+        $siteId,
+        $parentId,
+        $slug !== '' ? $slug : $title,
+        $id
+    );
     $page['title'] = $title;
     $page['slug'] = $slug;
     $page['parentId'] = $parentId;
@@ -789,10 +829,6 @@ if ($action === 'page.updateMeta') {
         $currentUserId
     );
 
-    if ($slug === '') {
-        $slug = sb_slugify($title);
-    }
-
     $parentChanged = false;
     if ($parentId !== null) {
         if ($parentId === $id) {
@@ -849,6 +885,13 @@ if ($action === 'page.updateMeta') {
         $page['parentId'] = $parentId;
     }
 
+    $slug = sb_page_handler_unique_slug(
+        $pages,
+        $siteId,
+        (int)($page['parentId'] ?? 0),
+        $slug !== '' ? $slug : $title,
+        $id
+    );
     $page['title'] = $title;
     $page['slug'] = $slug;
 
@@ -964,6 +1007,13 @@ if ($action === 'page.setParent') {
     }
 
     $page['parentId'] = $parentId;
+    $page['slug'] = sb_page_handler_unique_slug(
+        $pages,
+        $siteId,
+        $parentId,
+        (string)($page['slug'] ?? $page['title'] ?? 'page'),
+        $id
+    );
 
     $expectedVersion = RevisionService::requireExpectedVersion(
         $_POST['expectedVersion'] ?? null
@@ -1349,6 +1399,13 @@ if ($action === 'page.reorderTree') {
 
     $movedSource = $source;
     $movedSource['parentId'] = $newParentId;
+    $movedSource['slug'] = sb_page_handler_unique_slug(
+        $pages,
+        $siteId,
+        $newParentId,
+        (string)($source['slug'] ?? $source['title'] ?? 'page'),
+        $id
+    );
     array_splice($destination, $insertAt, 0, [$movedSource]);
 
     $desiredById = [];
@@ -1858,10 +1915,11 @@ if ($action === 'page.duplicate') {
         'siteId' => $siteId,
         'title' => (string)($source['title'] ?? '')
             . ' (копия)',
-        'slug' => sb_slugify(
-            (string)($source['slug'] ?? 'page')
-            . '-'
-            . $newId
+        'slug' => sb_page_handler_unique_slug(
+            $pages,
+            $siteId,
+            $sourceParentId,
+            (string)($source['slug'] ?? 'page') . '-copy'
         ),
         'parentId' => $sourceParentId,
         'sort' => $maxSort > 0

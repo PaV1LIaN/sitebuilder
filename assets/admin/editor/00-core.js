@@ -36,6 +36,65 @@ var state = {
     globalBlocks: []
 };
 
+function buildPublicSiteUrl(site) {
+    site = site || state.site || {};
+    var slug = String(site.slug || '').trim();
+
+    if (!slug) {
+        return '#';
+    }
+
+    return BASE_PATH + '/s/' + encodeURIComponent(slug) + '/';
+}
+
+function buildPublicPageUrl(pageId) {
+    pageId = Number(pageId || 0);
+    var siteUrl = buildPublicSiteUrl(state.site);
+
+    if (siteUrl === '#' || pageId <= 0) {
+        return siteUrl;
+    }
+
+    if (Number((state.site && state.site.homePageId) || 0) === pageId) {
+        return siteUrl;
+    }
+
+    var pagesById = {};
+    (state.pages || []).forEach(function (page) {
+        pagesById[Number(page.id || 0)] = page;
+    });
+
+    var segments = [];
+    var visited = {};
+    var cursorId = pageId;
+
+    while (cursorId > 0) {
+        if (visited[cursorId] || !pagesById[cursorId]) {
+            return '#';
+        }
+
+        visited[cursorId] = true;
+        var page = pagesById[cursorId];
+        var slug = String(page.slug || '').trim();
+
+        if (!slug) {
+            return '#';
+        }
+
+        segments.unshift(encodeURIComponent(slug));
+        cursorId = Number(page.parentId || 0);
+
+        if (segments.length > 1000) {
+            return '#';
+        }
+    }
+
+    return siteUrl + segments.join('/') + '/';
+}
+
+window.sbBuildPublicSiteUrl = buildPublicSiteUrl;
+window.sbBuildPublicPageUrl = buildPublicPageUrl;
+
 var output = document.getElementById('output') || document.getElementById('outputFallback');
 var pagesList = document.getElementById('pagesList');
 var blocksList = document.getElementById('blocksList');

@@ -238,7 +238,7 @@ function updatePublicPageLink() {
     if (!link) return;
 
     var pageId = Number((state && state.currentPageId) || 0);
-    link.href = BASE_PATH + '/public.php?siteId=' + siteId + (pageId > 0 ? '&pageId=' + pageId : '');
+    link.href = buildPublicPageUrl(pageId);
 }
 
 (function initVisualBuilderUi() {
