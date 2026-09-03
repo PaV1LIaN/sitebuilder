@@ -524,18 +524,6 @@ $renderRightSidebar = !empty($vm['showRight'])
 
 global $APPLICATION;
 
-if ($pageHasDiskBlock && !$isLayoutPreview) {
-    \CJSCore::Init([
-        'viewer',
-        'ui.viewer',
-    ]);
-
-    if (\Bitrix\Main\Loader::includeModule('disk')) {
-        \Bitrix\Main\UI\Extension::load([
-            'disk.viewer.document-item',
-        ]);
-    }
-}
 ?>
 <!doctype html>
 <html lang="ru">
@@ -557,7 +545,7 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=25">
 
     <?php if ($pageHasDiskBlock): ?>
-        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=14">
+        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=15">
         <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/access.css?v=2">
     <?php endif; ?>
 
@@ -696,7 +684,7 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
 
 
 <?php if ($pageHasDiskBlock && !$isLayoutPreview): ?>
-    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=15"></script>
+    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=16"></script>
     <script src="<?= sb_public_h($basePath) ?>/components/disk/access.js?v=4"></script>
 <?php endif; ?>
 

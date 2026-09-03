@@ -872,12 +872,12 @@
 
       if (action === 'open') {
         if (item.previewUrl) {
-          window.open(item.previewUrl, '_blank');
+          self.openFileUrl(item.previewUrl);
           return;
         }
 
         if (item.downloadUrl) {
-          window.open(item.downloadUrl, '_blank');
+          self.openFileUrl(item.downloadUrl);
         }
 
         return;
@@ -933,6 +933,108 @@
      DOUBLE CLICK OPEN
      ========================================================= */
 
+  DiskComponent.prototype.showFileOpenFallback = function (url) {
+    var existingModal = document.querySelector('.sb-disk-file-open-modal');
+
+    if (existingModal && typeof existingModal.__closeFileOpenModal === 'function') {
+      existingModal.__closeFileOpenModal();
+    }
+
+    var modal = document.createElement('div');
+    var previousFocus = document.activeElement;
+
+    modal.className = 'sb-disk-file-open-modal';
+    modal.innerHTML = ''
+      + '<div class="sb-disk-file-open-modal__backdrop" data-file-open-action="close"></div>'
+      + '<div class="sb-disk-file-open-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="sb-disk-file-open-title">'
+      + '  <button type="button" class="sb-disk-file-open-modal__close" data-file-open-action="close" aria-label="Закрыть">×</button>'
+      + '  <div class="sb-disk-file-open-modal__icon" aria-hidden="true">↗</div>'
+      + '  <div class="sb-disk-file-open-modal__title" id="sb-disk-file-open-title">Новая вкладка заблокирована</div>'
+      + '  <div class="sb-disk-file-open-modal__text">Разрешите всплывающие окна для портала или откройте файл вручную.</div>'
+      + '  <div class="sb-disk-file-open-modal__actions">'
+      + '    <button type="button" class="sb-disk-file-open-modal__button" data-file-open-action="close">Закрыть</button>'
+      + '    <a class="sb-disk-file-open-modal__button is-primary" href="' + escapeHtml(url) + '" target="_blank" rel="noopener" data-file-open-action="open">Открыть файл</a>'
+      + '  </div>'
+      + '</div>';
+
+    function close() {
+      if (modal.parentNode) {
+        modal.parentNode.removeChild(modal);
+      }
+
+      document.removeEventListener('keydown', onKeyDown);
+
+      if (previousFocus && typeof previousFocus.focus === 'function') {
+        previousFocus.focus();
+      }
+    }
+
+    function onKeyDown(event) {
+      if (event.key === 'Escape') {
+        close();
+      }
+    }
+
+    modal.__closeFileOpenModal = close;
+
+    modal.addEventListener('click', function (event) {
+      var actionNode = event.target.closest('[data-file-open-action]');
+
+      if (!actionNode) {
+        return;
+      }
+
+      var action = actionNode.getAttribute('data-file-open-action');
+
+      if (action === 'close') {
+        close();
+        return;
+      }
+
+      if (action === 'open') {
+        window.setTimeout(close, 0);
+      }
+    });
+
+    document.addEventListener('keydown', onKeyDown);
+    document.body.appendChild(modal);
+
+    var closeButton = modal.querySelector('.sb-disk-file-open-modal__close');
+
+    if (closeButton) {
+      closeButton.focus();
+    }
+  };
+
+  DiskComponent.prototype.openFileUrl = function (url) {
+    url = String(url || '').trim();
+
+    if (!url) {
+      return false;
+    }
+
+    var newWindow = null;
+
+    try {
+      newWindow = window.open(url, '_blank');
+    } catch (error) {
+      newWindow = null;
+    }
+
+    if (newWindow) {
+      try {
+        newWindow.opener = null;
+      } catch (error) {
+        // Cross-origin windows can forbid access to opener after navigation.
+      }
+
+      return true;
+    }
+
+    this.showFileOpenFallback(url);
+    return false;
+  };
+
   DiskComponent.prototype.openFileFromElement = function (element) {
     if (!element) {
       return;
@@ -945,7 +1047,6 @@
     }
 
     var entityId = Number(element.getAttribute('data-id') || 0);
-    var previewMode = element.getAttribute('data-preview-mode') || '';
     var previewUrl = element.getAttribute('data-preview-url') || '';
     var downloadUrl = element.getAttribute('data-download-url') || '';
 
@@ -968,22 +1069,13 @@
     window.__SB_DISK_OPEN_LOCK__.key = openKey;
     window.__SB_DISK_OPEN_LOCK__.time = now;
 
-    if (previewMode === 'office') {
-      var viewerBtn = element.querySelector('[data-viewer]');
-
-      if (viewerBtn) {
-        viewerBtn.click();
-        return;
-      }
-    }
-
     if (previewUrl) {
-      window.open(previewUrl, '_blank');
+      this.openFileUrl(previewUrl);
       return;
     }
 
     if (downloadUrl) {
-      window.open(downloadUrl, '_blank');
+      this.openFileUrl(downloadUrl);
     }
   };
 
@@ -2314,19 +2406,13 @@
         }
 
         if (entityType === 'file') {
-          var previewMode = row.getAttribute('data-preview-mode') || '';
-
-          if (previewMode === 'office') {
-            return;
-          }
-
           var previewUrl = row.getAttribute('data-preview-url') || '';
           var downloadUrl = row.getAttribute('data-download-url') || '';
 
           if (previewUrl) {
-            window.open(previewUrl, '_blank');
+            self.openFileUrl(previewUrl);
           } else if (downloadUrl) {
-            window.open(downloadUrl, '_blank');
+            self.openFileUrl(downloadUrl);
           }
 
           return;
@@ -2942,10 +3028,8 @@
       );
     }
 
-    var hiddenOpenControl = renderOpenControl(item);
-
     if (!menuItems.length) {
-      return hiddenOpenControl;
+      return '';
     }
 
     var menuId = 'sb-disk-action-menu-'
@@ -2955,8 +3039,7 @@
       + '-'
       + Number(item.id || 0);
 
-    return hiddenOpenControl
-      + '<div class="sb-disk__action-menu-wrap">'
+    return '<div class="sb-disk__action-menu-wrap">'
       + '  <button type="button" class="sb-disk__action-menu-toggle"'
       + '    data-action-menu-toggle'
       + '    aria-label="Действия с ' + escapeHtml(item.name || 'элементом') + '"'
@@ -4181,30 +4264,6 @@
 
   function renderItemIcon(item) {
     return '<span class="' + escapeHtml(getItemIconClass(item)) + '">' + escapeHtml(getItemIconText(item)) + '</span>';
-  }
-
-  function renderOpenControl(item) {
-    if (item.entityType === 'folder') {
-      return '';
-    }
-
-    if (item.previewMode === 'office') {
-      return '' +
-        '<span ' +
-          'class="sb-disk__hidden-viewer disk-detail-sidebar-editor-item disk-detail-sidebar-editor-item-show" ' +
-          'data-viewer="" ' +
-          'data-row-action="open" ' +
-          'data-viewer-type="cloud-document" ' +
-          'data-src="' + escapeHtml(item.previewUrl || '') + '" ' +
-          'data-viewer-type-class="BX.Disk.Viewer.DocumentItem" ' +
-          'data-viewer-extension="disk.viewer.document-item" ' +
-          'data-object-id="' + escapeHtml(item.id) + '" ' +
-          'data-title="' + escapeHtml(item.name) + '" ' +
-          'data-actions="' + escapeHtml(JSON.stringify([{ type: 'download' }])) + '"' +
-        '></span>';
-    }
-
-    return '';
   }
 
   function isArchiveItem(item) {
