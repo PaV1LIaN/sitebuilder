@@ -425,6 +425,18 @@ try {
 
     if (
         $e instanceof RuntimeException
+        && str_starts_with($e->getMessage(), 'DISK_NATIVE_SHARING_')
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_NATIVE_SHARING_FAILED',
+            'Битрикс24.Диск не подтвердил право в штатном списке общего доступа. Изменения отменены.',
+            ['diagnostic' => $e->getMessage()]
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
         && (
             str_starts_with($e->getMessage(), 'DISK_RIGHTS_SET_FAILED')
             || $e->getMessage() === 'DISK_RIGHTS_SET_API_UNAVAILABLE'

@@ -113,6 +113,7 @@ final class UnifiedAccessReconciliationService
                     (int)($folderPlan['folderId'] ?? 0),
                     (array)($folderPlan['items'] ?? []),
                     $mode,
+                    $actorUserId,
                     $runId,
                     $disk
                 );
@@ -693,6 +694,7 @@ final class UnifiedAccessReconciliationService
         int $folderId,
         array $items,
         string $mode,
+        int $actorUserId,
         int $runId,
         array &$summary
     ): void {
@@ -731,7 +733,8 @@ final class UnifiedAccessReconciliationService
             BitrixDiskRightsService::replaceDirectUserRights(
                 $folderId,
                 $requested,
-                $expected
+                $expected,
+                $actorUserId
             );
             $summary['applied'] += count($requested);
         }

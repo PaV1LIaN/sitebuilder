@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 use Bitrix\Disk\Driver;
 use Bitrix\Disk\Folder;
+use Bitrix\Disk\Internals\Error\ErrorCollection;
+use Bitrix\Disk\Internals\SharingTable;
 use Bitrix\Disk\Security\DiskSecurityContext;
+use Bitrix\Disk\Sharing;
 
 class DiskRightsVersionConflictException extends RuntimeException
 {
@@ -151,10 +154,13 @@ class BitrixDiskRightsService
             $manager = Driver::getInstance()->getRightsManager();
             $tasks = self::taskDefinitions($manager);
             $specificRights = self::specificRights($manager, $folder);
+            $nativeSharingBackup = self::nativeUserSharings(
+                $folder,
+                array_keys($normalized)
+            );
             $replacement = self::replaceSpecificUserRights(
                 $specificRights,
-                $normalized,
-                $tasks
+                $normalized
             );
 
             try {
@@ -162,7 +168,8 @@ class BitrixDiskRightsService
                     $manager,
                     $folder,
                     $replacement,
-                    $normalized
+                    $normalized,
+                    $context->currentUserId
                 );
 
                 /*
@@ -184,6 +191,13 @@ class BitrixDiskRightsService
                 );
             } catch (Throwable $exception) {
                 self::restoreRightsSet($manager, $folder, $specificRights);
+                self::restoreNativeUserSharings(
+                    $manager,
+                    $folder,
+                    $nativeSharingBackup,
+                    array_keys($normalized),
+                    $context->currentUserId
+                );
                 throw $exception;
             }
 
@@ -260,14 +274,19 @@ class BitrixDiskRightsService
      *
      * @param array<int,string> $requestedRights
      * @param array<int,string> $expectedRights
+     * @param int $actorUserId Пользователь, от имени которого создаётся Sharing.
      */
     public static function replaceDirectUserRights(
         int $folderId,
         array $requestedRights,
-        array $expectedRights
+        array $expectedRights,
+        int $actorUserId
     ): array {
         if (count($requestedRights) > self::MAX_USERS) {
             throw new RuntimeException('TOO_MANY_DISK_RIGHTS');
+        }
+        if ($actorUserId <= 0) {
+            throw new InvalidArgumentException('INVALID_DISK_RIGHTS_ACTOR');
         }
 
         $lock = self::acquireLock($folderId);
@@ -287,6 +306,10 @@ class BitrixDiskRightsService
 
             $specificRights = self::specificRights($manager, $folder);
             $directByAccessCode = self::groupRightsByAccessCode($specificRights);
+            $nativeCurrent = self::nativeUserSharings(
+                $folder,
+                array_keys($requestedRights)
+            );
             $current = [];
 
             foreach ($directByAccessCode as $accessCode => $rights) {
@@ -322,7 +345,28 @@ class BitrixDiskRightsService
 
             $changes = [];
             foreach ($requestedRights as $userId => $taskName) {
-                if (($semanticCurrent[$userId] ?? self::INHERIT) !== $taskName) {
+                $accessCode = 'U' . (int)$userId;
+                $nativeRows = $nativeCurrent[$accessCode] ?? [];
+                $directRows = $directByAccessCode[$accessCode] ?? [];
+                $positiveTask = !in_array(
+                    (string)$taskName,
+                    [self::INHERIT, self::NONE],
+                    true
+                );
+                $nativeStateMatches = $positiveTask
+                    ? self::nativeSharingIsWritten(
+                        $manager,
+                        $accessCode,
+                        (string)$taskName,
+                        $nativeRows,
+                        $directRows
+                    )
+                    : empty($nativeRows);
+
+                if (
+                    ($semanticCurrent[$userId] ?? self::INHERIT) !== $taskName
+                    || !$nativeStateMatches
+                ) {
                     $changes[$userId] = $taskName;
                 }
             }
@@ -337,10 +381,10 @@ class BitrixDiskRightsService
                 ];
             }
 
+            $nativeSharingBackup = $nativeCurrent;
             $replacement = self::replaceSpecificUserRights(
                 $specificRights,
-                $changes,
-                $tasks
+                $changes
             );
 
             try {
@@ -348,7 +392,8 @@ class BitrixDiskRightsService
                     $manager,
                     $folder,
                     $replacement,
-                    $changes
+                    $changes,
+                    $actorUserId
                 );
                 self::assertRequestedRightsWritten(
                     $manager,
@@ -358,6 +403,13 @@ class BitrixDiskRightsService
                 );
             } catch (Throwable $exception) {
                 self::restoreRightsSet($manager, $folder, $specificRights);
+                self::restoreNativeUserSharings(
+                    $manager,
+                    $folder,
+                    $nativeSharingBackup,
+                    array_keys($changes),
+                    $actorUserId
+                );
                 throw $exception;
             }
 
@@ -845,42 +897,15 @@ class BitrixDiskRightsService
         return $normalized;
     }
 
-    private static function rightForTask(
-        string $accessCode,
-        string $taskName,
-        array $tasks
-    ): ?array {
-        if ($taskName === self::INHERIT) {
-            return null;
-        }
-
-        if ($taskName === self::NONE) {
-            /*
-             * Набор отрицательных операций зависит от унаследованных прав.
-             * После set() его вычислит штатный revokeByAccessCodes().
-             */
-            return null;
-        }
-
-        if (!isset($tasks[$taskName])) {
-            throw new RuntimeException('INVALID_DISK_ACCESS_TASK');
-        }
-
-        return [
-            'ACCESS_CODE' => $accessCode,
-            'TASK_ID' => (int)$tasks[$taskName]['id'],
-            'NEGATIVE' => false,
-        ];
-    }
-
     /**
-     * Удаляет только выбранные прямые U-строки из полного набора ACL и
-     * добавляет их каноническую замену. Группы, DOMAIN и чужие U-коды остаются.
+     * Удаляет выбранные прямые U-строки из полного набора ACL. Положительные
+     * права будут добавлены через Sharing::add() с настоящим sharing-domain,
+     * чтобы штатное окно прав Битрикс.Диска видело тех же пользователей.
+     * Группы, DOMAIN и чужие U-коды остаются без изменений.
      */
     private static function replaceSpecificUserRights(
         array $specificRights,
-        array $requestedRights,
-        array $tasks
+        array $requestedRights
     ): array {
         $targetAccessCodes = [];
         foreach (array_keys($requestedRights) as $userId) {
@@ -895,30 +920,21 @@ class BitrixDiskRightsService
             }
         }
 
-        foreach ($requestedRights as $userId => $taskName) {
-            $right = self::rightForTask(
-                'U' . (int)$userId,
-                (string)$taskName,
-                $tasks
-            );
-            if ($right !== null) {
-                $replacement[] = $right;
-            }
-        }
-
         return self::sortSpecificRights($replacement);
     }
 
     /**
-     * set() заменяет положительные ACL. Существующие чужие отрицательные строки
-     * возвращаются через append(), а `none` применяется штатным методом
-     * revokeByAccessCodes(), который сам вычисляет запреты из наследования.
+     * set() сначала удаляет старые управляемые U-строки. Затем положительные
+     * права создаются штатной моделью Sharing, поэтому появляются и в ACL, и в
+     * списке «Поделиться» корпоративного портала. `none` дополнительно
+     * применяется через revokeByAccessCodes(), чтобы перекрыть наследование.
      */
     private static function applyRequestedRights(
         $manager,
         Folder $folder,
         array $replacement,
-        array $requestedRights
+        array $requestedRights,
+        int $actorUserId
     ): void {
         if (!method_exists($manager, 'set')) {
             throw new RuntimeException('DISK_RIGHTS_SET_API_UNAVAILABLE');
@@ -953,6 +969,13 @@ class BitrixDiskRightsService
             );
         }
 
+        self::syncNativeUserSharings(
+            $manager,
+            $folder,
+            $requestedRights,
+            $actorUserId
+        );
+
         $revokedAccessCodes = [];
         foreach ($requestedRights as $userId => $taskName) {
             if ((string)$taskName === self::NONE && (int)$userId > 0) {
@@ -972,6 +995,238 @@ class BitrixDiskRightsService
             $manager->revokeByAccessCodes($folder, $revokedAccessCodes),
             'DISK_RIGHTS_REVOKE_FAILED'
         );
+    }
+
+    /**
+     * @param array<int,string> $requestedRights userId => taskName
+     */
+    private static function syncNativeUserSharings(
+        $manager,
+        Folder $folder,
+        array $requestedRights,
+        int $actorUserId
+    ): void {
+        self::assertNativeSharingApiAvailable();
+
+        $existing = self::nativeUserSharings(
+            $folder,
+            array_keys($requestedRights)
+        );
+
+        foreach ($requestedRights as $userId => $taskName) {
+            $userId = (int)$userId;
+            $taskName = (string)$taskName;
+            $accessCode = 'U' . $userId;
+            $rows = array_values($existing[$accessCode] ?? []);
+
+            if (in_array($taskName, [self::INHERIT, self::NONE], true)) {
+                foreach ($rows as $row) {
+                    self::deleteNativeSharing($row, $actorUserId);
+                }
+                continue;
+            }
+
+            if (!$manager->isValidTaskName($taskName)) {
+                throw new RuntimeException('INVALID_DISK_ACCESS_TASK');
+            }
+
+            if (empty($rows)) {
+                self::createNativeSharing(
+                    $folder,
+                    $accessCode,
+                    $taskName,
+                    $actorUserId
+                );
+                continue;
+            }
+
+            $primary = array_shift($rows);
+            self::updateNativeSharingTask(
+                $manager,
+                $folder,
+                $primary,
+                $taskName
+            );
+
+            /* Старые дубли дают несколько строк одному пользователю в портале. */
+            foreach ($rows as $duplicate) {
+                self::deleteNativeSharing($duplicate, $actorUserId);
+            }
+        }
+
+        $driver = Driver::getInstance();
+        if (method_exists($driver, 'getTrackedObjectManager')) {
+            $trackedObjectManager = $driver->getTrackedObjectManager();
+            if (is_object($trackedObjectManager) && method_exists($trackedObjectManager, 'refresh')) {
+                $trackedObjectManager->refresh($folder);
+            }
+        }
+    }
+
+    private static function createNativeSharing(
+        Folder $folder,
+        string $accessCode,
+        string $taskName,
+        int $actorUserId
+    ): Sharing {
+        $errors = new ErrorCollection();
+        $sharing = Sharing::add([
+            'FROM_ENTITY' => Sharing::CODE_USER . $actorUserId,
+            'REAL_OBJECT' => $folder,
+            'CREATED_BY' => $actorUserId,
+            'CAN_FORWARD' => false,
+            'TO_ENTITY' => $accessCode,
+            'TASK_NAME' => $taskName,
+        ], $errors);
+
+        if (!$sharing instanceof Sharing || (int)$sharing->getId() <= 0) {
+            throw new RuntimeException(
+                'DISK_NATIVE_SHARING_CREATE_FAILED'
+                . self::errorDetails($errors)
+            );
+        }
+
+        return $sharing;
+    }
+
+    private static function updateNativeSharingTask(
+        $manager,
+        Folder $folder,
+        array $row,
+        string $taskName
+    ): void {
+        $sharingId = (int)($row['ID'] ?? 0);
+        $accessCode = mb_strtoupper(trim((string)($row['TO_ENTITY'] ?? '')));
+        if ($sharingId <= 0 || !preg_match('/^U[1-9]\d*$/', $accessCode)) {
+            throw new RuntimeException('DISK_NATIVE_SHARING_INVALID');
+        }
+
+        $domain = $manager->getSharingDomain($sharingId);
+        self::assertManagerResult(
+            $manager->deleteByDomain($folder, $domain),
+            'DISK_NATIVE_SHARING_RIGHT_DELETE_FAILED'
+        );
+
+        $updateResult = SharingTable::update($sharingId, [
+            'TASK_NAME' => $taskName,
+        ]);
+        self::assertManagerResult(
+            $updateResult,
+            'DISK_NATIVE_SHARING_UPDATE_FAILED'
+        );
+
+        self::assertManagerResult(
+            $manager->append($folder, [[
+                'ACCESS_CODE' => $accessCode,
+                'TASK_ID' => (int)$manager->getTaskIdByName($taskName),
+                'DOMAIN' => $domain,
+            ]]),
+            'DISK_NATIVE_SHARING_RIGHT_APPEND_FAILED'
+        );
+    }
+
+    private static function deleteNativeSharing(
+        array $row,
+        int $actorUserId
+    ): void {
+        $sharingId = (int)($row['ID'] ?? 0);
+        $sharing = $sharingId > 0 ? Sharing::loadById($sharingId) : null;
+        if (!$sharing instanceof Sharing) {
+            throw new RuntimeException('DISK_NATIVE_SHARING_NOT_FOUND');
+        }
+
+        if (!$sharing->delete($actorUserId)) {
+            throw new RuntimeException(
+                'DISK_NATIVE_SHARING_DELETE_FAILED'
+                . self::errorDetails($sharing)
+            );
+        }
+    }
+
+    /**
+     * @param array<int,int|string> $userIds
+     * @return array<string,array<int,array<string,mixed>>>
+     */
+    private static function nativeUserSharings(
+        Folder $folder,
+        array $userIds
+    ): array {
+        self::assertNativeSharingApiAvailable();
+
+        $wanted = [];
+        foreach ($userIds as $userId) {
+            $userId = (int)$userId;
+            if ($userId > 0) {
+                $wanted['U' . $userId] = true;
+            }
+        }
+        if (empty($wanted)) {
+            return [];
+        }
+
+        $query = Sharing::getList([
+            'filter' => [
+                'REAL_OBJECT_ID' => (int)$folder->getRealObjectId(),
+                'REAL_STORAGE_ID' => (int)$folder->getStorageId(),
+                '!=STATUS' => SharingTable::STATUS_IS_DECLINED,
+                'PARENT_ID' => null,
+            ],
+        ]);
+
+        $result = [];
+        while ($row = $query->fetch()) {
+            $accessCode = mb_strtoupper(trim((string)($row['TO_ENTITY'] ?? '')));
+            if (!isset($wanted[$accessCode])) {
+                continue;
+            }
+            $result[$accessCode][] = $row;
+        }
+
+        foreach ($result as &$rows) {
+            usort($rows, static function (array $left, array $right): int {
+                return (int)($left['ID'] ?? 0) <=> (int)($right['ID'] ?? 0);
+            });
+        }
+        unset($rows);
+
+        return $result;
+    }
+
+    private static function assertNativeSharingApiAvailable(): void
+    {
+        if (
+            !class_exists(Sharing::class)
+            || !class_exists(SharingTable::class)
+            || !class_exists(ErrorCollection::class)
+            || !method_exists(Sharing::class, 'add')
+            || !method_exists(Sharing::class, 'getList')
+        ) {
+            throw new RuntimeException('DISK_NATIVE_SHARING_API_UNAVAILABLE');
+        }
+    }
+
+    private static function errorDetails($source): string
+    {
+        $errors = [];
+        if (is_object($source) && method_exists($source, 'getErrors')) {
+            $errors = (array)$source->getErrors();
+        } elseif (is_object($source) && method_exists($source, 'toArray')) {
+            $errors = (array)$source->toArray();
+        }
+
+        $messages = [];
+        foreach ($errors as $error) {
+            if (is_object($error) && method_exists($error, 'getMessage')) {
+                $messages[] = trim((string)$error->getMessage());
+            } elseif (is_array($error) && isset($error['message'])) {
+                $messages[] = trim((string)$error['message']);
+            } elseif (is_scalar($error)) {
+                $messages[] = trim((string)$error);
+            }
+        }
+        $messages = array_values(array_filter(array_unique($messages)));
+
+        return empty($messages) ? '' : ': ' . implode('; ', $messages);
     }
 
     /**
@@ -1034,9 +1289,14 @@ class BitrixDiskRightsService
         $writtenByAccessCode = self::groupRightsByAccessCode(
             self::specificRights($manager, $folder)
         );
+        $nativeByAccessCode = self::nativeUserSharings(
+            $folder,
+            array_keys($requestedRights)
+        );
         $externalRights = [];
         foreach ($requestedRights as $userId => $taskName) {
             $accessCode = 'U' . (int)$userId;
+            $nativeRows = array_values($nativeByAccessCode[$accessCode] ?? []);
             $writtenTaskName = self::canonicalDirectTaskName(
                 $writtenByAccessCode[$accessCode] ?? [],
                 $tasks
@@ -1044,6 +1304,12 @@ class BitrixDiskRightsService
             $externalRights[(int)$userId] = $writtenTaskName;
 
             if ((string)$taskName === self::NONE) {
+                if (!empty($nativeRows)) {
+                    throw new RuntimeException(
+                        'DISK_NATIVE_SHARING_DELETE_VERIFICATION_FAILED: '
+                        . $accessCode
+                    );
+                }
                 $canRead = self::userCanReadStrict($folder, (int)$userId);
                 if (!$canRead) {
                     $externalRights[(int)$userId] = self::NONE;
@@ -1058,6 +1324,23 @@ class BitrixDiskRightsService
                 );
             }
 
+            if ((string)$taskName === self::INHERIT) {
+                if (!empty($nativeRows)) {
+                    throw new RuntimeException(
+                        'DISK_NATIVE_SHARING_DELETE_VERIFICATION_FAILED: '
+                        . $accessCode
+                    );
+                }
+            } else {
+                self::assertNativeSharingWritten(
+                    $manager,
+                    $accessCode,
+                    (string)$taskName,
+                    $nativeRows,
+                    $writtenByAccessCode[$accessCode] ?? []
+                );
+            }
+
             if (!hash_equals((string)$taskName, $writtenTaskName)) {
                 throw new RuntimeException(
                     'DISK_RIGHTS_WRITE_VERIFICATION_FAILED: ' . $accessCode
@@ -1066,6 +1349,62 @@ class BitrixDiskRightsService
         }
 
         return $externalRights;
+    }
+
+    private static function assertNativeSharingWritten(
+        $manager,
+        string $accessCode,
+        string $taskName,
+        array $nativeRows,
+        array $directRights
+    ): void {
+        if (self::nativeSharingIsWritten(
+            $manager,
+            $accessCode,
+            $taskName,
+            $nativeRows,
+            $directRights
+        )) {
+            return;
+        }
+
+        throw new RuntimeException(
+            'DISK_NATIVE_SHARING_WRITE_VERIFICATION_FAILED: ' . $accessCode
+        );
+    }
+
+    private static function nativeSharingIsWritten(
+        $manager,
+        string $accessCode,
+        string $taskName,
+        array $nativeRows,
+        array $directRights
+    ): bool {
+        $taskId = (int)$manager->getTaskIdByName($taskName);
+        foreach ($nativeRows as $row) {
+            if ((string)($row['TASK_NAME'] ?? '') !== $taskName) {
+                continue;
+            }
+
+            $sharingId = (int)($row['ID'] ?? 0);
+            if ($sharingId <= 0) {
+                continue;
+            }
+            $domain = (string)$manager->getSharingDomain($sharingId);
+
+            foreach ($directRights as $right) {
+                if (
+                    mb_strtoupper((string)($right['ACCESS_CODE'] ?? '')) === $accessCode
+                    && (int)($right['TASK_ID'] ?? 0) === $taskId
+                    && (string)($right['DOMAIN'] ?? '') === $domain
+                    && empty($right['NEGATIVE'])
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1177,6 +1516,113 @@ class BitrixDiskRightsService
             }
         } catch (Throwable $exception) {
             error_log('Disk ACL rollback failed: ' . $exception->getMessage());
+        }
+    }
+
+    /**
+     * Восстанавливает метаданные Sharing после отката ACL. Этот путь нужен
+     * только при исключении, поэтому ошибки восстановления пишутся в журнал и
+     * не скрывают исходную причину отказа сохранения.
+     *
+     * @param array<string,array<int,array<string,mixed>>> $backup
+     * @param array<int,int|string> $userIds
+     */
+    private static function restoreNativeUserSharings(
+        $manager,
+        Folder $folder,
+        array $backup,
+        array $userIds,
+        int $actorUserId
+    ): void {
+        try {
+            $current = self::nativeUserSharings($folder, $userIds);
+            $accessCodes = [];
+            foreach ($userIds as $userId) {
+                $userId = (int)$userId;
+                if ($userId > 0) {
+                    $accessCodes['U' . $userId] = true;
+                }
+            }
+
+            foreach (array_keys($accessCodes) as $accessCode) {
+                $backupRows = array_values($backup[$accessCode] ?? []);
+                $currentRows = array_values($current[$accessCode] ?? []);
+                $backupById = [];
+                $currentById = [];
+
+                foreach ($backupRows as $row) {
+                    $backupById[(int)($row['ID'] ?? 0)] = $row;
+                }
+                foreach ($currentRows as $row) {
+                    $currentById[(int)($row['ID'] ?? 0)] = $row;
+                }
+
+                foreach ($currentById as $sharingId => $row) {
+                    if (!isset($backupById[$sharingId])) {
+                        self::deleteNativeSharing($row, $actorUserId);
+                    }
+                }
+
+                foreach ($backupById as $sharingId => $row) {
+                    if (isset($currentById[$sharingId])) {
+                        if (
+                            (string)($currentById[$sharingId]['TASK_NAME'] ?? '')
+                            !== (string)($row['TASK_NAME'] ?? '')
+                        ) {
+                            self::assertManagerResult(
+                                SharingTable::update($sharingId, [
+                                    'TASK_NAME' => (string)($row['TASK_NAME'] ?? ''),
+                                ]),
+                                'DISK_NATIVE_SHARING_ROLLBACK_UPDATE_FAILED'
+                            );
+                        }
+                        continue;
+                    }
+
+                    /* restoreRightsSet() вернул старый DOMAIN уже удалённой записи. */
+                    self::assertManagerResult(
+                        $manager->deleteByDomain(
+                            $folder,
+                            $manager->getSharingDomain($sharingId)
+                        ),
+                        'DISK_NATIVE_SHARING_ROLLBACK_DOMAIN_DELETE_FAILED'
+                    );
+
+                    $errors = new ErrorCollection();
+                    $sharing = Sharing::add([
+                        'FROM_ENTITY' => (string)($row['FROM_ENTITY'] ?? ('U' . $actorUserId)),
+                        'REAL_OBJECT' => $folder,
+                        'CREATED_BY' => (int)($row['CREATED_BY'] ?? $actorUserId),
+                        'CAN_FORWARD' => !empty($row['CAN_FORWARD']),
+                        'TO_ENTITY' => $accessCode,
+                        'TASK_NAME' => (string)($row['TASK_NAME'] ?? ''),
+                        'DESCRIPTION' => (string)($row['DESCRIPTION'] ?? ''),
+                    ], $errors);
+
+                    if (!$sharing instanceof Sharing) {
+                        throw new RuntimeException(
+                            'DISK_NATIVE_SHARING_ROLLBACK_CREATE_FAILED'
+                            . self::errorDetails($errors)
+                        );
+                    }
+
+                    if (
+                        (int)($row['STATUS'] ?? 0) === SharingTable::STATUS_IS_APPROVED
+                        && method_exists($sharing, 'isApproved')
+                        && !$sharing->isApproved()
+                        && !$sharing->approve()
+                    ) {
+                        throw new RuntimeException(
+                            'DISK_NATIVE_SHARING_ROLLBACK_APPROVE_FAILED'
+                            . self::errorDetails($sharing)
+                        );
+                    }
+                }
+            }
+        } catch (Throwable $exception) {
+            error_log(
+                'Disk native sharing rollback failed: ' . $exception->getMessage()
+            );
         }
     }
 
