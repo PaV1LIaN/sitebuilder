@@ -17,8 +17,10 @@ $siteId = (int)($_GET['siteId'] ?? 0);
 foreach ([
     __DIR__ . '/lib/db.php',
     __DIR__ . '/lib/json.php',
+    __DIR__ . '/lib/storage_db.php',
     __DIR__ . '/lib/response.php',
     __DIR__ . '/lib/helpers.php',
+    __DIR__ . '/lib/public_routes.php',
     __DIR__ . '/lib/access.php',
 ] as $libFile) {
     require_once $libFile;
@@ -51,6 +53,7 @@ if (!$USER->IsAdmin()) {
 }
 
 $site = sb_find_site($siteId);
+$publicSiteUrl = sb_public_site_url($basePath, $site ?: $siteId);
 $siteName = trim((string)($site['name'] ?? ''));
 if ($siteName === '') {
     $siteName = 'Сайт #' . $siteId;
@@ -91,7 +94,7 @@ $h = static function ($value): string {
 
         <div class="sb-layout2-topbar__actions">
             <a class="sb-btn sb-btn-light" href="<?= $h($basePath) ?>/editor.php?siteId=<?= $siteId ?>">Редактор страниц</a>
-            <a class="sb-btn sb-btn-light" href="<?= $h($basePath) ?>/public.php?siteId=<?= $siteId ?>" target="_blank" rel="noopener">Открыть сайт ↗</a>
+            <a class="sb-btn sb-btn-light" href="<?= $h($publicSiteUrl) ?>" target="_blank" rel="noopener">Открыть сайт ↗</a>
             <a class="sb-btn sb-btn-light" href="<?= $h($basePath) ?>/versions.php?siteId=<?= $siteId ?>&entityType=layout&entityId=<?= $siteId ?>">История</a>
             <a class="sb-btn sb-btn-light" href="<?= $h($basePath) ?>/audit.php?siteId=<?= $siteId ?>">Журнал</a>
         </div>

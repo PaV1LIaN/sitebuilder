@@ -37,7 +37,7 @@ Stage 20 устанавливается поверх Stage 19. Полный ар
 
 Опубликованная страница формирует соответствующие мета-теги. Для каждого сайта доступна карта сайта:
 
-`/local/sitebuilder/sitemap.php?siteId=ID`
+`/local/sitebuilder/s/{site-slug}/sitemap.xml`
 
 Страницы с `noindex` в sitemap не включаются.
 

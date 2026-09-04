@@ -19,6 +19,7 @@ $libFiles = [
     __DIR__ . '/lib/storage_db.php',
     __DIR__ . '/lib/response.php',
     __DIR__ . '/lib/helpers.php',
+    __DIR__ . '/lib/public_routes.php',
     __DIR__ . '/lib/RevisionService.php',
     __DIR__ . '/lib/access.php',
     __DIR__ . '/lib/PageAccessRepository.php',
@@ -172,6 +173,7 @@ if (!$canOpenEditor) {
  */
 $canManagePageAccess = $USER->IsAdmin()
     || (int)($globalRoleRank ?? 0) >= 3;
+$publicSiteUrl = sb_public_site_url($basePath, $siteId);
 ?>
 <!doctype html>
 <html lang="ru">
@@ -232,7 +234,7 @@ $canManagePageAccess = $USER->IsAdmin()
             <button class="sb-editor-toptool" type="button" id="toggleFocusModeBtn" title="Фокус на холсте" aria-label="Фокус на холсте" aria-pressed="false">⛶</button>
             <button class="sb-editor-toptool" type="button" id="toggleEditorThemeBtn" title="Сменить тему" aria-label="Сменить тему" aria-pressed="false">◐</button>
 
-            <a class="sb-btn sb-btn-light sb-btn-small" id="openPublicPageLink" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/public.php?siteId=<?= (int)$siteId ?>" target="_blank" rel="noopener">
+            <a class="sb-btn sb-btn-light sb-btn-small" id="openPublicPageLink" href="<?= htmlspecialchars($publicSiteUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" target="_blank" rel="noopener">
                 Предпросмотр ↗
             </a>
 
@@ -1159,13 +1161,13 @@ window.SB_EDITOR_CONFIG = {
 </script>
 
 <script src="/bitrix/js/main/core/core.js"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=21"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=22"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=23"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=24"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=25"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=22"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/34-editor-ux.js?v=18"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/34-editor-ux.js?v=19"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/42-workspace-shell.js?v=1"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/36-content-tools.js?v=20"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/38-design-tools.js?v=19"></script>

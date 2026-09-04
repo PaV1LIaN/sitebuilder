@@ -19,6 +19,7 @@ $libFiles = [
     __DIR__ . '/lib/storage_db.php',
     __DIR__ . '/lib/response.php',
     __DIR__ . '/lib/helpers.php',
+    __DIR__ . '/lib/public_routes.php',
     __DIR__ . '/lib/access.php',
 ];
 
@@ -57,6 +58,7 @@ if ($siteId <= 0) {
 if (!$USER->IsAdmin()) {
     sb_require_content_manager($siteId);
 }
+$publicSiteUrl = sb_public_site_url($basePath, $siteId);
 ?>
 <!doctype html>
 <html lang="ru">
@@ -87,7 +89,7 @@ if (!$USER->IsAdmin()) {
             <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/alerts.php?siteId=<?= (int)$siteId ?>">Оповещения</a>
             <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/external_resources.php?siteId=<?= (int)$siteId ?>">Внешние ресурсы</a>
             <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/backups.php?siteId=<?= (int)$siteId ?>">Резервные копии</a>
-            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/public.php?siteId=<?= (int)$siteId ?>" target="_blank">
+            <a class="sb-btn sb-btn-light" id="openPublicSiteLink" href="<?= htmlspecialchars($publicSiteUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" target="_blank">
                 Открыть публичную
             </a>
             <button class="sb-btn sb-btn-light" type="button" id="reloadBtn">Обновить</button>
@@ -455,8 +457,12 @@ if (!$USER->IsAdmin()) {
     function renderBasic() {
         var site = state.site || {};
         var versionNode = document.getElementById('siteVersionBadge');
+        var publicLink = document.getElementById('openPublicSiteLink');
         if (versionNode) {
             versionNode.textContent = String(Number(site.version || 1));
+        }
+        if (publicLink && site.slug) {
+            publicLink.href = BASE_PATH + '/s/' + encodeURIComponent(String(site.slug)) + '/';
         }
         var settings = site.settings || {};
 

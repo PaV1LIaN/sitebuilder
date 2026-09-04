@@ -177,6 +177,7 @@ final class RequestLockService
                 break;
 
             case 'site.syncAccess':
+            case 'site.reconcileAccess':
             case 'site.accessSet':
             case 'site.accessRemove':
                 self::addSiteShared($locks, self::int($input, 'siteId'));

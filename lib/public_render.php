@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/json.php';
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/public_routes.php';
 
 if (!function_exists('sb_public_h')) {
     function sb_public_h(string $s): string
@@ -1028,13 +1029,6 @@ if (!function_exists('sb_public_filter_menu_pages')) {
         ));
 
         return $menu;
-    }
-}
-
-if (!function_exists('sb_public_page_url')) {
-    function sb_public_page_url(string $basePath, int $siteId, int $pageId): string
-    {
-        return $basePath . '/public.php?siteId=' . $siteId . '&pageId=' . $pageId;
     }
 }
 

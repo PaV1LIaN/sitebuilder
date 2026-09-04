@@ -5,7 +5,9 @@ use Bitrix\Main\Loader;
 class SiteAccessSyncService
 {
     /**
-     * Основная точка входа, которую вызывает API site.syncAccess.
+     * Legacy-импорт ролей из рабочей группы. Сохранён для выполнения уже
+     * поставленных заданий bitrix.access.sync. API site.syncAccess теперь
+     * использует односторонний UnifiedAccessReconciliationService.
      */
     public static function sync(
         int $siteId,

@@ -382,6 +382,78 @@ try {
         );
     }
 
+    if (
+        $e instanceof RuntimeException
+        && str_starts_with(
+            $e->getMessage(),
+            'DISK_RIGHTS_WRITE_VERIFICATION_FAILED'
+        )
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_RIGHTS_WRITE_VERIFICATION_FAILED',
+            'Битрикс24.Диск не подтвердил запись прямого права. Изменения отменены.',
+            ['diagnostic' => $e->getMessage()]
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
+        && $e->getMessage() === 'DISK_ACL_INTENT_STORAGE_UNAVAILABLE'
+    ) {
+        http_response_code(503);
+        DiskResponse::error(
+            'DISK_ACL_INTENT_STORAGE_UNAVAILABLE',
+            'Не применена миграция этапа 22 для контроллера прав. Изменения ACL отменены.'
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
+        && str_starts_with(
+            $e->getMessage(),
+            'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED'
+        )
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED',
+            'Битрикс24.Диск не смог подтвердить итоговый запрет чтения. Изменения отменены.',
+            ['diagnostic' => $e->getMessage()]
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
+        && str_starts_with($e->getMessage(), 'DISK_NATIVE_SHARING_')
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_NATIVE_SHARING_FAILED',
+            'Битрикс24.Диск не подтвердил право в штатном списке общего доступа. Изменения отменены.',
+            ['diagnostic' => $e->getMessage()]
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
+        && (
+            str_starts_with($e->getMessage(), 'DISK_RIGHTS_SET_FAILED')
+            || $e->getMessage() === 'DISK_RIGHTS_SET_API_UNAVAILABLE'
+            || str_starts_with($e->getMessage(), 'DISK_RIGHTS_APPEND_FAILED')
+            || $e->getMessage() === 'DISK_RIGHTS_APPEND_API_UNAVAILABLE'
+            || str_starts_with($e->getMessage(), 'DISK_RIGHTS_REVOKE_FAILED')
+            || $e->getMessage() === 'DISK_RIGHTS_REVOKE_API_UNAVAILABLE'
+        )
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_RIGHTS_SET_FAILED',
+            'Битрикс24.Диск не смог заменить или отозвать права папки. Исходные права восстановлены.',
+            ['diagnostic' => $e->getMessage()]
+        );
+    }
+
     error_log(sprintf(
         'SiteBuilder Disk API error: %s in %s:%d',
         $e->getMessage(),

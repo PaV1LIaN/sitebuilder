@@ -3,9 +3,15 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_be
 require_once __DIR__ . '/lib/db.php';
 require_once __DIR__ . '/lib/storage_db.php';
 require_once __DIR__ . '/lib/helpers.php';
-require_once __DIR__ . '/lib/routes.php';
+require_once __DIR__ . '/lib/public_routes.php';
 
-$siteId = (int)($_GET['siteId'] ?? 0);
+$isCleanRoute = array_key_exists('siteSlug', $_GET);
+$route = $isCleanRoute
+    ? sb_public_resolve_route((string)($_GET['siteSlug'] ?? ''))
+    : null;
+$siteId = $isCleanRoute
+    ? (int)($route['siteId'] ?? 0)
+    : (int)($_GET['siteId'] ?? 0);
 $site = $siteId > 0 ? sb_find_site($siteId) : null;
 if (!$site) {
     http_response_code(404);
@@ -17,6 +23,16 @@ if (!$site) {
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = preg_replace('/[^a-z0-9.\-:\[\]]/i', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
 $basePath = rtrim(str_replace($_SERVER['DOCUMENT_ROOT'], '', __DIR__), '/');
+$sitemapPath = sb_public_sitemap_url($basePath, $site);
+$requestPath = (string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?: '');
+
+if (
+    $sitemapPath !== '#'
+    && (!$isCleanRoute || $requestPath !== $sitemapPath)
+) {
+    header('Location: ' . $sitemapPath, true, 301);
+    exit;
+}
 
 header('Content-Type: application/xml; charset=UTF-8');
 echo '<?xml version="1.0" encoding="UTF-8"?>';
@@ -25,11 +41,9 @@ foreach (sb_pages_for_site($siteId) as $page) {
     if ((string)($page['status'] ?? '') !== 'published') continue;
     $seo = is_array($page['seo'] ?? null) ? $page['seo'] : [];
     if (array_key_exists('robotsIndex', $seo) && empty($seo['robotsIndex'])) continue;
-
-    $relativeUrl = sb_public_page_url($basePath, $siteId, (int)$page['id']);
-    if ($relativeUrl === '') continue;
-
-    $url = $scheme . '://' . $host . $relativeUrl;
+    $publicPath = sb_public_page_url($basePath, $siteId, (int)$page['id']);
+    if ($publicPath === '#') continue;
+    $url = $scheme . '://' . $host . $publicPath;
     echo '<url><loc>' . htmlspecialchars($url, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</loc>';
     if (!empty($page['updatedAt'])) echo '<lastmod>' . htmlspecialchars(date(DATE_ATOM, strtotime((string)$page['updatedAt'])), ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</lastmod>';
     echo '</url>';

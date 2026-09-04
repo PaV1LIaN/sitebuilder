@@ -476,10 +476,18 @@ try {
             $canDiskEdit
         );
 
+        $accessReconcileJob = OutboxService::enqueueUnifiedAccessReconcile(
+            $siteId,
+            'repair',
+            $currentUserId,
+            1
+        );
+
         $enrichedItems = sb_page_access_enrich_items([$item]);
 
         sb_page_access_json_success([
             'item' => $enrichedItems[0] ?? $item,
+            'accessReconcileJob' => $accessReconcileJob,
         ]);
     }
 
@@ -553,9 +561,17 @@ try {
             );
         }
 
+        $accessReconcileJob = OutboxService::enqueueUnifiedAccessReconcile(
+            $siteId,
+            'repair',
+            $currentUserId,
+            1
+        );
+
         sb_page_access_json_success([
             'deleted' => true,
             'id' => $id,
+            'accessReconcileJob' => $accessReconcileJob,
         ]);
     }
 

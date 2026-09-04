@@ -22,6 +22,7 @@ if (!defined('SITEBUILDER_DISK_BOOTSTRAP')) {
     require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessRepository.php';
     require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessService.php';
     require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/RevisionService.php';
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/OutboxService.php';
 
     \Bitrix\Main\Loader::includeModule('disk');
 
@@ -40,6 +41,7 @@ if (!defined('SITEBUILDER_DISK_BOOTSTRAP')) {
     require_once __DIR__ . '/lib/DiskRootResolver.php';
     require_once __DIR__ . '/lib/DiskValidator.php';
     require_once __DIR__ . '/lib/DiskPageUserRepository.php';
+    require_once __DIR__ . '/lib/DiskAclBindingRepository.php';
     require_once __DIR__ . '/lib/BitrixDiskRightsService.php';
     require_once __DIR__ . '/lib/DiskPermissionService.php';
     require_once __DIR__ . '/lib/SiteDiskInitializer.php';
