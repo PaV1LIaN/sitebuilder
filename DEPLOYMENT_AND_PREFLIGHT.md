@@ -54,10 +54,14 @@ php /home/bitrix/www/local/sitebuilder/tools/migrate_cli.php --apply
 Канонические адреса:
 
 ```text
-/local/sitebuilder/s/{site-slug}/
 /local/sitebuilder/s/{site-slug}/{parent-slug}/{page-slug}/
 /local/sitebuilder/s/{site-slug}/sitemap.xml
 ```
+
+Адрес `/local/sitebuilder/s/{site-slug}/` является только входной точкой. Он
+перенаправляет на назначенную главную страницу, а если она отсутствует или
+недоступна — на первую доступную опубликованную страницу. В итоговом URL всегда
+остаётся slug реальной страницы; пустая виртуальная корневая не отображается.
 
 Старые ссылки `public.php?siteId=...&pageId=...` отвечают постоянным редиректом
 на канонический адрес без ID.

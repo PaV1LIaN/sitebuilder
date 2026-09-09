@@ -177,10 +177,6 @@ if (!function_exists('sb_public_page_url')) {
             return '#';
         }
 
-        if ((int)($site['homePageId'] ?? 0) === $pageId) {
-            return $siteUrl;
-        }
-
         $pagePath = sb_public_page_path($siteId, $pageId);
 
         if ($pagePath === null || $pagePath === '') {

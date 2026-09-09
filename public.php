@@ -67,12 +67,15 @@ if (
         || $requestPath !== $canonicalPath
     )
 ) {
+    $isSiteRootRequest = $isCleanRoute
+        && trim((string)($_GET['pagePath'] ?? ''), '/') === '';
+
     header(
         'Location: '
         . $canonicalPath
         . sb_public_redirect_query($_GET),
         true,
-        301
+        $isSiteRootRequest ? 302 : 301
     );
     exit;
 }

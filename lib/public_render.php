@@ -2755,6 +2755,14 @@ if (!function_exists('sb_public_build_view_model')) {
                 $currentPage = $pages[0];
             }
         }
+
+        // У публичного сайта нет отдельной виртуальной «корневой страницы».
+        // Корневой URL служит только входом и должен вести на реальную
+        // опубликованную страницу, доступную текущему пользователю.
+        if (!$currentPage) {
+            return null;
+        }
+
         $layout = sb_public_layout_for_site($siteId);
 
         $menu = sb_public_filter_menu_pages(
