@@ -294,7 +294,7 @@ class DiskBitrixStorageAdapter
         return $this->buildDownloadUrl($file);
     }
 
-    public function getInternalLink(string $entityType, int $entityId): string
+    protected function getReadableObject(string $entityType, int $entityId)
     {
         if ($entityType === 'folder') {
             $object = $this->getFolderById($entityId);
@@ -313,23 +313,27 @@ class DiskBitrixStorageAdapter
             throw new RuntimeException('DISK_NATIVE_READ_ACCESS_DENIED');
         }
 
+        return $object;
+    }
+
+    public function getInternalLink(DiskContext $context, string $entityType, int $entityId): string
+    {
+        $object = $this->getReadableObject($entityType, $entityId);
         $urlManager = \Bitrix\Disk\Driver::getInstance()->getUrlManager();
 
-        // Match disk.folder.list's "Copy internal link", including newer
-        // unified document links. Generating a link does not change its ACL.
+        // Folder links still open a listing. File links open a standalone
+        // viewer and resolve the recipient's own document session on arrival.
         if ($object instanceof Folder) {
             $url = $urlManager->getUrlFocusController('openFolderList', ['folderId' => $object->getId()], true);
-        } elseif (
-            method_exists($object, 'supportsUnifiedLink')
-            && method_exists($urlManager, 'getUnifiedLink')
-            && $object->supportsUnifiedLink()
-        ) {
-            $url = $urlManager->getUnifiedLink($object, ['absolute' => true]);
         } else {
-            $url = $urlManager->getUrlFocusController('showObjectInGrid', [
-                'objectId' => $object->getId(),
-                'cmd' => 'show',
-            ], true);
+            $url = rtrim($urlManager->getHostUrl(), '/')
+                . '/local/sitebuilder/components/disk/open_file.php?'
+                . http_build_query([
+                    'siteId' => $context->siteId,
+                    'pageId' => $context->pageId,
+                    'blockId' => $context->blockId,
+                    'fileId' => $object->getId(),
+                ]);
         }
 
         if (!is_string($url) || !preg_match('~^https?://~i', $url)) {
@@ -337,6 +341,27 @@ class DiskBitrixStorageAdapter
         }
 
         return $url;
+    }
+
+    public function getDirectFileView(int $fileId): array
+    {
+        $file = $this->getReadableObject('file', $fileId);
+        $urlManager = \Bitrix\Disk\Driver::getInstance()->getUrlManager();
+        $isOffice = $this->isOfficeDocument(pathinfo($file->getName(), PATHINFO_EXTENSION));
+
+        if ($isOffice) {
+            // Same authenticated POST endpoint as disk.viewer.document-item.
+            // Its viewUrl is resolved when the recipient opens the shared link,
+            // never copied from the sender's Office/WOPI session.
+            $url = $urlManager->getUrlToShowFileByService(
+                $file->getId(),
+                \Bitrix\Disk\Configuration::getDefaultViewerServiceCode()
+            );
+        } else {
+            $url = $urlManager->getUrlForShowFile($file, [], true);
+        }
+
+        return ['name' => $file->getName(), 'url' => $url, 'office' => $isOffice];
     }
 
     protected function searchRecursive(DiskContext $context, int $folderId, string $query, array &$result): void

@@ -39,7 +39,7 @@ DiskValidator::assertCanForFolder(
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 try {
-    $url = $adapter->getInternalLink($entityType, $entityId);
+    $url = $adapter->getInternalLink($context, $entityType, $entityId);
 } catch (RuntimeException $e) {
     if ($e->getMessage() === 'DISK_NATIVE_READ_ACCESS_DENIED') {
         http_response_code(403);
