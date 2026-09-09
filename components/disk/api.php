@@ -310,6 +310,10 @@ try {
             require __DIR__ . '/actions/download.php';
             break;
 
+        case 'getInternalLink':
+            require __DIR__ . '/actions/get_internal_link.php';
+            break;
+
         case 'unpackArchive':
             require __DIR__ . '/actions/unpack_archive.php';
             break;

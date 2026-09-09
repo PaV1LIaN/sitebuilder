@@ -2251,6 +2251,18 @@
     }
 
     this.root.addEventListener('click', async function (e) {
+      var shareBtn = e.target.closest('[data-row-action="share"]');
+      if (shareBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var shareRow = shareBtn.closest('[data-id][data-entity-type]');
+        if (shareRow) {
+          self.closeActionMenus();
+          await self.shareInternalLink(shareRow);
+        }
+        return;
+      }
+
       var menuToggle = e.target.closest('[data-action-menu-toggle]');
 
       if (menuToggle) {
@@ -2926,6 +2938,14 @@
       }
     }
 
+    if (permissions.canView) {
+      menuItems.push(
+        '<button type="button" class="sb-disk__action-menu-item" data-row-action="share">'
+        + '<span aria-hidden="true">🔗</span><strong>Поделиться</strong>'
+        + '</button>'
+      );
+    }
+
     if (permissions.canRename) {
       menuItems.push(
         '<button type="button" class="sb-disk__action-menu-item" data-row-action="rename">'
@@ -2968,6 +2988,104 @@
       + '  </div>'
       + '</div>';
   };
+  DiskComponent.prototype.shareInternalLink = async function (row) {
+    if (this._shareDialog) {
+      this._shareDialog.focus();
+      return;
+    }
+
+    var self = this;
+    var dialog = document.createElement('dialog');
+    var titleId = 'sb-disk-share-title-' + this.state.blockId;
+    dialog.className = 'sb-disk-share';
+    dialog.setAttribute('aria-labelledby', titleId);
+    dialog.innerHTML = ''
+      + '<h2 id="' + escapeHtml(titleId) + '">Поделиться</h2>'
+      + '<p class="sb-disk-share__name"></p>'
+      + '<label>Внутренняя ссылка<input type="text" readonly aria-label="Внутренняя ссылка" disabled></label>'
+      + '<p class="sb-disk-share__status" role="status" aria-live="polite">Получаю ссылку…</p>'
+      + '<p class="sb-disk-share__hint">Ссылка открывается с учётом прав Битрикс.Диска.</p>'
+      + '<div class="sb-disk-share__actions">'
+      + '<button type="button" data-share-copy disabled>Скопировать ссылку</button>'
+      + '<button type="button" data-share-close autofocus>Закрыть</button>'
+      + '</div>';
+    dialog.querySelector('.sb-disk-share__name').textContent = row.getAttribute('data-name') || '';
+
+    var input = dialog.querySelector('input');
+    var status = dialog.querySelector('[role="status"]');
+    var copyButton = dialog.querySelector('[data-share-copy]');
+    var returnFocus = row.querySelector('[data-action-menu-toggle]');
+
+    async function copyLink() {
+      if (!input.value || copyButton.disabled) return;
+      copyButton.disabled = true;
+      var copied = false;
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          await navigator.clipboard.writeText(input.value);
+          copied = true;
+        }
+      } catch (e) {
+        // The visible input below also works when clipboard access is denied.
+      }
+      if (!dialog.open) return;
+      if (!copied) {
+        input.focus();
+        input.select();
+        try {
+          copied = document.execCommand('copy');
+        } catch (e) {
+          copied = false;
+        }
+      }
+      status.textContent = copied
+        ? 'Внутренняя ссылка скопирована.'
+        : 'Выделите и скопируйте ссылку из поля выше.';
+      copyButton.disabled = false;
+    }
+
+    copyButton.addEventListener('click', copyLink);
+    input.addEventListener('click', function () { input.select(); });
+    dialog.querySelector('[data-share-close]').addEventListener('click', function () { dialog.close(); });
+    dialog.addEventListener('click', function (event) {
+      if (event.target !== dialog) return;
+      var rect = dialog.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
+        dialog.close();
+      }
+    });
+    dialog.addEventListener('close', function () {
+      self._shareDialog = null;
+      dialog.remove();
+      if (returnFocus && returnFocus.isConnected) returnFocus.focus();
+    });
+    document.body.appendChild(dialog);
+    this._shareDialog = dialog;
+    dialog.showModal();
+
+    try {
+      var payload = this.getBasePayload();
+      payload.entityType = row.getAttribute('data-entity-type');
+      payload.entityId = Number(row.getAttribute('data-id') || 0);
+      payload.sessid = this.getSessid();
+      var res = await this.api('getInternalLink', payload);
+      if (!dialog.open) return;
+      if (!res || !res.ok) {
+        throw new Error((res && (res.message || res.error)) || 'Не удалось получить ссылку.');
+      }
+      var url = new URL(String((res.data && res.data.url) || ''));
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+        throw new Error('Битрикс.Диск вернул некорректную ссылку.');
+      }
+      input.value = res.data.url;
+      input.disabled = false;
+      copyButton.disabled = false;
+      await copyLink();
+    } catch (e) {
+      if (dialog.open) status.textContent = e.message || 'Не удалось получить ссылку.';
+    }
+  };
+
   DiskComponent.prototype.renderItemsTable = function () {
     var tbody = this.root.querySelector('[data-role="items-table"]');
 

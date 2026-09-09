@@ -294,6 +294,51 @@ class DiskBitrixStorageAdapter
         return $this->buildDownloadUrl($file);
     }
 
+    public function getInternalLink(string $entityType, int $entityId): string
+    {
+        if ($entityType === 'folder') {
+            $object = $this->getFolderById($entityId);
+        } elseif ($entityType === 'file') {
+            $object = $this->getFileById($entityId);
+        } else {
+            throw new RuntimeException('INVALID_ENTITY_TYPE');
+        }
+
+        if ($object->isDeleted()) {
+            throw new RuntimeException('DISK_ITEM_NOT_FOUND');
+        }
+
+        $storage = $object->getStorage();
+        if (!$storage || !$object->canRead($storage->getSecurityContext($this->currentUserId))) {
+            throw new RuntimeException('DISK_NATIVE_READ_ACCESS_DENIED');
+        }
+
+        $urlManager = \Bitrix\Disk\Driver::getInstance()->getUrlManager();
+
+        // Match disk.folder.list's "Copy internal link", including newer
+        // unified document links. Generating a link does not change its ACL.
+        if ($object instanceof Folder) {
+            $url = $urlManager->getUrlFocusController('openFolderList', ['folderId' => $object->getId()], true);
+        } elseif (
+            method_exists($object, 'supportsUnifiedLink')
+            && method_exists($urlManager, 'getUnifiedLink')
+            && $object->supportsUnifiedLink()
+        ) {
+            $url = $urlManager->getUnifiedLink($object, ['absolute' => true]);
+        } else {
+            $url = $urlManager->getUrlFocusController('showObjectInGrid', [
+                'objectId' => $object->getId(),
+                'cmd' => 'show',
+            ], true);
+        }
+
+        if (!is_string($url) || !preg_match('~^https?://~i', $url)) {
+            throw new RuntimeException('DISK_INTERNAL_LINK_UNAVAILABLE');
+        }
+
+        return $url;
+    }
+
     protected function searchRecursive(DiskContext $context, int $folderId, string $query, array &$result): void
     {
         $folder = $this->getFolderById($folderId);
