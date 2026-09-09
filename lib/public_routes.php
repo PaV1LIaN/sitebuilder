@@ -120,6 +120,86 @@ if (!function_exists('sb_public_site_url')) {
     }
 }
 
+if (!function_exists('sb_public_published_pages_for_site')) {
+    /**
+     * Returns published pages in the same stable order as the editor list.
+     * A nested page is public only when its complete parent chain is also
+     * published and belongs to the same site.
+     */
+    function sb_public_published_pages_for_site(int $siteId): array
+    {
+        if ($siteId <= 0) {
+            return [];
+        }
+
+        $catalog = sb_public_route_catalog();
+        $sitePages = [];
+
+        foreach ($catalog['pagesById'] as $pageId => $page) {
+            if ((int)($page['siteId'] ?? 0) === $siteId) {
+                $sitePages[(int)$pageId] = $page;
+            }
+        }
+
+        $publishedPages = [];
+
+        foreach ($sitePages as $page) {
+            $cursor = $page;
+            $visited = [];
+            $isPublished = true;
+
+            while (is_array($cursor)) {
+                $cursorId = (int)($cursor['id'] ?? 0);
+
+                if (
+                    $cursorId <= 0
+                    || isset($visited[$cursorId])
+                    || strtolower(trim((string)($cursor['status'] ?? 'draft'))) !== 'published'
+                ) {
+                    $isPublished = false;
+                    break;
+                }
+
+                $visited[$cursorId] = true;
+                $parentId = (int)($cursor['parentId'] ?? 0);
+
+                if ($parentId <= 0) {
+                    break;
+                }
+
+                $cursor = $sitePages[$parentId] ?? null;
+
+                if (!is_array($cursor)) {
+                    $isPublished = false;
+                    break;
+                }
+            }
+
+            if ($isPublished) {
+                $publishedPages[] = $page;
+            }
+        }
+
+        usort($publishedPages, static function ($first, $second): int {
+            $sortCompare =
+                (int)($first['sort'] ?? 500)
+                <=>
+                (int)($second['sort'] ?? 500);
+
+            if ($sortCompare !== 0) {
+                return $sortCompare;
+            }
+
+            return
+                (int)($first['id'] ?? 0)
+                <=>
+                (int)($second['id'] ?? 0);
+        });
+
+        return $publishedPages;
+    }
+}
+
 if (!function_exists('sb_public_page_path')) {
     function sb_public_page_path(int $siteId, int $pageId): ?string
     {
@@ -184,6 +264,35 @@ if (!function_exists('sb_public_page_url')) {
         }
 
         return $siteUrl . $pagePath . '/';
+    }
+}
+
+if (!function_exists('sb_public_entry_url')) {
+    /**
+     * A public site has no virtual root page. Its entry URL is the first
+     * published page from the ordered page list.
+     */
+    function sb_public_entry_url(string $basePath, $site): string
+    {
+        $catalog = sb_public_route_catalog();
+
+        if (!is_array($site)) {
+            $site = $catalog['sitesById'][(int)$site] ?? null;
+        }
+
+        if (!is_array($site)) {
+            return '#';
+        }
+
+        $siteId = (int)($site['id'] ?? 0);
+        $pages = sb_public_published_pages_for_site($siteId);
+        $firstPageId = (int)($pages[0]['id'] ?? 0);
+
+        if ($firstPageId > 0) {
+            return sb_public_page_url($basePath, $siteId, $firstPageId);
+        }
+
+        return sb_public_site_url($basePath, $site);
     }
 }
 

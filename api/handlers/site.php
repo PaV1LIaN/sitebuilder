@@ -4,6 +4,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteAppearanceS
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessRepository.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessService.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteDeletionService.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/public_routes.php';
 
 if (in_array($action, [
     'site.syncAccess',
@@ -29,6 +30,40 @@ if (file_exists($siteAccessSyncServicePath)) {
 $siteAccessManagementServicePath = $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteAccessManagementService.php';
 if (file_exists($siteAccessManagementServicePath)) {
     require_once $siteAccessManagementServicePath;
+}
+
+if (!function_exists('sb_site_handler_attach_public_url')) {
+    function sb_site_handler_attach_public_url(array $site): array
+    {
+        global $USER;
+
+        $siteId = (int)($site['id'] ?? 0);
+        $pages = sb_public_published_pages_for_site($siteId);
+        $currentUserId = is_object($USER) ? (int)$USER->GetID() : 0;
+
+        if ($currentUserId > 0) {
+            $pages = PageAccessService::filterVisiblePages(
+                $pages,
+                $siteId,
+                $currentUserId
+            );
+        } else {
+            $pages = [];
+        }
+
+        $documentRoot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+        $projectRoot = dirname(__DIR__, 2);
+        $basePath = $documentRoot !== '' && str_starts_with($projectRoot, $documentRoot)
+            ? substr($projectRoot, strlen($documentRoot))
+            : '/local/sitebuilder';
+        $firstPageId = (int)($pages[0]['id'] ?? 0);
+
+        $site['publicUrl'] = $firstPageId > 0
+            ? sb_public_page_url($basePath, $siteId, $firstPageId)
+            : sb_public_site_url($basePath, $site);
+
+        return $site;
+    }
 }
 
 if (!function_exists('sb_site_handler_require_role')) {
@@ -470,6 +505,8 @@ if ($action === 'site.list') {
         $site['currentUserHasPageAccess'] =
             $accessContext['hasPageAccess'];
 
+        $site = sb_site_handler_attach_public_url($site);
+
         $allowedSites[] = $site;
     }
 
@@ -540,6 +577,8 @@ if ($action === 'site.get') {
 
     $site['currentUserHasPageAccess'] =
         $accessContext['hasPageAccess'];
+
+    $site = sb_site_handler_attach_public_url($site);
 
     sb_json_ok([
         'site' => $site,

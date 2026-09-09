@@ -55,10 +55,6 @@ function buildPublicPageUrl(pageId) {
         return siteUrl;
     }
 
-    if (Number((state.site && state.site.homePageId) || 0) === pageId) {
-        return siteUrl;
-    }
-
     var pagesById = {};
     (state.pages || []).forEach(function (page) {
         pagesById[Number(page.id || 0)] = page;

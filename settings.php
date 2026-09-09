@@ -58,7 +58,7 @@ if ($siteId <= 0) {
 if (!$USER->IsAdmin()) {
     sb_require_content_manager($siteId);
 }
-$publicSiteUrl = sb_public_site_url($basePath, $siteId);
+$publicSiteUrl = sb_public_entry_url($basePath, $siteId);
 ?>
 <!doctype html>
 <html lang="ru">
@@ -462,7 +462,8 @@ $publicSiteUrl = sb_public_site_url($basePath, $siteId);
             versionNode.textContent = String(Number(site.version || 1));
         }
         if (publicLink && site.slug) {
-            publicLink.href = BASE_PATH + '/s/' + encodeURIComponent(String(site.slug)) + '/';
+            publicLink.href = String(site.publicUrl || '')
+                || (BASE_PATH + '/s/' + encodeURIComponent(String(site.slug)) + '/');
         }
         var settings = site.settings || {};
 

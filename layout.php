@@ -53,7 +53,7 @@ if (!$USER->IsAdmin()) {
 }
 
 $site = sb_find_site($siteId);
-$publicSiteUrl = sb_public_site_url($basePath, $site ?: $siteId);
+$publicSiteUrl = sb_public_entry_url($basePath, $site ?: $siteId);
 $siteName = trim((string)($site['name'] ?? ''));
 if ($siteName === '') {
     $siteName = 'Сайт #' . $siteId;

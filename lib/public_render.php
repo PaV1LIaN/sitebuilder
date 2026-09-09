@@ -2741,19 +2741,8 @@ if (!function_exists('sb_public_build_view_model')) {
             }
         }
         
-        if (!$hasRequestedPage) {
-            $homePageId = (int)($site['homePageId'] ?? 0);
-        
-            if ($homePageId > 0) {
-                $currentPage = sb_public_find_page_for_site(
-                    $siteId,
-                    $homePageId
-                );
-            }
-        
-            if (!$currentPage && !empty($pages)) {
-                $currentPage = $pages[0];
-            }
+        if (!$hasRequestedPage && !empty($pages)) {
+            $currentPage = $pages[0];
         }
 
         // У публичного сайта нет отдельной виртуальной «корневой страницы».

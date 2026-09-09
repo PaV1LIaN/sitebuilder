@@ -629,6 +629,11 @@ $isSitebuilderGuest = sitebuilder_is_guest();
     }
 
     function publicSiteUrl(site) {
+        var publicUrl = String((site && site.publicUrl) || '').trim();
+        if (publicUrl) {
+            return publicUrl;
+        }
+
         var slug = String((site && site.slug) || '').trim();
         return slug
             ? BASE_PATH + '/s/' + encodeURIComponent(slug) + '/'
