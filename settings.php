@@ -200,6 +200,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
 
                         <div class="sb-settings-actions">
                             <button class="sb-btn sb-btn-primary" type="button" id="uploadLogoBtn">Загрузить логотип</button>
+                            <button class="sb-btn sb-btn-light" type="button" id="saveLogoSettingsBtn">Сохранить настройки логотипа</button>
                             <button class="sb-btn sb-btn-light" type="button" id="removeLogoBtn">Удалить логотип</button>
                         </div>
                     </div>
@@ -643,8 +644,50 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
         setMessage('Основные настройки сохранены', 'success');
     }
 
+    function applyAppearanceUpdate(appearance) {
+        state.appearance = appearance || state.appearance;
+        if (state.site && state.appearance && state.appearance.siteVersion) {
+            state.site.version = Number(state.appearance.siteVersion);
+        }
+
+        var versionNode = document.getElementById('siteVersionBadge');
+        if (versionNode && state.appearance && state.appearance.siteVersion) {
+            versionNode.textContent = String(Number(state.appearance.siteVersion));
+        }
+    }
+
+    async function saveLogoSettings() {
+        var button = document.getElementById('saveLogoSettingsBtn');
+        var sizeInput = document.getElementById('logoSizeInput');
+        if (button.disabled || (sizeInput && !sizeInput.reportValidity())) {
+            return;
+        }
+
+        button.disabled = true;
+        setMessage('Сохраняю настройки логотипа...', '');
+
+        try {
+            var res = await api('site.appearanceUpdate', {
+                siteId: siteId,
+                expectedVersion: Number((state.site && state.site.version) || 1),
+                headerLogoMode: getValue('headerLogoModeInput') || 'image',
+                logoSize: getValue('logoSizeInput') || '42'
+            });
+
+            applyAppearanceUpdate(res.appearance);
+            setValue('headerLogoModeInput', state.appearance.headerLogoMode || 'image');
+            setValue('logoSizeInput', state.appearance.logoSize || 42);
+            renderLogoPreview();
+            renderMainPreview();
+
+            setMessage('Настройки логотипа сохранены', 'success');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
     async function saveAppearance() {
-        setMessage('Сохраняю оформление...', '');
+        setMessage('Сохраняю настройки фона...', '');
 
         var res = await api('site.appearanceUpdate', {
             siteId: siteId,
@@ -652,20 +695,18 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
             backgroundColor: getValue('backgroundColorInput') || '#f8fafc',
             backgroundMode: getValue('backgroundModeInput') || 'cover',
             backgroundPosition: getValue('backgroundPositionInput') || 'center center',
-            backgroundRepeat: getValue('backgroundRepeatInput') || 'no-repeat',
-            headerLogoMode: getValue('headerLogoModeInput') || 'image',
-            logoSize: getValue('logoSizeInput') || '42'
+            backgroundRepeat: getValue('backgroundRepeatInput') || 'no-repeat'
         });
 
-        state.appearance = res.appearance || state.appearance;
-        if (state.site && state.appearance && state.appearance.siteVersion) {
-            state.site.version = Number(state.appearance.siteVersion);
-        }
+        applyAppearanceUpdate(res.appearance);
+        setValue('backgroundColorInput', state.appearance.backgroundColor || '#f8fafc');
+        setValue('backgroundModeInput', state.appearance.backgroundMode || 'cover');
+        setValue('backgroundPositionInput', state.appearance.backgroundPosition || 'center center');
+        setValue('backgroundRepeatInput', state.appearance.backgroundRepeat || 'no-repeat');
+        renderBackgroundPreview();
+        renderMainPreview();
 
-        renderBasic();
-        renderAppearance();
-
-        setMessage('Оформление сохранено', 'success');
+        setMessage('Настройки фона сохранены', 'success');
     }
 
     async function saveDesignSystem() {
@@ -805,10 +846,17 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
         });
     });
 
+    document.getElementById('saveLogoSettingsBtn').addEventListener('click', function () {
+        saveLogoSettings().catch(function (e) {
+            print(e);
+            setMessage('Ошибка сохранения настроек логотипа: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
+        });
+    });
+
     document.getElementById('saveAppearanceBtn').addEventListener('click', function () {
         saveAppearance().catch(function (e) {
             print(e);
-            setMessage('Ошибка сохранения оформления: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
+            setMessage('Ошибка сохранения настроек фона: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
         });
     });
 
