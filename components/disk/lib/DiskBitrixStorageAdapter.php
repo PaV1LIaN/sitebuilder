@@ -14,15 +14,22 @@ class DiskBitrixStorageAdapter
 
     public function listItems(DiskContext $context, int $folderId, array $options = []): array
     {
-        $folder = $this->getFolderById($folderId);
+        $requireNativeRead = !empty($options['requireNativeRead']);
+        $folder = $requireNativeRead
+            ? $this->getReadableObject('folder', $folderId)
+            : $this->getFolderById($folderId);
 
-        $children = $folder->getChildren(
-            \Bitrix\Disk\Driver::getInstance()->getFakeSecurityContext($this->currentUserId)
-        );
+        $securityContext = $requireNativeRead
+            ? $folder->getStorage()->getSecurityContext($this->currentUserId)
+            : \Bitrix\Disk\Driver::getInstance()->getFakeSecurityContext($this->currentUserId);
+        $children = $folder->getChildren($securityContext);
 
         $items = [];
 
         foreach ($children as $child) {
+            if ($requireNativeRead && ($child->isDeleted() || !$child->canRead($securityContext))) {
+                continue;
+            }
             if ($child instanceof Folder) {
                 $items[] = $this->normalizeFolder($context, $child);
             } elseif ($child instanceof File) {
@@ -321,26 +328,33 @@ class DiskBitrixStorageAdapter
         $object = $this->getReadableObject($entityType, $entityId);
         $urlManager = \Bitrix\Disk\Driver::getInstance()->getUrlManager();
 
-        // Folder links still open a listing. File links open a standalone
-        // viewer and resolve the recipient's own document session on arrival.
-        if ($object instanceof Folder) {
-            $url = $urlManager->getUrlFocusController('openFolderList', ['folderId' => $object->getId()], true);
-        } else {
-            $url = rtrim($urlManager->getHostUrl(), '/')
-                . '/local/sitebuilder/components/disk/open_file.php?'
-                . http_build_query([
-                    'siteId' => $context->siteId,
-                    'pageId' => $context->pageId,
-                    'blockId' => $context->blockId,
-                    'fileId' => $object->getId(),
-                ]);
-        }
+        // Resolve permissions again for the recipient when the link is opened.
+        $isFolder = $object instanceof Folder;
+        $url = rtrim($urlManager->getHostUrl(), '/')
+            . '/local/sitebuilder/components/disk/'
+            . ($isFolder ? 'open_folder.php?' : 'open_file.php?')
+            . http_build_query([
+                'siteId' => $context->siteId,
+                'pageId' => $context->pageId,
+                'blockId' => $context->blockId,
+                ($isFolder ? 'folderId' : 'fileId') => $object->getId(),
+            ]);
 
         if (!is_string($url) || !preg_match('~^https?://~i', $url)) {
             throw new RuntimeException('DISK_INTERNAL_LINK_UNAVAILABLE');
         }
 
         return $url;
+    }
+
+    public function getReadableFolderInfo(int $folderId): array
+    {
+        $folder = $this->getReadableObject('folder', $folderId);
+        return [
+            'id' => (int)$folder->getId(),
+            'parentId' => (int)$folder->getParentId(),
+            'name' => (string)$folder->getName(),
+        ];
     }
 
     public function getDirectFileView(int $fileId): array
@@ -567,9 +581,14 @@ class DiskBitrixStorageAdapter
         }
 
         $current = Folder::loadById($folderId);
+        $visited = [];
 
         while ($current instanceof Folder) {
             $currentId = (int)$current->getId();
+            if (isset($visited[$currentId]) || count($visited) >= 1000) {
+                return false;
+            }
+            $visited[$currentId] = true;
 
             if ($currentId === $rootFolderId) {
                 return true;
