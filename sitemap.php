@@ -37,8 +37,7 @@ if (
 header('Content-Type: application/xml; charset=UTF-8');
 echo '<?xml version="1.0" encoding="UTF-8"?>';
 echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
-foreach (sb_pages_for_site($siteId) as $page) {
-    if ((string)($page['status'] ?? '') !== 'published') continue;
+foreach (sb_public_published_pages_for_site($siteId) as $page) {
     $seo = is_array($page['seo'] ?? null) ? $page['seo'] : [];
     if (array_key_exists('robotsIndex', $seo) && empty($seo['robotsIndex'])) continue;
     $publicPath = sb_public_page_url($basePath, $siteId, (int)$page['id']);

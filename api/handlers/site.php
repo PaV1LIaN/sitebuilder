@@ -35,32 +35,12 @@ if (file_exists($siteAccessManagementServicePath)) {
 if (!function_exists('sb_site_handler_attach_public_url')) {
     function sb_site_handler_attach_public_url(array $site): array
     {
-        global $USER;
-
-        $siteId = (int)($site['id'] ?? 0);
-        $pages = sb_public_published_pages_for_site($siteId);
-        $currentUserId = is_object($USER) ? (int)$USER->GetID() : 0;
-
-        if ($currentUserId > 0) {
-            $pages = PageAccessService::filterVisiblePages(
-                $pages,
-                $siteId,
-                $currentUserId
-            );
-        } else {
-            $pages = [];
-        }
-
         $documentRoot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
         $projectRoot = dirname(__DIR__, 2);
         $basePath = $documentRoot !== '' && str_starts_with($projectRoot, $documentRoot)
             ? substr($projectRoot, strlen($documentRoot))
             : '/local/sitebuilder';
-        $firstPageId = (int)($pages[0]['id'] ?? 0);
-
-        $site['publicUrl'] = $firstPageId > 0
-            ? sb_public_page_url($basePath, $siteId, $firstPageId)
-            : sb_public_site_url($basePath, $site);
+        $site['publicUrl'] = sb_public_site_url($basePath, $site);
 
         return $site;
     }
@@ -782,7 +762,7 @@ if ($action === 'site.update') {
     );
 
     sb_json_ok([
-        'site' => $updated,
+        'site' => sb_site_handler_attach_public_url($updated),
         'handler' => 'site',
     ]);
 }
@@ -841,16 +821,24 @@ if ($action === 'site.setHome') {
     $siteId = (int)($_POST['siteId'] ?? 0);
     $pageId = (int)($_POST['pageId'] ?? 0);
 
-    if ($siteId <= 0 || $pageId <= 0) {
+    if ($siteId <= 0 || !array_key_exists('pageId', $_POST) || $pageId < 0) {
         sb_json_error('SITE_PAGE_REQUIRED', 422);
     }
 
     sb_site_handler_require_editor($siteId);
     $expectedVersion = RevisionService::requireExpectedVersion($_POST['expectedVersion'] ?? null);
 
-    $page = sb_find_page($pageId);
-    if (!$page || (int)($page['siteId'] ?? 0) !== $siteId) {
-        sb_json_error('PAGE_NOT_IN_SITE', 422);
+    if ($pageId > 0) {
+        $page = sb_find_page($pageId);
+        if (!$page || (int)($page['siteId'] ?? 0) !== $siteId) {
+            sb_json_error('PAGE_NOT_IN_SITE', 422);
+        }
+        $publishedIds = array_map(static function (array $item): int {
+            return (int)$item['id'];
+        }, sb_public_published_pages_for_site($siteId));
+        if (!in_array($pageId, $publishedIds, true)) {
+            sb_json_error('HOME_PAGE_NOT_PUBLISHED', 422);
+        }
     }
 
     $site = RevisionService::getSite($siteId, false);
@@ -866,7 +854,7 @@ if ($action === 'site.setHome') {
     );
 
     sb_json_ok([
-        'site' => $savedSite,
+        'site' => sb_site_handler_attach_public_url($savedSite),
         'handler' => 'site',
     ]);
 }

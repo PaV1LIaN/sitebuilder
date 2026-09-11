@@ -138,6 +138,25 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
             <section class="sb-panel">
                 <div class="sb-settings-panel-head">
                     <div>
+                        <h2 class="sb-panel-title">Домашняя страница</h2>
+                        <p class="sb-settings-note">Эта страница открывается по основному адресу сайта. Выберите опубликованную страницу или оставьте автоматический выбор.</p>
+                    </div>
+                </div>
+                <div class="sb-field">
+                    <label for="homePageInput">Страница</label>
+                    <select class="sb-select" id="homePageInput" disabled>
+                        <option value="0">Автоматически — первая доступная страница</option>
+                    </select>
+                    <p class="sb-settings-note">Если выбранная страница недоступна посетителю, откроется первая доступная опубликованная страница.</p>
+                </div>
+                <div class="sb-settings-actions">
+                    <button class="sb-btn sb-btn-primary" type="button" id="saveHomePageBtn" disabled>Сохранить домашнюю страницу</button>
+                </div>
+            </section>
+
+            <section class="sb-panel">
+                <div class="sb-settings-panel-head">
+                    <div>
                         <h2 class="sb-panel-title">Дизайн-система</h2>
                         <p class="sb-settings-note">Общие цвета, типографика, скругления и тени для всех страниц сайта.</p>
                     </div>
@@ -316,6 +335,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
 
     var state = {
         site: null,
+        pages: [],
         appearance: null
     };
 
@@ -455,7 +475,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
         return 'cover';
     }
 
-    function renderBasic() {
+    function renderSiteMetadata() {
         var site = state.site || {};
         var versionNode = document.getElementById('siteVersionBadge');
         var publicLink = document.getElementById('openPublicSiteLink');
@@ -466,12 +486,56 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
             publicLink.href = String(site.publicUrl || '')
                 || (BASE_PATH + '/s/' + encodeURIComponent(String(site.slug)) + '/');
         }
+    }
+
+    function renderBasic() {
+        var site = state.site || {};
+        renderSiteMetadata();
         var settings = site.settings || {};
 
         setValue('siteNameInput', site.name || '');
         setValue('siteSlugInput', site.slug || '');
         setValue('containerWidthInput', settings.containerWidth || 1100);
         setValue('accentInput', settings.accent || '#2563eb');
+    }
+
+    function renderHomeSettings() {
+        var select = document.getElementById('homePageInput');
+        var pagesById = {};
+        state.pages.forEach(function (page) {
+            if (Number(page.siteId) === siteId) pagesById[Number(page.id)] = page;
+        });
+
+        select.textContent = '';
+        select.add(new Option('Автоматически — первая доступная страница', '0'));
+        state.pages.forEach(function (page) {
+            var cursor = page;
+            var visited = {};
+            var titles = [];
+            while (cursor) {
+                var id = Number(cursor.id);
+                if (!id || visited[id] || Number(cursor.siteId) !== siteId
+                    || String(cursor.status || 'draft').trim().toLowerCase() !== 'published') return;
+                visited[id] = true;
+                titles.unshift(String(cursor.title || cursor.slug || id));
+                var parentId = Number(cursor.parentId || 0);
+                if (parentId <= 0) break;
+                cursor = pagesById[parentId];
+                if (!cursor) return;
+            }
+            select.add(new Option(titles.join(' / '), String(page.id)));
+        });
+
+        var selectedId = Number((state.site && state.site.homePageId) || 0);
+        select.value = String(selectedId);
+        if (select.value !== String(selectedId)) {
+            var unavailable = new Option('Выбранная страница недоступна — сейчас действует автоматический выбор', String(selectedId));
+            unavailable.disabled = true;
+            select.add(unavailable);
+            select.value = String(selectedId);
+        }
+        select.disabled = false;
+        document.getElementById('saveHomePageBtn').disabled = false;
     }
 
     function renderAppearance() {
@@ -610,7 +674,11 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
 
         state.appearance = appearanceRes.appearance || {};
 
+        var pagesRes = await api('page.list', {siteId: siteId});
+        state.pages = pagesRes.pages || [];
+
         renderBasic();
+        renderHomeSettings();
         renderAppearance();
 
         setMessage('Настройки загружены', 'success');
@@ -642,6 +710,26 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
         renderMainPreview();
 
         setMessage('Основные настройки сохранены', 'success');
+    }
+
+    async function saveHomePage() {
+        var button = document.getElementById('saveHomePageBtn');
+        if (button.disabled || !state.site) return;
+        button.disabled = true;
+        setMessage('Сохраняю домашнюю страницу...', '');
+        try {
+            var res = await api('site.setHome', {
+                siteId: siteId,
+                expectedVersion: Number(state.site.version || 1),
+                pageId: Number(getValue('homePageInput') || 0)
+            });
+            state.site = res.site || state.site;
+            renderSiteMetadata();
+            renderHomeSettings();
+            setMessage('Домашняя страница сохранена', 'success');
+        } finally {
+            button.disabled = false;
+        }
     }
 
     function applyAppearanceUpdate(appearance) {
@@ -843,6 +931,15 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
         saveBasic().catch(function (e) {
             print(e);
             setMessage('Ошибка сохранения основных настроек: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
+        });
+    });
+
+    document.getElementById('saveHomePageBtn').addEventListener('click', function () {
+        saveHomePage().catch(function (e) {
+            print(e);
+            var reason = (e && (e.error || e.message)) || 'UNKNOWN_ERROR';
+            if (reason === 'HOME_PAGE_NOT_PUBLISHED') reason = 'Опубликуйте страницу и все её родительские страницы.';
+            setMessage('Ошибка сохранения домашней страницы: ' + reason, 'error');
         });
     });
 

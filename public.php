@@ -54,9 +54,11 @@ if (!$vm) {
 }
 
 $currentPageId = (int)($vm['currentPage']['id'] ?? 0);
-$canonicalPath = $currentPageId > 0
+$isSiteRootRequest = $pageId === null || $pageId <= 0;
+$sitePath = sb_public_site_url($basePath, $siteId);
+$canonicalPath = !$isSiteRootRequest && $currentPageId > 0
     ? sb_public_page_url($basePath, $siteId, $currentPageId)
-    : sb_public_site_url($basePath, $siteId);
+    : $sitePath;
 
 $requestPath = (string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?: '');
 
@@ -67,15 +69,13 @@ if (
         || $requestPath !== $canonicalPath
     )
 ) {
-    $isSiteRootRequest = $isCleanRoute
-        && trim((string)($_GET['pagePath'] ?? ''), '/') === '';
-
     header(
         'Location: '
         . $canonicalPath
         . sb_public_redirect_query($_GET),
         true,
-        $isSiteRootRequest ? 302 : 301
+        // Назначение домашней страницы может измениться: не кешируем этот переход навсегда.
+        $canonicalPath === $sitePath ? 302 : 301
     );
     exit;
 }

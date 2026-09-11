@@ -200,6 +200,27 @@ if (!function_exists('sb_public_published_pages_for_site')) {
     }
 }
 
+if (!function_exists('sb_public_select_home_page')) {
+    /** $pages must already be filtered by publication status and the viewer's access. */
+    function sb_public_select_home_page(array $site, array $pages): ?array
+    {
+        $homePageId = (int)($site['homePageId'] ?? 0);
+        $fallback = null;
+
+        foreach ($pages as $page) {
+            if ((int)($page['siteId'] ?? 0) !== (int)($site['id'] ?? 0)) {
+                continue;
+            }
+            $fallback = $fallback ?? $page;
+            if ((int)($page['id'] ?? 0) === $homePageId) {
+                return $page;
+            }
+        }
+
+        return $fallback;
+    }
+}
+
 if (!function_exists('sb_public_page_path')) {
     function sb_public_page_path(int $siteId, int $pageId): ?string
     {
@@ -263,35 +284,27 @@ if (!function_exists('sb_public_page_url')) {
             return '#';
         }
 
+        // The route catalog is a request snapshot; avoid walking every page for each menu link.
+        static $homePageIds = [];
+        if (!array_key_exists($siteId, $homePageIds)) {
+            $homePage = sb_public_select_home_page($site, sb_public_published_pages_for_site($siteId));
+            $homePageIds[$siteId] = (int)($homePage['id'] ?? 0);
+        }
+        if ($homePageIds[$siteId] === $pageId) {
+            return $siteUrl;
+        }
+
         return $siteUrl . $pagePath . '/';
     }
 }
 
 if (!function_exists('sb_public_entry_url')) {
     /**
-     * A public site has no virtual root page. Its entry URL is the first
-     * published page from the ordered page list.
+     * The stable site root renders its selected home page (or the first
+     * available published page when no usable home page is configured).
      */
     function sb_public_entry_url(string $basePath, $site): string
     {
-        $catalog = sb_public_route_catalog();
-
-        if (!is_array($site)) {
-            $site = $catalog['sitesById'][(int)$site] ?? null;
-        }
-
-        if (!is_array($site)) {
-            return '#';
-        }
-
-        $siteId = (int)($site['id'] ?? 0);
-        $pages = sb_public_published_pages_for_site($siteId);
-        $firstPageId = (int)($pages[0]['id'] ?? 0);
-
-        if ($firstPageId > 0) {
-            return sb_public_page_url($basePath, $siteId, $firstPageId);
-        }
-
         return sb_public_site_url($basePath, $site);
     }
 }

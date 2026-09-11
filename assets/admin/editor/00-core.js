@@ -38,6 +38,9 @@ var state = {
 
 function buildPublicSiteUrl(site) {
     site = site || state.site || {};
+    if (site.publicUrl) {
+        return String(site.publicUrl);
+    }
     var slug = String(site.slug || '').trim();
 
     if (!slug) {
@@ -63,6 +66,7 @@ function buildPublicPageUrl(pageId) {
     var segments = [];
     var visited = {};
     var cursorId = pageId;
+    var isPublished = true;
 
     while (cursorId > 0) {
         if (visited[cursorId] || !pagesById[cursorId]) {
@@ -72,6 +76,7 @@ function buildPublicPageUrl(pageId) {
         visited[cursorId] = true;
         var page = pagesById[cursorId];
         var slug = String(page.slug || '').trim();
+        isPublished = isPublished && String(page.status || 'draft').trim().toLowerCase() === 'published';
 
         if (!slug) {
             return '#';
@@ -83,6 +88,10 @@ function buildPublicPageUrl(pageId) {
         if (segments.length > 1000) {
             return '#';
         }
+    }
+
+    if (isPublished && pageId === Number((state.site && state.site.homePageId) || 0)) {
+        return siteUrl;
     }
 
     return siteUrl + segments.join('/') + '/';
