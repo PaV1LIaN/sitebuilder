@@ -235,6 +235,15 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
                                             <div class="sb-disk-form__hint">Лимит одного файла.</div>
                                         </div>
 
+                                        <div class="sb-disk-form__field">
+                                            <label class="sb-disk-form__label">Максимальный размер диска</label>
+                                            <div class="sb-disk-settings-native__input-unit">
+                                                <input type="number" class="sb-disk-form__input" name="maxDiskSizeMb" min="0" step="any">
+                                                <span>МБ</span>
+                                            </div>
+                                            <div class="sb-disk-form__hint">Общий объём файлов в корневой папке и подпапках. 0 — без ограничения.</div>
+                                        </div>
+
                                         <div class="sb-disk-form__field sb-disk-settings-native__field--full">
                                             <label class="sb-disk-form__label">Допустимые расширения</label>
                                             <input type="text" class="sb-disk-form__input" name="allowedExtensions" placeholder="pdf doc docx xls xlsx png jpg">

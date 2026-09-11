@@ -346,6 +346,30 @@ try {
         @ob_end_clean();
     }
 
+    if ($e instanceof DiskQuotaExceededException) {
+        http_response_code(409);
+        DiskResponse::error('DISK_QUOTA_EXCEEDED', 'Недостаточно места на диске. Удалите ненужные файлы или увеличьте максимальный размер диска.', [
+            'limitBytes' => $e->limitBytes,
+            'usedBytes' => $e->usedBytes,
+            'incomingBytes' => $e->incomingBytes,
+        ]);
+    }
+
+    if ($e->getMessage() === 'DISK_QUOTA_BUSY') {
+        http_response_code(409);
+        DiskResponse::error('DISK_QUOTA_BUSY', 'На диске выполняется другая операция. Повторите попытку после её завершения.');
+    }
+
+    if ($e->getMessage() === 'INVALID_MAX_DISK_SIZE') {
+        http_response_code(422);
+        DiskResponse::error('INVALID_MAX_DISK_SIZE', 'Укажите неотрицательный максимальный размер диска. 0 — без ограничения.');
+    }
+
+    if ($e->getMessage() === 'UNPACK_ROOT_FOLDER_CHANGED') {
+        http_response_code(409);
+        DiskResponse::error('UNPACK_ROOT_FOLDER_CHANGED', 'Корневая папка диска изменилась. Запустите распаковку заново.');
+    }
+
     if ($e instanceof DiskRightsVersionConflictException) {
         http_response_code(409);
         DiskResponse::error(

@@ -47,7 +47,12 @@ DiskValidator::assertCanForFolder(
 );
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
-$result = $adapter->copy($context, $items, $targetFolderId);
+$result = DiskQuotaService::write(
+    $context,
+    $targetFolderId,
+    static fn(int $rootId): int => DiskQuotaService::itemsSize($context, $items),
+    static fn(): array => $adapter->copy($context, $items, $targetFolderId)
+);
 
 DiskResponse::success([
     'result' => $result,

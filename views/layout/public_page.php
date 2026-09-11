@@ -696,7 +696,7 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
 
 
 <?php if ($pageHasDiskBlock && !$isLayoutPreview): ?>
-    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=16"></script>
+    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=17"></script>
     <script src="<?= sb_public_h($basePath) ?>/components/disk/access.js?v=4"></script>
 <?php endif; ?>
 

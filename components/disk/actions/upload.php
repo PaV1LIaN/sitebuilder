@@ -73,7 +73,13 @@ foreach ($normalizedFiles as $file) {
 }
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
-$result = $adapter->uploadFiles($context, $currentFolderId, $normalizedFiles, $settings);
+$incomingBytes = DiskQuotaService::uploadSize($normalizedFiles);
+$result = DiskQuotaService::write(
+    $context,
+    $currentFolderId,
+    static fn(int $rootId): int => $incomingBytes,
+    static fn(): array => $adapter->uploadFiles($context, $currentFolderId, $normalizedFiles, $settings)
+);
 
 DiskResponse::success([
     'uploadResult' => $result,

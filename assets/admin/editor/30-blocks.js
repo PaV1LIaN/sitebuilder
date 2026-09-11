@@ -728,6 +728,10 @@ function fillDiskForm(props) {
     if (diskMaxFileSizeInput) {
         diskMaxFileSizeInput.value = props.maxFileSize || 52428800;
     }
+    var diskMaxDiskSizeInput = document.getElementById('diskMaxDiskSizeInput');
+    if (diskMaxDiskSizeInput) {
+        diskMaxDiskSizeInput.value = Number(props.maxDiskSize || 0) / 1048576;
+    }
 
     if (diskAllowedExtensionsInput) {
         diskAllowedExtensionsInput.value = Array.isArray(props.allowedExtensions) ? props.allowedExtensions.join(' ') : '';
@@ -836,6 +840,10 @@ function fillBlockForm() {
 
 function collectDiskBlockProps(block) {
     var oldProps = block.props || {};
+    var maxDiskSize = Math.round(Number(getInputValue('diskMaxDiskSizeInput') || 0) * 1048576);
+    if (!Number.isSafeInteger(maxDiskSize) || maxDiskSize < 0) {
+        throw new Error('Укажите корректный максимальный размер диска.');
+    }
 
     return {
         title: getInputValue('diskTitleInput').trim() || 'Файлы',
@@ -844,6 +852,7 @@ function collectDiskBlockProps(block) {
         viewMode: getInputValue('diskViewModeInput') || 'table',
         permissionMode: getInputValue('diskPermissionModeInput') || 'inherit_site',
         maxFileSize: Number(getInputValue('diskMaxFileSizeInput') || 0),
+        maxDiskSize: maxDiskSize,
         allowedExtensions: String(getInputValue('diskAllowedExtensionsInput') || '')
             .trim()
             .split(/\s+/)
@@ -1039,6 +1048,7 @@ async function createBlock(type) {
             defaultSortDirection: 'desc',
             allowedExtensions: [],
             maxFileSize: 52428800,
+            maxDiskSize: 0,
             permissionMode: 'inherit_site',
             useSiteRootFallback: true
         };

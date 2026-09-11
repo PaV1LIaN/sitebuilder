@@ -77,6 +77,7 @@ $normalized = [
         return strtolower(trim((string)$value));
     }, $allowedExtensions))),
     'maxFileSize' => max(0, (int)($settings['maxFileSize'] ?? 52428800)),
+    'maxDiskSize' => DiskQuotaService::validateLimit($settings['maxDiskSize'] ?? $currentSettings['maxDiskSize'] ?? 0),
     'permissionMode' => in_array((string)($settings['permissionMode'] ?? 'inherit_site'), ['inherit_site', 'custom', 'bitrix_disk'], true)
         ? (string)$settings['permissionMode']
         : 'inherit_site',

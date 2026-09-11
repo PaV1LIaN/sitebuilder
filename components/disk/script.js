@@ -3765,6 +3765,7 @@
     setFormValue(form, 'defaultSort', settings.defaultSort || 'updatedAt');
     setFormValue(form, 'defaultSortDirection', settings.defaultSortDirection || 'desc');
     setFormValue(form, 'maxFileSizeMb', Math.max(1, Math.round((Number(settings.maxFileSize || 52428800) / 1048576) * 100) / 100));
+    setFormValue(form, 'maxDiskSizeMb', Number(settings.maxDiskSize || 0) / 1048576);
     setFormValue(form, 'permissionMode', settings.permissionMode || 'inherit_site');
 
     var extValue = Array.isArray(settings.allowedExtensions)
@@ -3931,6 +3932,7 @@
       defaultSort: getFormValue(form, 'defaultSort'),
       defaultSortDirection: getFormValue(form, 'defaultSortDirection'),
       maxFileSize: Math.round(Math.max(1, Number(getFormValue(form, 'maxFileSizeMb') || 50)) * 1048576),
+      maxDiskSize: Math.round(Number(getFormValue(form, 'maxDiskSizeMb') || 0) * 1048576),
       allowedExtensions: String(getFormValue(form, 'allowedExtensions') || '')
         .trim()
         .split(/[\s,;]+/)
@@ -3950,6 +3952,13 @@
 
   DiskComponent.prototype.saveSettings = async function () {
     try {
+      var form = this.root.querySelector('[data-role="settings-form"]');
+      var diskSizeInput = form && form.querySelector('[name="maxDiskSizeMb"]');
+      if (diskSizeInput && !diskSizeInput.reportValidity()) return;
+      var diskBytes = Math.round(Number(getFormValue(form, 'maxDiskSizeMb') || 0) * 1048576);
+      if (!Number.isSafeInteger(diskBytes) || diskBytes < 0) {
+        throw new Error('Укажите корректный максимальный размер диска.');
+      }
       this.setSettingsMessage('Сохранение...');
 
       /*
