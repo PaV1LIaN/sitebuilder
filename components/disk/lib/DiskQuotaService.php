@@ -133,6 +133,66 @@ final class DiskQuotaService
         return $limits;
     }
 
+    /** Read-only snapshot. The write-time check remains authoritative. */
+    public static function status(DiskContext $context, int $diskRootId, int $targetFolderId): array
+    {
+        $ancestors = self::ancestors($targetFolderId);
+        if (!isset($ancestors[$diskRootId])) throw new RuntimeException('FOLDER_OUT_OF_SCOPE');
+        $limits = self::limitsForPath($ancestors);
+        $used = self::folderSize($diskRootId, $context->currentUserId);
+        $diskLimit = $limits[$diskRootId] ?? 0;
+        $diskAvailable = $diskLimit > 0 ? max(0, $diskLimit - $used) : null;
+        $available = $diskAvailable;
+        foreach ($limits as $rootId => $limit) {
+            $rootUsed = $rootId === $diskRootId ? $used : self::folderSize((int)$rootId, $context->currentUserId);
+            $remaining = max(0, $limit - $rootUsed);
+            $available = $available === null ? $remaining : min($available, $remaining);
+        }
+        // Never return names, IDs or usage of folders outside the displayed disk.
+        return [
+            'usedBytes' => $used,
+            'limitBytes' => $diskLimit,
+            'availableBytes' => $available,
+            'hasAdditionalLimit' => $available !== null && ($diskAvailable === null || $available < $diskAvailable),
+        ];
+    }
+
+    /** Validate only names/sizes; the client sends no file contents in this request. */
+    public static function checkUpload(array $files, array $settings, array $quota): array
+    {
+        if (!$files || !array_is_list($files)) throw new InvalidArgumentException('INVALID_UPLOAD_METADATA');
+        $total = 0;
+        $reason = null;
+        $fileName = null;
+        $maxFileSize = (int)($settings['maxFileSize'] ?? 0);
+        $extensions = $settings['allowedExtensions'] ?? [];
+        foreach ($files as $file) {
+            if (!is_array($file) || !is_string($file['name'] ?? null) || trim($file['name']) === ''
+                || !is_int($file['size'] ?? null) || $file['size'] < 0 || $file['size'] > 9007199254740991) {
+                throw new InvalidArgumentException('INVALID_UPLOAD_METADATA');
+            }
+            $total = self::addSize($total, $file['size']);
+            if ($reason !== null) continue;
+            if ($maxFileSize > 0 && $file['size'] > $maxFileSize) {
+                $reason = 'FILE_TOO_LARGE';
+                $fileName = $file['name'];
+            } elseif ($extensions && !in_array(strtolower(pathinfo($file['name'], PATHINFO_EXTENSION)), $extensions, true)) {
+                $reason = 'EXTENSION_NOT_ALLOWED';
+                $fileName = $file['name'];
+            }
+        }
+        if ($reason === null && $quota['availableBytes'] !== null && $total > $quota['availableBytes']) {
+            $reason = 'DISK_QUOTA_EXCEEDED';
+        }
+        return [
+            'fits' => $reason === null,
+            'incomingBytes' => $total,
+            'reason' => $reason,
+            'fileName' => $fileName,
+            'maxFileSize' => $maxFileSize,
+        ];
+    }
+
     /** The size callback receives each applicable quota root. The write runs under the same lock. */
     public static function write(DiskContext $context, int $targetFolderId, callable $incomingSize, callable $write)
     {

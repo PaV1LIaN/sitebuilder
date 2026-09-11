@@ -386,6 +386,59 @@ namespace {
             check(DiskQuotaService::folderSize(10, 2) === 111, 'actual extracted bytes consume quota');
         });
     };
+    $tests['capacity snapshot includes hidden usage and deduplicates shared caps'] = static function () use ($context) {
+        QuotaFixture::$limits[] = QuotaFixture::limit(10, 95, 'site');
+        check(DiskQuotaService::status($context, 10, 11) === [
+            'usedBytes' => 90, 'limitBytes' => 95, 'availableBytes' => 5, 'hasAdditionalLimit' => false,
+        ], 'same disk stats when browsing a subfolder');
+    };
+    $tests['nested and ancestor limits constrain available bytes without exposing their folders'] = static function () use ($context) {
+        QuotaFixture::$limits[] = QuotaFixture::limit(11, 35);
+        $quota = DiskQuotaService::status($context, 10, 11);
+        check($quota['usedBytes'] === 90 && $quota['limitBytes'] === 100 && $quota['availableBytes'] === 5 && $quota['hasAdditionalLimit'], 'nested cap');
+        QuotaFixture::$limits = [QuotaFixture::limit(1, 132)];
+        check(DiskQuotaService::status($context, 10, 11) === [
+            'usedBytes' => 90, 'limitBytes' => 0, 'availableBytes' => 2, 'hasAdditionalLimit' => true,
+        ], 'parent cap only exposes remaining bytes, not external names or totals');
+        rejects(static fn() => DiskQuotaService::status($context, 10, 99), 'FOLDER_OUT_OF_SCOPE');
+    };
+    $tests['unlimited, overfull and emptied disks have unambiguous stats'] = static function () use ($context) {
+        QuotaFixture::$limits = [];
+        check(DiskQuotaService::status($context, 10, 10)['availableBytes'] === null, 'unlimited is null, not zero');
+        QuotaFixture::$limits = [QuotaFixture::limit(10, 80)];
+        check(DiskQuotaService::status($context, 10, 10)['availableBytes'] === 0, 'overfull clamps at zero');
+        QuotaFixture::$objects[101]['deleted'] = true;
+        QuotaFixture::$objects[102]['deleted'] = true;
+        $quota = DiskQuotaService::status($context, 10, 10);
+        check($quota['usedBytes'] === 0 && $quota['availableBytes'] === 80, 'deletion immediately frees capacity');
+    };
+    $tests['metadata preflight checks whole batch, exact fit and empty files'] = static function () use ($context) {
+        $quota = DiskQuotaService::status($context, 10, 11);
+        $files = [['name' => 'a.txt', 'size' => 6], ['name' => 'b.txt', 'size' => 5]];
+        $result = DiskQuotaService::checkUpload($files, QuotaFixture::$settings, $quota);
+        check(!$result['fits'] && $result['reason'] === 'DISK_QUOTA_EXCEEDED' && $result['incomingBytes'] === 11, 'whole batch rejected');
+        $files[1]['size'] = 4;
+        check(DiskQuotaService::checkUpload($files, [], $quota)['fits'], 'exact fit');
+        $quota['availableBytes'] = 0;
+        check(DiskQuotaService::checkUpload([['name' => 'empty.txt', 'size' => 0]], [], $quota)['fits'], 'empty file fits full disk');
+        check(QuotaFixture::$writes === 0 && !QuotaFixture::$locks, 'preflight has no writes or reserved space');
+    };
+    $tests['preflight applies current file size and extension settings'] = static function () use ($context) {
+        $quota = DiskQuotaService::status($context, 10, 10);
+        $file = [['name' => 'a.TXT', 'size' => 6]];
+        check(DiskQuotaService::checkUpload($file, ['maxFileSize' => 5], $quota)['reason'] === 'FILE_TOO_LARGE', 'single-file cap');
+        check(DiskQuotaService::checkUpload($file, ['allowedExtensions' => ['pdf']], $quota)['reason'] === 'EXTENSION_NOT_ALLOWED', 'type rejected');
+        check(DiskQuotaService::checkUpload($file, ['allowedExtensions' => ['txt']], $quota)['fits'], 'extension case matches upload handler');
+        foreach ([[], [['name' => 'a', 'size' => -1]], [['name' => 'a', 'size' => '1']], [['name' => 'a', 'size' => 1.5]], [['name' => '', 'size' => 1]]] as $bad) {
+            rejects(static fn() => DiskQuotaService::checkUpload($bad, [], $quota), 'INVALID_UPLOAD_METADATA');
+        }
+    };
+    $tests['successful preflight does not bypass later server quota checks'] = static function () use ($context) {
+        $quota = DiskQuotaService::status($context, 10, 10);
+        check(DiskQuotaService::checkUpload([['name' => 'a.txt', 'size' => 10]], [], $quota)['fits'], 'initial fit');
+        QuotaFixture::$objects[120] = ['type' => 'file', 'parent' => 10, 'size' => 1];
+        rejects(static fn() => DiskQuotaService::assertAdditional($context, 10, 10), 'DISK_QUOTA_EXCEEDED');
+    };
     foreach ($tests as $name => $test) {
         QuotaFixture::reset();
         $test();

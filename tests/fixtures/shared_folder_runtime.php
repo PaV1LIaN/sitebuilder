@@ -9,6 +9,9 @@ namespace {
     function fixture_object(int $id): ?array { return $GLOBALS['fixture']['objects'][$id] ?? null; }
     function fixture_user(): int { return (int)($_SERVER['HTTP_X_TEST_USER'] ?? 2); }
     function bitrix_sessid(): string { return 'test-session'; }
+    function sitebuilder_require_api_auth(): void { sitebuilder_require_auth(); }
+    function sb_disk_release_session_lock(): void {}
+    function sb_db_fetch_all($sql, $params = []): array { return $GLOBALS['fixture']['quotaLimits'] ?? []; }
     function sitebuilder_require_auth(): void {
         if (fixture_user() <= 0) {
             header('Location: /login?return=' . rawurlencode($_SERVER['REQUEST_URI']), true, 302);
@@ -30,7 +33,7 @@ namespace {
     }
     class DiskSettingsRepository {
         public static function getByBlockId(int $id): array {
-            return ['rootMode' => 'site', 'permissionMode' => 'custom', 'allowDownload' => true];
+            return array_merge(['rootMode' => 'site', 'permissionMode' => 'custom', 'allowDownload' => true], $GLOBALS['fixture']['settings'] ?? []);
         }
     }
     class SiteAccessRepository {
@@ -85,7 +88,9 @@ namespace Bitrix\Disk {
             return $row && $row['type'] === 'folder' ? new self($row) : null;
         }
         public function getChildren($context): array {
-            if ($context !== \fixture_user()) throw new \RuntimeException('Wrong native security context');
+            if ($context !== \fixture_user() && !($context === 'quota-all-files' && !empty($GLOBALS['fixture']['quotaTest']))) {
+                throw new \RuntimeException('Wrong native security context');
+            }
             $result = [];
             foreach ($GLOBALS['fixture']['objects'] as $row) {
                 if ($row['parentId'] === $this->getId()) {
@@ -110,6 +115,7 @@ namespace Bitrix\Disk {
             public function getHostUrl(): string { return 'https://portal.example'; }
         }; }
         public function getFakeSecurityContext($userId) {
+            if (!empty($GLOBALS['fixture']['quotaTest'])) return 'quota-all-files';
             throw new \RuntimeException('Shared folder must use native permissions');
         }
     }

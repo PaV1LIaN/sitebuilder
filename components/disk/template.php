@@ -73,6 +73,15 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
         </div>
     </div>
 
+    <div class="sb-disk__capacity" data-role="disk-capacity" hidden>
+        <div class="sb-disk__capacity-summary" role="status" aria-live="polite" aria-atomic="true">
+            <strong data-role="capacity-used"></strong>
+            <span data-role="capacity-available"></span>
+        </div>
+        <progress class="sb-disk__capacity-progress" data-role="capacity-progress" max="100" value="0" aria-label="Заполнение диска" hidden></progress>
+    </div>
+    <div class="sb-disk__upload-notice" data-role="upload-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+
     <div class="sb-disk__bulkbar" data-role="bulkbar" hidden>
         <span class="sb-disk__bulkbar-text" data-role="bulkbar-text">Выбрано: 0</span>
         <div class="sb-disk__bulkbar-actions">

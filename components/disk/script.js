@@ -23,6 +23,7 @@
       currentFolderId: parsed.currentFolderId || null,
       settings: parsed.settings || {},
       permissions: parsed.permissions || {},
+      quota: null,
       breadcrumbs: [],
       items: [],
       selectedIds: [],
@@ -215,8 +216,19 @@
         );
     }
 
+    // Update other blocks that may expose the same native folders. Refresh the
+    // initiating block too on a failed/partial operation, where no list reload follows.
+    if (['delete', 'copy', 'move', 'saveSettings', 'unpackArchive'].indexOf(action) !== -1
+        || (action === 'unpackArchiveStep' && (!json || !json.ok || (json.data && json.data.done)))) {
+        this.notifyStorageChanged();
+        if (!json || !json.ok) this.refreshQuota();
+    }
     return json;
     };
+
+  DiskComponent.prototype.notifyStorageChanged = function () {
+    document.dispatchEvent(new CustomEvent('sb-disk-storage-changed', { detail: { source: this.root } }));
+  };
 
   DiskComponent.prototype.apiUploadWithProgress = function (action, formData, onProgress) {
     return new Promise(function (resolve, reject) {
@@ -312,6 +324,9 @@
   DiskComponent.prototype.loadFolder = async function (folderId) {
     try {
       this.setLoading(true);
+      this._quotaRequest = (this._quotaRequest || 0) + 1;
+      this.state.quota = null;
+      this.renderQuota('loading');
 
       var payload = this.getBasePayload();
       payload.currentFolderId = folderId;
@@ -341,6 +356,8 @@
         return;
       }
 
+      this.refreshQuota();
+
       if (!this.state.items.length) {
         this.renderState('empty');
       } else {
@@ -349,10 +366,121 @@
     } catch (e) {
       console.error(e);
       this.state.error = e.message || 'LIST_ERROR';
+      this.renderQuota('error');
       this.renderState('error');
     } finally {
       this.setLoading(false);
     }
+  };
+
+  DiskComponent.prototype.renderQuota = function (status) {
+    var panel = this.root.querySelector('[data-role="disk-capacity"]');
+    if (!panel) return;
+    panel.hidden = !this.state.permissions.canView || !this.state.rootFolderId;
+    if (panel.hidden) return;
+    var usedNode = panel.querySelector('[data-role="capacity-used"]');
+    var availableNode = panel.querySelector('[data-role="capacity-available"]');
+    var progress = panel.querySelector('[data-role="capacity-progress"]');
+    var quota = this.state.quota;
+    panel.classList.remove('is-warning', 'is-full');
+    progress.hidden = true;
+    availableNode.textContent = '';
+    if (status === 'loading' || status === 'error' || !quota) {
+      usedNode.textContent = status === 'error'
+        ? 'Не удалось определить занятое место. Нажмите «Обновить».'
+        : 'Подсчитываю занятое место…';
+      return;
+    }
+    usedNode.textContent = 'Занято ' + formatBytes(quota.usedBytes)
+      + (quota.limitBytes > 0 ? ' из ' + formatBytes(quota.limitBytes) : ' · Лимит диска не задан');
+    if (quota.availableBytes !== null) {
+      availableNode.textContent = quota.hasAdditionalLimit
+        ? 'Для загрузки в текущую папку доступно ' + formatBytes(quota.availableBytes) + ' с учётом общих ограничений'
+        : 'Свободно ' + formatBytes(quota.availableBytes);
+    }
+    if (quota.limitBytes > 0) {
+      var percent = Math.min(100, quota.usedBytes / quota.limitBytes * 100);
+      progress.hidden = false;
+      progress.value = percent;
+      progress.setAttribute('aria-valuetext', usedNode.textContent);
+      panel.classList.toggle('is-warning', percent >= 80);
+    }
+    panel.classList.toggle('is-full', quota.availableBytes === 0);
+  };
+
+  DiskComponent.prototype.refreshQuota = async function () {
+    var requestId = this._quotaRequest = (this._quotaRequest || 0) + 1;
+    var folderId = this.state.currentFolderId;
+    if (!this.state.rootFolderId || !folderId || !this.state.permissions.canView) {
+      this.state.quota = null;
+      this.renderQuota();
+      return;
+    }
+    this.renderQuota('loading');
+    var payload = this.getBasePayload();
+    payload.currentFolderId = folderId;
+    payload.sessid = this.getSessid();
+    try {
+      var res = await this.api('quota', payload);
+      if (requestId !== this._quotaRequest || folderId !== this.state.currentFolderId) return;
+      if (!res || !res.ok || !res.data || !res.data.quota) throw new Error('QUOTA_UNAVAILABLE');
+      this.state.quota = res.data.quota;
+      this.renderQuota();
+    } catch (error) {
+      if (requestId !== this._quotaRequest || folderId !== this.state.currentFolderId) return;
+      this.state.quota = null;
+      this.renderQuota('error');
+    }
+  };
+
+  DiskComponent.prototype.setUploadNotice = function (message, isError) {
+    var node = this.root.querySelector('[data-role="upload-notice"]');
+    if (!node) return;
+    node.textContent = message || '';
+    node.hidden = !message;
+    node.classList.toggle('is-error', !!isError);
+  };
+
+  DiskComponent.prototype.checkUploadCapacity = async function (files, folderId) {
+    // Invalidate older meter requests so they cannot overwrite this fresh snapshot.
+    this._quotaRequest = (this._quotaRequest || 0) + 1;
+    this.setUploadNotice('Проверяю свободное место…');
+    var payload = this.getBasePayload();
+    payload.currentFolderId = folderId;
+    payload.sessid = this.getSessid();
+    payload.files = files.map(function (file) { return { name: file.name, size: file.size }; });
+    var res;
+    try {
+      res = await this.api('checkUpload', payload);
+    } catch (error) {
+      throw new Error('Не удалось проверить свободное место. Загрузка не начата. Повторите попытку.');
+    }
+    if (!res || !res.ok || !res.data || !res.data.quota || !res.data.upload) {
+      throw new Error('Не удалось проверить выбранные файлы. Загрузка не начата. Обновите папку и повторите попытку.');
+    }
+    if (folderId !== this.state.currentFolderId) {
+      throw new Error('Текущая папка изменилась. Выберите файлы заново в нужной папке.');
+    }
+    this.state.quota = res.data.quota;
+    this.renderQuota();
+    var upload = res.data.upload;
+    if (!upload.fits) {
+      var message;
+      if (upload.reason === 'FILE_TOO_LARGE') {
+        message = 'Файл «' + upload.fileName + '» превышает допустимый размер ' + formatBytes(upload.maxFileSize) + '.';
+      } else if (upload.reason === 'EXTENSION_NOT_ALLOWED') {
+        message = 'Формат файла «' + upload.fileName + '» не разрешён в настройках диска.';
+      } else {
+        message = 'Недостаточно места: выбрано ' + formatBytes(upload.incomingBytes)
+          + ', доступно ' + formatBytes(res.data.quota.availableBytes)
+          + ', не хватает ' + formatBytes(upload.incomingBytes - res.data.quota.availableBytes)
+          + '. Уменьшите набор файлов или освободите место.';
+      }
+      this.setUploadNotice(message + ' Загрузка не начата.', true);
+      return false;
+    }
+    this.setUploadNotice('Выбрано ' + formatBytes(upload.incomingBytes) + '. Файлы помещаются на диск.');
+    return true;
   };
 
   DiskComponent.prototype.search = async function (query) {
@@ -1777,7 +1905,14 @@
                 return;
             }
 
+            if (this._uploadInProgress) return;
+            this._uploadInProgress = true;
+            this.setUploadNotice('');
+            var targetFolderId = this.state.currentFolderId;
             var preparedFiles = [];
+            var historyItems = [];
+            var mayHaveWritten = false;
+            var statusShown = false;
 
             try {
                 for (var i = 0; i < files.length; i++) {
@@ -1801,8 +1936,7 @@
                 }
 
                 if (decision.action === 'replace') {
-                    await this.archiveExistingFileToHistory(existingItem);
-
+                    historyItems.push(existingItem);
                     preparedFiles.push(file);
                     continue;
                 }
@@ -1816,14 +1950,29 @@
                 return;
                 }
 
+                // No history rename and no multipart request until the whole batch fits.
+                if (!await this.checkUploadCapacity(preparedFiles, targetFolderId)) return;
+
+                for (var historyItem of historyItems) {
+                    if (targetFolderId !== this.state.currentFolderId) {
+                        throw new Error('Текущая папка изменилась. Выберите файлы заново в нужной папке.');
+                    }
+                    mayHaveWritten = true;
+                    await this.archiveExistingFileToHistory(historyItem);
+                }
+                if (targetFolderId !== this.state.currentFolderId) {
+                    throw new Error('Текущая папка изменилась. Выберите файлы заново в нужной папке.');
+                }
+
                 this.showUploadStatusModal(preparedFiles);
+                statusShown = true;
 
                 var formData = new FormData();
 
                 formData.append('siteId', this.state.siteId);
                 formData.append('pageId', this.state.pageId);
                 formData.append('blockId', this.state.blockId);
-                formData.append('currentFolderId', this.state.currentFolderId);
+                formData.append('currentFolderId', targetFolderId);
                 formData.append('sessid', this.getSessid());
 
                 preparedFiles.forEach(function (file) {
@@ -1832,6 +1981,7 @@
 
                 var self = this;
 
+                mayHaveWritten = true;
                 var res = await this.apiUploadWithProgress('upload', formData, function (progress) {
                 self.updateUploadStatusModal({
                     loaded: progress.loaded,
@@ -1842,8 +1992,7 @@
                 });
 
                 if (!res || !res.ok) {
-                this.finishUploadStatusModal(false, (res && (res.message || res.error)) || 'Ошибка загрузки');
-                return;
+                throw new Error((res && (res.message || res.error)) || 'Ошибка загрузки');
                 }
 
                 this.updateUploadStatusModal({
@@ -1853,19 +2002,32 @@
                 message: 'Загрузка завершена. Обновляю список...'
                 });
 
-                await this.loadFolder(this.state.currentFolderId);
-
+                this.setUploadNotice('');
                 this.finishUploadStatusModal(true, 'Загрузка завершена');
             } catch (err) {
                 console.error(err);
-
-                this.finishUploadStatusModal(false, err && err.message ? err.message : 'Ошибка загрузки');
+                var message = err && err.message ? err.message : 'Ошибка загрузки';
+                this.setUploadNotice(message, true);
+                if (statusShown) this.finishUploadStatusModal(false, message);
+            } finally {
+                // Failed batches can also have saved files; re-read actual usage.
+                if (mayHaveWritten) {
+                    await this.loadFolder(this.state.currentFolderId);
+                    this.notifyStorageChanged();
+                }
+                this._uploadInProgress = false;
             }
             };
 
 
   DiskComponent.prototype.bindStaticEvents = function () {
     var self = this;
+
+    document.addEventListener('sb-disk-storage-changed', function (event) {
+      if (event.detail && event.detail.source === self.root) return;
+      clearTimeout(self._quotaRefreshTimer);
+      self._quotaRefreshTimer = setTimeout(function () { self.refreshQuota(); }, 250);
+    });
 
     if (!this._diskActionMenuDocumentBound) {
       this._diskActionMenuDocumentBound = true;
@@ -2740,6 +2902,10 @@
     if (toolbar.parentNode !== commandPanel) {
       commandPanel.appendChild(toolbar);
     }
+    ['disk-capacity', 'upload-notice'].forEach(function (role) {
+      var node = root.querySelector('[data-role="' + role + '"]');
+      if (node && node.parentNode !== commandPanel) commandPanel.appendChild(node);
+    });
   };
   DiskComponent.prototype.renderSubtitle = function () {
     var node = this.root.querySelector('[data-role="subtitle"]');
@@ -3231,6 +3397,13 @@
     }
   };
   DiskComponent.prototype.renderState = function (stateName) {
+    if (stateName === 'no-access' || stateName === 'no-root') {
+      this._quotaRequest = (this._quotaRequest || 0) + 1;
+      this.state.quota = null;
+      var capacity = this.root.querySelector('[data-role="disk-capacity"]');
+      if (capacity) capacity.hidden = true;
+      this.setUploadNotice('');
+    }
     var nodes = this.root.querySelectorAll('[data-state]');
 
     nodes.forEach(function (node) {

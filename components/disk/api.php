@@ -230,6 +230,11 @@ if (in_array($action, ['list', 'search', 'bootstrap'], true)) {
 
 try {
     switch ($action) {
+        case 'quota':
+        case 'checkUpload':
+            require __DIR__ . '/actions/quota.php';
+            break;
+
         case 'resolveRoot':
             require __DIR__ . '/actions/resolve_root.php';
             break;
@@ -363,6 +368,11 @@ try {
     if ($e->getMessage() === 'INVALID_MAX_DISK_SIZE') {
         http_response_code(422);
         DiskResponse::error('INVALID_MAX_DISK_SIZE', 'Укажите неотрицательный максимальный размер диска. 0 — без ограничения.');
+    }
+
+    if ($e->getMessage() === 'INVALID_UPLOAD_METADATA') {
+        http_response_code(422);
+        DiskResponse::error('INVALID_UPLOAD_METADATA', 'Не удалось проверить выбранные файлы. Выберите их заново.');
     }
 
     if ($e->getMessage() === 'UNPACK_ROOT_FOLDER_CHANGED') {
