@@ -23,6 +23,8 @@ function blockPreviewText(block) {
         return ((content.html || '').slice(0, 220) || '[пустой HTML]') + placementText;
     }
 
+    if (type === 'list') return (content.title || 'Список') + (content.listId ? ' · #' + content.listId : ' · выберите список') + placementText;
+
     if (type === 'table') {
         var columnsCount = Array.isArray(content.columns) ? content.columns.length : 0;
         var rowsCount = Array.isArray(content.rows) ? content.rows.length : 0;
@@ -973,6 +975,8 @@ async function createBlock(type) {
         };
     } else if (type === 'html') {
         content = {html: '<div>Новый HTML блок</div>'};
+    } else if (type === 'list') {
+        content = {listId:0,title:'',filters:{},sortBy:'',sortDir:'asc',groupBy:''};
     } else if (type === 'table') {
         isTableBlock = true;
 

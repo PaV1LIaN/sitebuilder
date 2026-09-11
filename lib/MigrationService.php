@@ -194,6 +194,13 @@ final class MigrationService
                     ],
                 ],
             ],
+            [
+                'key' => '20260911_012_data_lists',
+                'stage' => 23,
+                'title' => 'Универсальные списки и записи',
+                'file' => $root . '/migrations/20260911_012_data_lists.sql',
+                'fingerprint' => ['relations' => ['sitebuilder.data_list', 'sitebuilder.data_list_item']],
+            ],
         ];
     }
 
