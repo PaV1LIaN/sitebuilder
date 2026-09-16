@@ -14,15 +14,22 @@ class DiskBitrixStorageAdapter
 
     public function listItems(DiskContext $context, int $folderId, array $options = []): array
     {
-        $folder = $this->getFolderById($folderId);
+        $requireNativeRead = !empty($options['requireNativeRead']);
+        $folder = $requireNativeRead
+            ? $this->getReadableObject('folder', $folderId)
+            : $this->getFolderById($folderId);
 
-        $children = $folder->getChildren(
-            \Bitrix\Disk\Driver::getInstance()->getFakeSecurityContext($this->currentUserId)
-        );
+        $securityContext = $requireNativeRead
+            ? $folder->getStorage()->getSecurityContext($this->currentUserId)
+            : \Bitrix\Disk\Driver::getInstance()->getFakeSecurityContext($this->currentUserId);
+        $children = $folder->getChildren($securityContext);
 
         $items = [];
 
         foreach ($children as $child) {
+            if ($requireNativeRead && ($child->isDeleted() || !$child->canRead($securityContext))) {
+                continue;
+            }
             if ($child instanceof Folder) {
                 $items[] = $this->normalizeFolder($context, $child);
             } elseif ($child instanceof File) {
@@ -294,6 +301,83 @@ class DiskBitrixStorageAdapter
         return $this->buildDownloadUrl($file);
     }
 
+    protected function getReadableObject(string $entityType, int $entityId)
+    {
+        if ($entityType === 'folder') {
+            $object = $this->getFolderById($entityId);
+        } elseif ($entityType === 'file') {
+            $object = $this->getFileById($entityId);
+        } else {
+            throw new RuntimeException('INVALID_ENTITY_TYPE');
+        }
+
+        if ($object->isDeleted()) {
+            throw new RuntimeException('DISK_ITEM_NOT_FOUND');
+        }
+
+        $storage = $object->getStorage();
+        if (!$storage || !$object->canRead($storage->getSecurityContext($this->currentUserId))) {
+            throw new RuntimeException('DISK_NATIVE_READ_ACCESS_DENIED');
+        }
+
+        return $object;
+    }
+
+    public function getInternalLink(DiskContext $context, string $entityType, int $entityId): string
+    {
+        $object = $this->getReadableObject($entityType, $entityId);
+        $urlManager = \Bitrix\Disk\Driver::getInstance()->getUrlManager();
+
+        // Resolve permissions again for the recipient when the link is opened.
+        $isFolder = $object instanceof Folder;
+        $url = rtrim($urlManager->getHostUrl(), '/')
+            . '/local/sitebuilder/components/disk/'
+            . ($isFolder ? 'open_folder.php?' : 'open_file.php?')
+            . http_build_query([
+                'siteId' => $context->siteId,
+                'pageId' => $context->pageId,
+                'blockId' => $context->blockId,
+                ($isFolder ? 'folderId' : 'fileId') => $object->getId(),
+            ]);
+
+        if (!is_string($url) || !preg_match('~^https?://~i', $url)) {
+            throw new RuntimeException('DISK_INTERNAL_LINK_UNAVAILABLE');
+        }
+
+        return $url;
+    }
+
+    public function getReadableFolderInfo(int $folderId): array
+    {
+        $folder = $this->getReadableObject('folder', $folderId);
+        return [
+            'id' => (int)$folder->getId(),
+            'parentId' => (int)$folder->getParentId(),
+            'name' => (string)$folder->getName(),
+        ];
+    }
+
+    public function getDirectFileView(int $fileId): array
+    {
+        $file = $this->getReadableObject('file', $fileId);
+        $urlManager = \Bitrix\Disk\Driver::getInstance()->getUrlManager();
+        $isOffice = $this->isOfficeDocument(pathinfo($file->getName(), PATHINFO_EXTENSION));
+
+        if ($isOffice) {
+            // Same authenticated POST endpoint as disk.viewer.document-item.
+            // Its viewUrl is resolved when the recipient opens the shared link,
+            // never copied from the sender's Office/WOPI session.
+            $url = $urlManager->getUrlToShowFileByService(
+                $file->getId(),
+                \Bitrix\Disk\Configuration::getDefaultViewerServiceCode()
+            );
+        } else {
+            $url = $urlManager->getUrlForShowFile($file, [], true);
+        }
+
+        return ['name' => $file->getName(), 'url' => $url, 'office' => $isOffice];
+    }
+
     protected function searchRecursive(DiskContext $context, int $folderId, string $query, array &$result): void
     {
         $folder = $this->getFolderById($folderId);
@@ -497,9 +581,14 @@ class DiskBitrixStorageAdapter
         }
 
         $current = Folder::loadById($folderId);
+        $visited = [];
 
         while ($current instanceof Folder) {
             $currentId = (int)$current->getId();
+            if (isset($visited[$currentId]) || count($visited) >= 1000) {
+                return false;
+            }
+            $visited[$currentId] = true;
 
             if ($currentId === $rootFolderId) {
                 return true;

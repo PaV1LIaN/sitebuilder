@@ -87,6 +87,7 @@ final class ExternalResourceReconcileService
             'anomalies' => 0,
             'repairs' => 0,
             'cleanupJobs' => 0,
+            'accessReconcileJobs' => 0,
             'findings' => [],
         ];
 
@@ -117,6 +118,21 @@ final class ExternalResourceReconcileService
                 }
                 self::checkSiteGroup($site, $mode, $actorUserId, $runId, $summary);
                 self::checkSiteFolder($site, $mode, $actorUserId, $runId, $summary);
+                $accessActorUserId = $actorUserId > 0
+                    ? $actorUserId
+                    : (int)($site['createdBy'] ?? 0);
+                if (
+                    $groupId > 0
+                    && $accessActorUserId > 0
+                    && self::unifiedAccessSchemaReady()
+                ) {
+                    OutboxService::enqueueUnifiedAccessReconcile(
+                        $currentSiteId,
+                        $mode,
+                        $accessActorUserId
+                    );
+                    $summary['accessReconcileJobs']++;
+                }
             }
 
             if ($siteId <= 0) {
@@ -767,6 +783,20 @@ final class ExternalResourceReconcileService
             return self::toBool($stmt->fetchColumn());
         } catch (Throwable $e) {
             error_log('SiteBuilder reconcile schema check failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    private static function unifiedAccessSchemaReady(): bool
+    {
+        try {
+            $row = sb_db_fetch_one("
+                SELECT
+                    to_regclass('sitebuilder.access_reconcile_run') AS run_table,
+                    to_regclass('sitebuilder.access_sync_binding') AS binding_table
+            ");
+            return !empty($row['run_table']) && !empty($row['binding_table']);
+        } catch (Throwable $exception) {
             return false;
         }
     }

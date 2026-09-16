@@ -261,6 +261,9 @@ if (!function_exists('sb_default_block_content')) {
     function sb_default_block_content(string $type): array
     {
         switch ($type) {
+            case 'list':
+                return ['listId' => 0, 'title' => '', 'filters' => [], 'sortBy' => '', 'sortDir' => 'asc', 'groupBy' => ''];
+
             case 'text':
                 return [
                     'text' => 'Новый текстовый блок',

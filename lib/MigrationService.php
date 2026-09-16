@@ -182,6 +182,25 @@ final class MigrationService
                     ],
                 ],
             ],
+            [
+                'key' => '20260827_011_unified_access_reconciliation',
+                'stage' => 22,
+                'title' => 'Сверка прав SiteBuilder, портала и Диска',
+                'file' => $root . '/migrations/20260827_011_unified_access_reconciliation.sql',
+                'fingerprint' => [
+                    'relations' => [
+                        'sitebuilder.access_reconcile_run',
+                        'sitebuilder.access_sync_binding',
+                    ],
+                ],
+            ],
+            [
+                'key' => '20260911_012_data_lists',
+                'stage' => 23,
+                'title' => 'Универсальные списки и записи',
+                'file' => $root . '/migrations/20260911_012_data_lists.sql',
+                'fingerprint' => ['relations' => ['sitebuilder.data_list', 'sitebuilder.data_list_item']],
+            ],
         ];
     }
 
@@ -272,7 +291,16 @@ final class MigrationService
     {
         return self::withGlobalLock(function () use ($actorUserId): array {
             $manifest = self::manifest();
-            $registryEntry = end($manifest);
+            $registryEntry = null;
+            foreach ($manifest as $entry) {
+                if ((string)$entry['key'] === '20260730_008_migration_registry_and_deployment_runs') {
+                    $registryEntry = $entry;
+                    break;
+                }
+            }
+            if (!is_array($registryEntry)) {
+                throw new SiteBuilderMigrationException('MIGRATION_REGISTRY_ENTRY_NOT_FOUND');
+            }
 
             if (!self::registryReady()) {
                 self::executeSqlFileWithoutRegistry($registryEntry);

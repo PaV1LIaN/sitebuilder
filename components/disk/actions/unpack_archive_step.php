@@ -40,6 +40,9 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 );
 
 $rootFolderId = (int)($job['rootFolderId'] ?? 0);
+if ($rootFolderId !== (int)DiskRootResolver::resolve($context, $settings, false)) {
+    throw new RuntimeException('UNPACK_ROOT_FOLDER_CHANGED');
+}
 $targetFolderId = (int)($job['targetFolderId'] ?? 0);
 $fileId = (int)($job['fileId'] ?? 0);
 
@@ -202,16 +205,19 @@ try {
             'size' => filesize($tmpFile) ?: 0,
         ];
 
-        $createdFile = $destinationFolder->uploadFile(
-            $uploadFile,
-            [
-                'NAME' => $safeFileName,
-                'CREATED_BY' => $context->currentUserId,
-            ],
-            []
-        );
-
-        @unlink($tmpFile);
+        try {
+            $createdFile = DiskQuotaService::write(
+                $context,
+                (int)$destinationFolder->getId(),
+                static fn(int $rootId): int => DiskQuotaService::uploadSize([$uploadFile]),
+                static fn() => $destinationFolder->uploadFile($uploadFile, [
+                    'NAME' => $safeFileName,
+                    'CREATED_BY' => $context->currentUserId,
+                ], [])
+            );
+        } finally {
+            @unlink($tmpFile);
+        }
 
         if (!$createdFile instanceof File) {
             throw new RuntimeException('DISK_UPLOAD_EXTRACTED_FILE_ERROR: ' . $safeFileName);

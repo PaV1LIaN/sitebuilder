@@ -12,7 +12,7 @@ if (!function_exists('sb_backup_require_manager')) {
         if ($siteId <= 0) {
             sb_json_error('SITE_ID_REQUIRED', 422);
         }
-        if ($USER && $USER->IsAdmin()) {
+        if ($USER && sitebuilder_is_admin()) {
             return;
         }
         sb_require_content_manager($siteId);
@@ -26,7 +26,7 @@ if (!function_exists('sb_backup_require_owner')) {
         if ($siteId <= 0) {
             sb_json_error('SITE_ID_REQUIRED', 422);
         }
-        if ($USER && $USER->IsAdmin()) {
+        if ($USER && sitebuilder_is_admin()) {
             return;
         }
         sb_require_site_role($siteId, 4);

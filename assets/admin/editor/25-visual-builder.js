@@ -13,6 +13,7 @@ var SB_BLOCK_TYPES = {
     cards: {title: 'Карточки', icon: '▦', category: 'marketing'},
     quote: {title: 'Цитата', icon: '“', category: 'content'},
     stats: {title: 'Показатели', icon: '№', category: 'data'},
+    list: {title: 'Список', icon: '☷', category: 'data'},
     table: {title: 'Таблица', icon: '▤', category: 'data'},
     divider: {title: 'Разделитель', icon: '—', category: 'basic'},
     spacer: {title: 'Отступ', icon: '↕', category: 'basic'},
@@ -238,7 +239,7 @@ function updatePublicPageLink() {
     if (!link) return;
 
     var pageId = Number((state && state.currentPageId) || 0);
-    link.href = BASE_PATH + '/public.php?siteId=' + siteId + (pageId > 0 ? '&pageId=' + pageId : '');
+    link.href = buildPublicPageUrl(pageId);
 }
 
 (function initVisualBuilderUi() {

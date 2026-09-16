@@ -19,6 +19,7 @@ $libFiles = [
     __DIR__ . '/lib/storage_db.php',
     __DIR__ . '/lib/response.php',
     __DIR__ . '/lib/helpers.php',
+    __DIR__ . '/lib/public_routes.php',
     __DIR__ . '/lib/RevisionService.php',
     __DIR__ . '/lib/access.php',
     __DIR__ . '/lib/PageAccessRepository.php',
@@ -66,7 +67,7 @@ $currentUserId = (int)$USER->GetID();
 
 $canOpenEditor = false;
 
-if ($USER->IsAdmin()) {
+if (sitebuilder_is_admin()) {
     $canOpenEditor = true;
 }
 
@@ -170,8 +171,9 @@ if (!$canOpenEditor) {
  * Сервер всё равно повторно проверяет эти полномочия
  * в api/handlers/page_access.php.
  */
-$canManagePageAccess = $USER->IsAdmin()
+$canManagePageAccess = sitebuilder_is_admin()
     || (int)($globalRoleRank ?? 0) >= 3;
+$publicSiteUrl = sb_public_entry_url($basePath, $siteId);
 ?>
 <!doctype html>
 <html lang="ru">
@@ -196,6 +198,7 @@ $canManagePageAccess = $USER->IsAdmin()
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v15.css?v=2">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v16.css?v=1">
     <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/forms2.css?v=1">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/public/lists.css?v=1">
 </head>
 <body class="sb-admin-body" data-editor-inspector-tab="page">
 <div class="sb-page">
@@ -232,7 +235,7 @@ $canManagePageAccess = $USER->IsAdmin()
             <button class="sb-editor-toptool" type="button" id="toggleFocusModeBtn" title="Фокус на холсте" aria-label="Фокус на холсте" aria-pressed="false">⛶</button>
             <button class="sb-editor-toptool" type="button" id="toggleEditorThemeBtn" title="Сменить тему" aria-label="Сменить тему" aria-pressed="false">◐</button>
 
-            <a class="sb-btn sb-btn-light sb-btn-small" id="openPublicPageLink" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/public.php?siteId=<?= (int)$siteId ?>" target="_blank" rel="noopener">
+            <a class="sb-btn sb-btn-light sb-btn-small" id="openPublicPageLink" href="<?= htmlspecialchars($publicSiteUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" target="_blank" rel="noopener">
                 Предпросмотр ↗
             </a>
 
@@ -241,7 +244,7 @@ $canManagePageAccess = $USER->IsAdmin()
                 <div class="sb-editor-more__menu">
                     <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/settings.php?siteId=<?= (int)$siteId ?>">Настройки сайта</a>
                     <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/layout.php?siteId=<?= (int)$siteId ?>">Layout сайта</a>
-                    <?php if ($USER->IsAdmin() || (int)($globalRoleRank ?? 0) >= 3): ?>
+                    <?php if (sitebuilder_is_admin() || (int)($globalRoleRank ?? 0) >= 3): ?>
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/trash.php?siteId=<?= (int)$siteId ?>">Корзина</a>
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/audit.php?siteId=<?= (int)$siteId ?>">Журнал действий</a>
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/jobs.php?siteId=<?= (int)$siteId ?>">Фоновые задания</a>
@@ -251,7 +254,7 @@ $canManagePageAccess = $USER->IsAdmin()
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/backups.php?siteId=<?= (int)$siteId ?>">Резервные копии</a>
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/forms.php?siteId=<?= (int)$siteId ?>">Заявки форм</a>
                     <?php endif; ?>
-                    <?php if ($USER->IsAdmin()): ?>
+                    <?php if (sitebuilder_is_admin()): ?>
                         <button type="button" id="saveAsTemplateBtn">Сохранить в шаблоны</button>
                     <?php endif; ?>
                     <button class="sb-editor-more__danger sb-hidden" type="button" id="deleteSiteBtn">Удалить сайт</button>
@@ -794,6 +797,12 @@ $canManagePageAccess = $USER->IsAdmin()
                                 <input class="sb-input" type="number" id="diskMaxFileSizeInput" min="0">
                             </div>
 
+                            <div class="sb-field">
+                                <label for="diskMaxDiskSizeInput">Максимальный размер диска, МБ</label>
+                                <input class="sb-input" type="number" id="diskMaxDiskSizeInput" min="0" step="any" value="0">
+                                <p class="sb-help">Объём корневой папки с подпапками. 0 — без ограничения.</p>
+                            </div>
+
                             <div class="sb-field" style="margin-top:12px;">
                                 <label for="diskAllowedExtensionsInput">Разрешенные расширения</label>
                                 <input class="sb-input" type="text" id="diskAllowedExtensionsInput" placeholder="pdf docx xlsx png jpg">
@@ -983,7 +992,7 @@ $canManagePageAccess = $USER->IsAdmin()
     </div>
 </div>
 
-<?php if ($USER->IsAdmin()): ?>
+<?php if (sitebuilder_is_admin()): ?>
     <div class="sb-template-modal" id="saveTemplateModal" hidden>
         <div class="sb-template-modal__backdrop" data-close-template-modal></div>
 
@@ -1152,26 +1161,29 @@ window.SB_EDITOR_CONFIG = {
     basePath: '<?= CUtil::JSEscape($basePath) ?>',
     apiUrl: '<?= CUtil::JSEscape($basePath) ?>/api/index.php',
     siteId: <?= (int)$siteId ?>,
-    isBitrixAdmin: <?= $USER->IsAdmin() ? 'true' : 'false' ?>,
+    // Старое имя ключа сохранено для совместимости с JS-модулями редактора.
+    isBitrixAdmin: <?= sitebuilder_is_admin() ? 'true' : 'false' ?>,
     canManagePageAccess: <?= $canManagePageAccess ? 'true' : 'false' ?>,
     sessid: '<?= CUtil::JSEscape(bitrix_sessid()) ?>'
 };
 </script>
 
 <script src="/bitrix/js/main/core/core.js"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=21"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/00-core.js?v=24"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=23"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=24"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=17"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=22"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/34-editor-ux.js?v=18"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=26"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=19"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=23"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/34-editor-ux.js?v=19"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/42-workspace-shell.js?v=1"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/36-content-tools.js?v=20"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/38-design-tools.js?v=19"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/39-global-blocks.js?v=20"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/41-business-blocks.js?v=20"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/43-block-inspector-tabs.js?v=1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/public/lists.js?v=1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/53-data-lists.js?v=1"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/43-block-inspector-tabs.js?v=2"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/44-responsive-blocks.js?v=1"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/45-responsive-stage2.js?v=1"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/46-responsive-business.js?v=1"></script>
@@ -1181,7 +1193,7 @@ window.SB_EDITOR_CONFIG = {
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/52-forms2.js?v=2"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/35-history.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=23"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=18"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=22"></script>
 
 </body>

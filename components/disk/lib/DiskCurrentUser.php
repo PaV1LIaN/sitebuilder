@@ -1,5 +1,7 @@
 <?php
 
+require_once dirname(__DIR__, 3) . '/lib/auth.php';
+
 class DiskCurrentUser
 {
     public static function getId(): int
@@ -24,6 +26,11 @@ class DiskCurrentUser
     }
 
     public static function isAdmin(): bool
+    {
+        return sitebuilder_is_admin();
+    }
+
+    public static function isBitrixAdmin(): bool
     {
         global $USER;
 

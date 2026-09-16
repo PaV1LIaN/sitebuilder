@@ -3,6 +3,7 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/storage_db.php';
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/public_routes.php';
 
 if (!function_exists('sb_route_effective_slug')) {
     function sb_route_effective_slug(array $record, string $titleKey): string

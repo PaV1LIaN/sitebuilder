@@ -15,7 +15,7 @@ function sb_history_current_user_id(): int
 function sb_history_can_edit_site(int $siteId,int $userId): bool
 {
     global $USER;
-    return (is_object($USER)&&$USER->IsAdmin()) || PageAccessService::hasGlobalSiteAccess($siteId,$userId,'edit');
+    return (is_object($USER)&&sitebuilder_is_admin()) || PageAccessService::hasGlobalSiteAccess($siteId,$userId,'edit');
 }
 
 function sb_history_require_entity_edit(string $entityType,int $entityId,?array $revision=null): array

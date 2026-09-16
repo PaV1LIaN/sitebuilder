@@ -36,6 +36,70 @@ var state = {
     globalBlocks: []
 };
 
+function buildPublicSiteUrl(site) {
+    site = site || state.site || {};
+    if (site.publicUrl) {
+        return String(site.publicUrl);
+    }
+    var slug = String(site.slug || '').trim();
+
+    if (!slug) {
+        return '#';
+    }
+
+    return BASE_PATH + '/s/' + encodeURIComponent(slug) + '/';
+}
+
+function buildPublicPageUrl(pageId) {
+    pageId = Number(pageId || 0);
+    var siteUrl = buildPublicSiteUrl(state.site);
+
+    if (siteUrl === '#' || pageId <= 0) {
+        return siteUrl;
+    }
+
+    var pagesById = {};
+    (state.pages || []).forEach(function (page) {
+        pagesById[Number(page.id || 0)] = page;
+    });
+
+    var segments = [];
+    var visited = {};
+    var cursorId = pageId;
+    var isPublished = true;
+
+    while (cursorId > 0) {
+        if (visited[cursorId] || !pagesById[cursorId]) {
+            return '#';
+        }
+
+        visited[cursorId] = true;
+        var page = pagesById[cursorId];
+        var slug = String(page.slug || '').trim();
+        isPublished = isPublished && String(page.status || 'draft').trim().toLowerCase() === 'published';
+
+        if (!slug) {
+            return '#';
+        }
+
+        segments.unshift(encodeURIComponent(slug));
+        cursorId = Number(page.parentId || 0);
+
+        if (segments.length > 1000) {
+            return '#';
+        }
+    }
+
+    if (isPublished && pageId === Number((state.site && state.site.homePageId) || 0)) {
+        return siteUrl;
+    }
+
+    return siteUrl + segments.join('/') + '/';
+}
+
+window.sbBuildPublicSiteUrl = buildPublicSiteUrl;
+window.sbBuildPublicPageUrl = buildPublicPageUrl;
+
 var output = document.getElementById('output') || document.getElementById('outputFallback');
 var pagesList = document.getElementById('pagesList');
 var blocksList = document.getElementById('blocksList');

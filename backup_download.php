@@ -25,7 +25,7 @@ try {
     $data = BackupService::downloadPath($backupId);
     $record = $data['record'];
     $siteId = (int)$record['originalSiteId'];
-    if (!$USER->IsAdmin()) {
+    if (!sitebuilder_is_admin()) {
         sb_require_content_manager($siteId);
     }
     $path = (string)$data['path'];

@@ -54,6 +54,7 @@
         spacerBlockForm: 'spacer',
         htmlBlockForm: 'html',
         tableBlockForm: 'table',
+        listBlockForm: 'list',
         diskBlockForm: 'disk',
         unknownBlockForm: 'unknown',
         faqBlockForm: 'faq',

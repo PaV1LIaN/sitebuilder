@@ -87,10 +87,11 @@ class SiteAccessManagementService
 
         $found = !empty($saveResult['updated']);
 
-        $groupJob = OutboxService::enqueueGroupMemberReconcile(
+        $groupJob = OutboxService::enqueueUnifiedAccessReconcile(
             $siteId,
-            $targetUserId,
-            $currentUserId
+            'repair',
+            $currentUserId,
+            1
         );
         $groupSync = [
             'ok' => true,
@@ -138,10 +139,11 @@ class SiteAccessManagementService
 
         $removed = $deletedRow !== null;
 
-        $groupJob = OutboxService::enqueueGroupMemberReconcile(
+        $groupJob = OutboxService::enqueueUnifiedAccessReconcile(
             $siteId,
-            $targetUserId,
-            $currentUserId
+            'repair',
+            $currentUserId,
+            1
         );
         $groupSync = [
             'ok' => true,
@@ -213,6 +215,173 @@ class SiteAccessManagementService
         }
 
         return $result;
+    }
+
+    /**
+     * Снимок фактических ролей участников рабочей группы сайта.
+     *
+     * @return array<int,string> userId => SONET role
+     */
+    public static function listPortalMemberships(int $siteId): array
+    {
+        $groupId = self::getSiteBitrixGroupId($siteId);
+        if ($groupId <= 0) {
+            throw new RuntimeException('BITRIX_GROUP_NOT_READY');
+        }
+        if (!Loader::includeModule('socialnetwork')) {
+            throw new RuntimeException('SOCIALNETWORK_MODULE_NOT_INSTALLED');
+        }
+        if (!class_exists('CSocNetUserToGroup')) {
+            throw new RuntimeException('CSocNetUserToGroup_NOT_FOUND');
+        }
+
+        $result = [];
+        $rows = \CSocNetUserToGroup::GetList(
+            ['ID' => 'ASC'],
+            ['GROUP_ID' => $groupId],
+            false,
+            false,
+            ['ID', 'USER_ID', 'GROUP_ID', 'ROLE']
+        );
+
+        while ($row = $rows->Fetch()) {
+            $userId = (int)($row['USER_ID'] ?? 0);
+            $role = trim((string)($row['ROLE'] ?? ''));
+            if ($userId > 0 && $role !== '') {
+                $result[$userId] = $role;
+            }
+        }
+
+        ksort($result, SORT_NUMERIC);
+        return $result;
+    }
+
+    /**
+     * Изменяет роль участника только если фактическое состояние всё ещё
+     * совпадает с тем, на котором контроллер построил план.
+     */
+    public static function applyExpectedPortalRole(
+        int $siteId,
+        int $targetUserId,
+        ?string $desiredRole,
+        ?string $expectedRole,
+        int $actorUserId
+    ): array {
+        if ($siteId <= 0 || $targetUserId <= 0 || $actorUserId <= 0) {
+            throw new InvalidArgumentException('INVALID_PORTAL_ROLE_TARGET');
+        }
+
+        $groupId = self::getSiteBitrixGroupId($siteId);
+        if ($groupId <= 0) {
+            throw new RuntimeException('BITRIX_GROUP_NOT_READY');
+        }
+        if (!Loader::includeModule('socialnetwork')) {
+            throw new RuntimeException('SOCIALNETWORK_MODULE_NOT_INSTALLED');
+        }
+        if (!class_exists('CSocNetUserToGroup')) {
+            throw new RuntimeException('CSocNetUserToGroup_NOT_FOUND');
+        }
+
+        $desiredRole = trim((string)$desiredRole);
+        $expectedRole = trim((string)$expectedRole);
+        $membership = self::findGroupMembership($groupId, $targetUserId);
+        $currentRole = trim((string)($membership['ROLE'] ?? ''));
+
+        if (!hash_equals($expectedRole, $currentRole)) {
+            throw new RuntimeException('PORTAL_MEMBERSHIP_VERSION_CONFLICT');
+        }
+
+        $ownerRole = defined('SONET_ROLES_OWNER') ? SONET_ROLES_OWNER : 'A';
+        $moderatorRole = defined('SONET_ROLES_MODERATOR') ? SONET_ROLES_MODERATOR : 'E';
+        $userRole = defined('SONET_ROLES_USER') ? SONET_ROLES_USER : 'K';
+        $allowed = ['', $moderatorRole, $userRole];
+        if ($currentRole === $ownerRole) {
+            $allowed[] = $ownerRole;
+        }
+
+        if (!in_array($desiredRole, $allowed, true)) {
+            throw new RuntimeException('INVALID_PORTAL_ROLE');
+        }
+
+        if ($currentRole === $ownerRole && $desiredRole !== $ownerRole) {
+            throw new RuntimeException('BITRIX_GROUP_OWNER_PROTECTED');
+        }
+
+        if ($desiredRole === '') {
+            if (!$membership) {
+                return [
+                    'ok' => true,
+                    'action' => 'already_absent',
+                    'groupId' => $groupId,
+                    'role' => '',
+                ];
+            }
+
+            if (!\CSocNetUserToGroup::Delete((int)$membership['ID'])) {
+                throw new RuntimeException('BITRIX_GROUP_MEMBER_DELETE_ERROR');
+            }
+            self::assertPortalRoleApplied($groupId, $targetUserId, '');
+
+            return [
+                'ok' => true,
+                'action' => 'deleted',
+                'groupId' => $groupId,
+                'role' => '',
+            ];
+        }
+
+        if ($currentRole === $desiredRole) {
+            return [
+                'ok' => true,
+                'action' => 'already_exists',
+                'groupId' => $groupId,
+                'role' => $desiredRole,
+            ];
+        }
+
+        if ($membership) {
+            if (!\CSocNetUserToGroup::Update((int)$membership['ID'], [
+                'ROLE' => $desiredRole,
+            ])) {
+                throw new RuntimeException('BITRIX_GROUP_MEMBER_UPDATE_ERROR');
+            }
+            self::assertPortalRoleApplied(
+                $groupId,
+                $targetUserId,
+                $desiredRole
+            );
+
+            return [
+                'ok' => true,
+                'action' => 'updated',
+                'groupId' => $groupId,
+                'role' => $desiredRole,
+            ];
+        }
+
+        $membershipId = \CSocNetUserToGroup::Add([
+            'USER_ID' => $targetUserId,
+            'GROUP_ID' => $groupId,
+            'ROLE' => $desiredRole,
+            'INITIATED_BY_TYPE' => defined('SONET_INITIATED_BY_GROUP')
+                ? SONET_INITIATED_BY_GROUP
+                : 'G',
+            'INITIATED_BY_USER_ID' => $actorUserId,
+            'MESSAGE' => '',
+            'SEND_MAIL' => 'N',
+        ]);
+
+        if (!$membershipId) {
+            throw new RuntimeException('BITRIX_GROUP_MEMBER_ADD_ERROR');
+        }
+        self::assertPortalRoleApplied($groupId, $targetUserId, $desiredRole);
+
+        return [
+            'ok' => true,
+            'action' => 'created',
+            'groupId' => $groupId,
+            'role' => $desiredRole,
+        ];
     }
 
     protected static function normalizeRole(string $role): string
@@ -348,6 +517,17 @@ class SiteAccessManagementService
             if ($membership) {
                 $membershipId = (int)$membership['ID'];
                 $currentRole = (string)($membership['ROLE'] ?? '');
+                $ownerRole = defined('SONET_ROLES_OWNER') ? SONET_ROLES_OWNER : 'A';
+
+                if ($currentRole === $ownerRole || $currentRole === 'A') {
+                    return [
+                        'ok' => true,
+                        'skipped' => false,
+                        'action' => 'already_owner',
+                        'groupId' => $groupId,
+                        'sonetRole' => $currentRole,
+                    ];
+                }
 
                 if ($currentRole === $sonetRole) {
                     return [
@@ -500,6 +680,18 @@ class SiteAccessManagementService
         return null;
     }
 
+    protected static function assertPortalRoleApplied(
+        int $groupId,
+        int $userId,
+        string $expectedRole
+    ): void {
+        $actual = self::findGroupMembership($groupId, $userId);
+        $actualRole = trim((string)($actual['ROLE'] ?? ''));
+        if (!hash_equals($expectedRole, $actualRole)) {
+            throw new RuntimeException('PORTAL_MEMBERSHIP_VERIFY_FAILED');
+        }
+    }
+
     protected static function mapSiteRoleToSonetRole(string $role): string
     {
         $role = strtoupper(trim($role));
@@ -511,16 +703,8 @@ class SiteAccessManagementService
             return $userRole;
         }
 
-        if ($role === 'EDITOR' || $role === 'ADMIN') {
+        if ($role === 'EDITOR' || $role === 'ADMIN' || $role === 'OWNER') {
             return $moderatorRole;
-        }
-
-        /*
-         * OWNER в SiteBuilder пока не делаем владельцем группы,
-         * чтобы случайно не сменить владельца рабочей группы Битрикс24.
-         */
-        if ($role === 'OWNER') {
-            return '';
         }
 
         return '';
