@@ -55,7 +55,7 @@ if ($siteId <= 0) {
     exit;
 }
 
-if (!$USER->IsAdmin()) {
+if (!sitebuilder_is_admin()) {
     sb_require_content_manager($siteId);
 }
 $publicSiteUrl = sb_public_entry_url($basePath, $siteId);

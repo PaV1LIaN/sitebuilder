@@ -9,7 +9,7 @@ if (!function_exists('sb_system_require_site_manager')) {
     function sb_system_require_site_manager(int $siteId): void
     {
         global $USER;
-        if ($USER && $USER->IsAdmin()) {
+        if ($USER && sitebuilder_is_admin()) {
             return;
         }
         if ($siteId <= 0) {
@@ -45,7 +45,7 @@ if ($action === 'system.alert.get') {
         sb_json_error('ALERT_NOT_FOUND', 404);
     }
     sb_system_require_site_manager((int)$alert['siteId']);
-    if (!$USER->IsAdmin()) {
+    if (!sitebuilder_is_admin()) {
         unset($alert['deliveries']);
     }
     sb_json_ok(['alert' => $alert]);
@@ -138,8 +138,8 @@ if ($action === 'external.reconcile.enqueue') {
 }
 
 if ($action === 'external.resource.cleanup') {
-    if (!$USER->IsAdmin()) {
-        sb_json_error('BITRIX_ADMIN_REQUIRED', 403);
+    if (!sitebuilder_is_admin()) {
+        sb_json_error('SITEBUILDER_ADMIN_REQUIRED', 403);
     }
     $resourceType = trim((string)($_POST['resourceType'] ?? ''));
     $externalId = (int)($_POST['externalId'] ?? 0);

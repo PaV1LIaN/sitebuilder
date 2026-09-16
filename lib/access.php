@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/json.php';
 require_once __DIR__ . '/response.php';
 
@@ -434,9 +435,9 @@ if (!function_exists('sb_require_site_role')) {
         global $USER;
 
         /*
-         * Администратор Битрикс24 имеет полный доступ ко всем сайтам конструктора.
+         * Администратор SiteBuilder имеет полный доступ ко всем сайтам конструктора.
          */
-        if ($USER && $USER->IsAdmin()) {
+        if (sitebuilder_is_admin()) {
             return;
         }
 
@@ -448,6 +449,15 @@ if (!function_exists('sb_require_site_role')) {
                 'requiredRank' => $minRank,
                 'actualRole' => $role,
             ]);
+        }
+    }
+}
+
+if (!function_exists('sb_require_sitebuilder_admin')) {
+    function sb_require_sitebuilder_admin(): void
+    {
+        if (!sitebuilder_is_admin()) {
+            sb_json_error('SITEBUILDER_ADMIN_REQUIRED', 403);
         }
     }
 }
@@ -475,7 +485,7 @@ if (!function_exists('sb_require_content_manager')) {
          * Доступ только:
          * - ADMIN сайта
          * - OWNER сайта
-         * - администратор Битрикс24
+         * - администратор SiteBuilder (Битрикс24 или admin_user_ids)
          *
          * EDITOR сюда НЕ проходит.
          * EDITOR теперь нужен только для работы с файлами диска.

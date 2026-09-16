@@ -11,8 +11,8 @@ CJSCore::Init(['ajax']);
 header('Content-Type: text/html; charset=UTF-8');
 
 $basePath = rtrim(str_replace($_SERVER['DOCUMENT_ROOT'], '', __DIR__), '/');
-$canCreateSite = $USER->IsAdmin();
-$isBitrixAdmin = $USER->IsAdmin();
+$canCreateSite = sitebuilder_is_admin();
+$isSitebuilderAdmin = sitebuilder_is_admin();
 $isSitebuilderGuest = sitebuilder_is_guest();
 ?>
 <!doctype html>
@@ -356,10 +356,12 @@ $isSitebuilderGuest = sitebuilder_is_guest();
                 <input class="sb-dashboard-search" type="text" id="dashboardSearch" placeholder="Поиск по сайтам">
                 <button class="sb-btn sb-btn-light" type="button" id="reloadBtn">Обновить</button>
 
-                <?php if ($isBitrixAdmin): ?>
+                <?php if ($isSitebuilderAdmin): ?>
                     <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/queue_health.php">Очередь</a>
                     <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/alerts.php">Оповещения</a>
                     <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/external_resources.php">Внешние ресурсы</a>
+                <?php endif; ?>
+                <?php if ($USER->IsAdmin()): ?>
                     <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/deployment.php">Развёртывание</a>
                 <?php endif; ?>
 
@@ -388,7 +390,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
                 </div>
             </div>
 
-            <?php if ($isBitrixAdmin): ?>
+            <?php if ($isSitebuilderAdmin): ?>
                 <div class="sb-dash-table-wrap">
                     <table class="sb-dash-table">
                         <thead>
@@ -420,12 +422,12 @@ $isSitebuilderGuest = sitebuilder_is_guest();
             <?php endif; ?>
         </section>
 
-        <?php if ($isBitrixAdmin): ?>
+        <?php if ($isSitebuilderAdmin): ?>
             <section class="sb-dash-card" id="templatesCard">
                 <div class="sb-dash-card__head">
                     <div>
                         <h2>Шаблоны сайтов</h2>
-                        <div class="sb-muted">Создавать и удалять шаблоны может только администратор Битрикса</div>
+                        <div class="sb-muted">Создавать и удалять шаблоны может только администратор SiteBuilder</div>
                     </div>
                     <div class="sb-dash-toolbar">
                         <span class="sb-badge" id="templatesCountBadge">0 шаблонов</span>
@@ -481,7 +483,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
                 </div>
             </div>
 
-            <?php if ($isBitrixAdmin): ?>
+            <?php if ($isSitebuilderAdmin): ?>
                 <div class="sb-modal" id="createFromTemplateModal" hidden>
                     <div class="sb-modal__backdrop" data-close-template-site-modal></div>
 
@@ -573,7 +575,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
             </div>
         <?php endif; ?>
 
-        <?php if ($isBitrixAdmin): ?>
+        <?php if ($isSitebuilderAdmin): ?>
             <section class="sb-dash-card">
                 <div class="sb-dash-card__head">
                     <h2>Отладка</h2>
@@ -591,7 +593,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
     var BASE_PATH = '<?= CUtil::JSEscape($basePath) ?>';
     var API_URL = BASE_PATH + '/api.php';
     var CAN_CREATE_SITE = <?= $canCreateSite ? 'true' : 'false' ?>;
-    var IS_BITRIX_ADMIN = <?= $isBitrixAdmin ? 'true' : 'false' ?>;
+    var IS_SITEBUILDER_ADMIN = <?= $isSitebuilderAdmin ? 'true' : 'false' ?>;
 
     var output = document.getElementById('output');
     var sitesTableBody = document.getElementById('sitesTableBody');
@@ -949,10 +951,10 @@ $isSitebuilderGuest = sitebuilder_is_guest();
     }
 
     function renderSitesTable(sites) {
-        var colspan = IS_BITRIX_ADMIN ? 10 : 2;
+        var colspan = IS_SITEBUILDER_ADMIN ? 10 : 2;
 
         if (!Array.isArray(sites) || !sites.length) {
-            sitesTableBody.innerHTML = IS_BITRIX_ADMIN
+            sitesTableBody.innerHTML = IS_SITEBUILDER_ADMIN
                 ? '<tr><td colspan="' + colspan + '">Сайтов пока нет</td></tr>'
                 : '<div class="sb-user-sites-empty">Сайтов пока нет</div>';
 
@@ -964,7 +966,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
 
         var html = '';
 
-        if (!IS_BITRIX_ADMIN) {
+        if (!IS_SITEBUILDER_ADMIN) {
             var groups = groupSitesBySection(sites);
 
             groups.forEach(function (group) {
@@ -1058,7 +1060,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
     }
 
     function loadTemplates() {
-        if (!IS_BITRIX_ADMIN) {
+        if (!IS_SITEBUILDER_ADMIN) {
             return;
         }
 
@@ -1145,7 +1147,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
     }
 
     function openCreateFromTemplateModal(templateId) {
-        if (!IS_BITRIX_ADMIN) {
+        if (!IS_SITEBUILDER_ADMIN) {
             return;
         }
 
@@ -1190,7 +1192,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
     }
 
     function createSiteFromTemplate() {
-        if (!IS_BITRIX_ADMIN) {
+        if (!IS_SITEBUILDER_ADMIN) {
             return;
         }
 
@@ -1259,7 +1261,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
         loadSections(function () {
             api('site.list', {}, function (res) {
                 if (!res || res.ok !== true) {
-                    sitesTableBody.innerHTML = IS_BITRIX_ADMIN
+                    sitesTableBody.innerHTML = IS_SITEBUILDER_ADMIN
                         ? '<tr><td colspan="10">Не удалось загрузить данные</td></tr>'
                         : '<div class="sb-user-sites-empty">Не удалось загрузить данные</div>';
 
@@ -1306,7 +1308,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
 
     function createSite() {
         if (!CAN_CREATE_SITE) {
-            alert('Создавать сайты может только администратор Битрикс24');
+            alert('Создавать сайты может только администратор SiteBuilder');
             return;
         }
 
@@ -1355,7 +1357,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
     }
 
     function openSectionModal() {
-        if (!IS_BITRIX_ADMIN) {
+        if (!IS_SITEBUILDER_ADMIN) {
             return;
         }
 

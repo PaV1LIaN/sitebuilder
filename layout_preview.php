@@ -60,7 +60,7 @@ if ($siteId <= 0) {
  * preview at the same permission level: it can intentionally preview a
  * draft page and must therefore not behave like a public endpoint.
  */
-if (!$USER->IsAdmin()) {
+if (!sitebuilder_is_admin()) {
     sb_require_content_manager(
         $siteId
     );

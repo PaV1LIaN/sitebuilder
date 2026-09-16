@@ -9,7 +9,7 @@ declare(strict_types=1);
  * - прямые глобальные роли sitebuilder.access;
  * - прямые и унаследованные правила sitebuilder.page_access;
  * - в legacy-режиме участники рабочей группы Битрикс24, связанной с сайтом;
- * - администраторы Битрикс24.
+ * - администраторы Битрикс24 и пользователи из admin_user_ids.
  *
  * Групповые access_code разворачиваются в пользователей, потому что ACL
  * папки Диска настраивается в интерфейсе построчно для каждого человека.
@@ -65,6 +65,10 @@ class DiskPageUserRepository
         foreach (array_keys($adminUserIds) as $adminUserId) {
             $userIds[(int)$adminUserId] = true;
         }
+        $sitebuilderAdminIds = array_fill_keys(sitebuilder_admin_user_ids(), true);
+        foreach (array_keys($sitebuilderAdminIds) as $adminUserId) {
+            $userIds[$adminUserId] = true;
+        }
 
         if (!$sitebuilderOnly) {
             $currentUserId = DiskCurrentUser::getId();
@@ -83,9 +87,8 @@ class DiskPageUserRepository
         }
 
         /*
-         * PageAccessService проверяет администратора через текущего $USER.
-         * При построении матрицы администратором это сделало бы администраторами
-         * все строки. Поэтому права каждого кандидата вычисляются явно.
+         * Вычисляем права каждого кандидата явно, независимо от полномочий
+         * пользователя, который открыл матрицу.
         */
         $visibleIds = [];
         $pageAccessByUser = [];
@@ -116,6 +119,9 @@ class DiskPageUserRepository
                 $accessCodes,
                 $siteRolesByCode
             );
+            if (isset($sitebuilderAdminIds[$userId])) {
+                $globalRole = 'OWNER';
+            }
             $pageAccess = self::buildPageAccessInfo(
                 isset($adminUserIds[$userId]),
                 $globalRole,

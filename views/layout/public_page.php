@@ -706,9 +706,7 @@ global $USER;
 
 $isPublicEditMode = (
     (string)($_GET['edit'] ?? '') === 'Y'
-    && is_object($USER)
-    && $USER->IsAuthorized()
-    && $USER->IsAdmin()
+    && sitebuilder_is_admin()
 );
 ?>
 

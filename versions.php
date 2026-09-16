@@ -27,7 +27,7 @@ if ($siteId <= 0 || $entityId <= 0 || !in_array($entityType, $allowedTypes, true
     die('Некорректные параметры истории.');
 }
 
-if (!$USER->IsAdmin()) {
+if (!sitebuilder_is_admin()) {
     sb_require_content_manager($siteId);
 }
 

@@ -51,6 +51,7 @@ $APPLICATION = new class { public function ShowHead() {} };
 function sitebuilder_require_auth() {
     if (!$GLOBALS['USER']->GetID()) { http_response_code(403); exit; }
 }
+function sitebuilder_is_admin(): bool { return false; }
 function sb_read_sites(): array { return $GLOBALS['fixture']['sites']; }
 function sb_read_pages(): array { return $GLOBALS['fixture']['pages']; }
 function sb_read_blocks(): array { return []; }

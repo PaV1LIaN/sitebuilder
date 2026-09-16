@@ -152,14 +152,10 @@ if (!function_exists('sb_page_handler_enqueue_access_reconcile')) {
     }
 }
 
-if (!function_exists('sb_page_handler_is_bitrix_admin')) {
-    function sb_page_handler_is_bitrix_admin(): bool
+if (!function_exists('sb_page_handler_is_admin')) {
+    function sb_page_handler_is_admin(): bool
     {
-        global $USER;
-
-        return is_object($USER)
-            && method_exists($USER, 'IsAdmin')
-            && $USER->IsAdmin();
+        return sitebuilder_is_admin();
     }
 }
 
@@ -168,7 +164,7 @@ if (!function_exists('sb_page_handler_has_global_view')) {
         int $siteId,
         int $userId
     ): bool {
-        if (sb_page_handler_is_bitrix_admin()) {
+        if (sb_page_handler_is_admin()) {
             return true;
         }
 
@@ -185,7 +181,7 @@ if (!function_exists('sb_page_handler_has_global_edit')) {
         int $siteId,
         int $userId
     ): bool {
-        if (sb_page_handler_is_bitrix_admin()) {
+        if (sb_page_handler_is_admin()) {
             return true;
         }
 

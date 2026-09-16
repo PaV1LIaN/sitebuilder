@@ -24,7 +24,7 @@ if ($siteId <= 0) {
     die('Не передан siteId.');
 }
 
-if (!$USER->IsAdmin()) {
+if (!sitebuilder_is_admin()) {
     sb_require_content_manager($siteId);
 }
 ?>

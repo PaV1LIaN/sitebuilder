@@ -51,7 +51,7 @@ if (!function_exists('sb_site_handler_require_role')) {
     {
         global $USER;
 
-        if ($USER && $USER->IsAdmin()) {
+        if ($USER && sitebuilder_is_admin()) {
             return;
         }
 
@@ -184,7 +184,7 @@ if (!function_exists('sb_site_handler_get_access_context')) {
 
         $userId = (int)$USER->GetID();
 
-        if ($USER->IsAdmin()) {
+        if (sitebuilder_is_admin()) {
             return [
                 'allowed' => true,
                 'userId' => $userId,
@@ -577,8 +577,8 @@ if ($action === 'site.get') {
 }
 
 if ($action === 'site.create') {
-    if (!$USER->IsAdmin()) {
-        sb_json_error('BITRIX_ADMIN_REQUIRED', 403);
+    if (!sitebuilder_is_admin()) {
+        sb_json_error('SITEBUILDER_ADMIN_REQUIRED', 403);
     }
 
     $name = trim((string)($_POST['name'] ?? ''));

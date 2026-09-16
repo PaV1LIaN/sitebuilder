@@ -221,7 +221,7 @@ if (!function_exists(
 /**
  * Управлять правами конкретной страницы могут:
  *
- * 1. Администратор Битрикс24.
+ * 1. Администратор SiteBuilder.
  * 2. Глобальный ADMIN сайта.
  * 3. Глобальный OWNER сайта.
  *
@@ -258,13 +258,9 @@ if (!function_exists('sb_page_access_can_manage')) {
         }
 
         /*
-         * Администратор самого Битрикс24.
+         * Администратор SiteBuilder.
          */
-        if (
-            is_object($USER)
-            && method_exists($USER, 'IsAdmin')
-            && $USER->IsAdmin()
-        ) {
+        if (sitebuilder_is_admin()) {
             return true;
         }
 

@@ -67,7 +67,7 @@ $currentUserId = (int)$USER->GetID();
 
 $canOpenEditor = false;
 
-if ($USER->IsAdmin()) {
+if (sitebuilder_is_admin()) {
     $canOpenEditor = true;
 }
 
@@ -171,7 +171,7 @@ if (!$canOpenEditor) {
  * Сервер всё равно повторно проверяет эти полномочия
  * в api/handlers/page_access.php.
  */
-$canManagePageAccess = $USER->IsAdmin()
+$canManagePageAccess = sitebuilder_is_admin()
     || (int)($globalRoleRank ?? 0) >= 3;
 $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
 ?>
@@ -244,7 +244,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                 <div class="sb-editor-more__menu">
                     <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/settings.php?siteId=<?= (int)$siteId ?>">Настройки сайта</a>
                     <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/layout.php?siteId=<?= (int)$siteId ?>">Layout сайта</a>
-                    <?php if ($USER->IsAdmin() || (int)($globalRoleRank ?? 0) >= 3): ?>
+                    <?php if (sitebuilder_is_admin() || (int)($globalRoleRank ?? 0) >= 3): ?>
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/trash.php?siteId=<?= (int)$siteId ?>">Корзина</a>
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/audit.php?siteId=<?= (int)$siteId ?>">Журнал действий</a>
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/jobs.php?siteId=<?= (int)$siteId ?>">Фоновые задания</a>
@@ -254,7 +254,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/backups.php?siteId=<?= (int)$siteId ?>">Резервные копии</a>
                         <a href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/forms.php?siteId=<?= (int)$siteId ?>">Заявки форм</a>
                     <?php endif; ?>
-                    <?php if ($USER->IsAdmin()): ?>
+                    <?php if (sitebuilder_is_admin()): ?>
                         <button type="button" id="saveAsTemplateBtn">Сохранить в шаблоны</button>
                     <?php endif; ?>
                     <button class="sb-editor-more__danger sb-hidden" type="button" id="deleteSiteBtn">Удалить сайт</button>
@@ -992,7 +992,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
     </div>
 </div>
 
-<?php if ($USER->IsAdmin()): ?>
+<?php if (sitebuilder_is_admin()): ?>
     <div class="sb-template-modal" id="saveTemplateModal" hidden>
         <div class="sb-template-modal__backdrop" data-close-template-modal></div>
 
@@ -1161,7 +1161,8 @@ window.SB_EDITOR_CONFIG = {
     basePath: '<?= CUtil::JSEscape($basePath) ?>',
     apiUrl: '<?= CUtil::JSEscape($basePath) ?>/api/index.php',
     siteId: <?= (int)$siteId ?>,
-    isBitrixAdmin: <?= $USER->IsAdmin() ? 'true' : 'false' ?>,
+    // Старое имя ключа сохранено для совместимости с JS-модулями редактора.
+    isBitrixAdmin: <?= sitebuilder_is_admin() ? 'true' : 'false' ?>,
     canManagePageAccess: <?= $canManagePageAccess ? 'true' : 'false' ?>,
     sessid: '<?= CUtil::JSEscape(bitrix_sessid()) ?>'
 };
@@ -1192,7 +1193,7 @@ window.SB_EDITOR_CONFIG = {
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/52-forms2.js?v=2"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/35-history.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/40-access.js?v=23"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=17"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/50-template.js?v=18"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/60-events.js?v=22"></script>
 
 </body>
