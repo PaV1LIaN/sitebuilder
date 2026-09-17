@@ -309,7 +309,7 @@ body.sb-admin-body {
 }
 
 .sb-hidden {
-    display: none !important;
+    display: none;
 }
 
 @media (max-width: 1200px) {

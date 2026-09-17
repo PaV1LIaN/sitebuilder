@@ -1,0 +1,72 @@
+/* Visibility and motion states. Responsive visibility applies to section/block wrappers.
+   Ready-state animation is disabled inside the static layout preview. */
+
+.sb-motion {
+    transition-property: opacity, transform, filter;
+    transition-duration: var(--sb-motion-duration, 600ms);
+    transition-delay: var(--sb-motion-delay, 0ms);
+    transition-timing-function: cubic-bezier(.2,.75,.25,1);
+    will-change: opacity, transform;
+}
+
+.sb-motion-ready:not(:where(.sb-layout-preview-mode, .sb-layout-preview-mode *)) .sb-motion:not(.is-visible) {
+    opacity: 0;
+}
+
+.sb-motion-ready:not(:where(.sb-layout-preview-mode, .sb-layout-preview-mode *)) .sb-motion--fade-up:not(.is-visible) {
+    transform: translateY(32px);
+}
+
+.sb-motion-ready:not(:where(.sb-layout-preview-mode, .sb-layout-preview-mode *)) .sb-motion--zoom:not(.is-visible) {
+    transform: scale(.94);
+}
+
+.sb-motion-ready:not(:where(.sb-layout-preview-mode, .sb-layout-preview-mode *)) .sb-motion--slide-left:not(.is-visible) {
+    transform: translateX(-42px);
+}
+
+.sb-motion-ready:not(:where(.sb-layout-preview-mode, .sb-layout-preview-mode *)) .sb-motion--slide-right:not(.is-visible) {
+    transform: translateX(42px);
+}
+
+.sb-motion-ready:not(:where(.sb-layout-preview-mode, .sb-layout-preview-mode *)) .sb-motion.is-visible {
+    opacity: 1;
+    transform: none;
+    filter: none;
+}
+
+@media (min-width: 1025px) {
+    .sb-hide-desktop {
+        display: none;
+    }
+
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+    .sb-hide-tablet {
+        display: none;
+    }
+
+}
+
+@media (max-width: 640px) {
+    .sb-hide-mobile {
+        display: none;
+    }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sb-motion {
+        opacity: 1;
+        transform: none;
+        transition: none;
+    }
+
+    .sb-motion-ready:not(:where(.sb-layout-preview-mode, .sb-layout-preview-mode *)) .sb-motion:not(.is-visible) {
+        opacity: 1;
+        transform: none;
+        transition: none;
+    }
+
+}

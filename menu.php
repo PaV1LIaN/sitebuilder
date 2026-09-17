@@ -32,7 +32,7 @@ if ($siteId <= 0) {
         <meta charset="UTF-8">
         <title>SiteBuilder / Menu</title>
         <?php $APPLICATION->ShowHead(); ?>
-        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
+        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
     </head>
     <body class="sb-admin-body">
         <div class="sb-page">
@@ -55,135 +55,8 @@ if (!sitebuilder_is_admin()) {
     <meta charset="UTF-8">
     <title>SiteBuilder / Menu</title>
     <?php $APPLICATION->ShowHead(); ?>
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-    <style>
-        .sb-menus-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-            gap: 16px;
-        }
-
-        .sb-menu-card {
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
-            background: #fff;
-            overflow: hidden;
-        }
-
-        .sb-menu-card-top {
-            padding: 16px;
-            border-bottom: 1px solid #e5e7eb;
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 12px;
-        }
-
-        .sb-menu-name {
-            margin: 0 0 8px;
-            font-size: 18px;
-            font-weight: 700;
-            word-break: break-word;
-        }
-
-        .sb-menu-actions {
-            padding: 12px 16px;
-            border-bottom: 1px solid #e5e7eb;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .sb-menu-items {
-            padding: 16px;
-        }
-
-        .sb-menu-items-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-
-        .sb-items-title {
-            font-size: 15px;
-            font-weight: 700;
-            margin: 0;
-        }
-
-        .sb-item-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .sb-menu-item-card {
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 12px;
-            background: #fafafa;
-        }
-
-        .sb-menu-item-head {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            align-items: flex-start;
-        }
-
-        .sb-menu-item-title {
-            font-size: 15px;
-            font-weight: 700;
-            margin: 0 0 6px;
-        }
-
-        .sb-dialog-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            z-index: 1000;
-        }
-
-        .sb-dialog {
-            width: 100%;
-            max-width: 640px;
-            background: #fff;
-            border-radius: 16px;
-            border: 1px solid #e5e7eb;
-            box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
-            overflow: hidden;
-        }
-
-        .sb-dialog-head {
-            padding: 16px 18px;
-            border-bottom: 1px solid #e5e7eb;
-            font-size: 18px;
-            font-weight: 700;
-        }
-
-        .sb-dialog-body {
-            padding: 18px;
-        }
-
-        .sb-dialog-actions {
-            padding: 16px 18px;
-            border-top: 1px solid #e5e7eb;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-
-        @media (max-width: 900px) {
-            .sb-menus-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
+    <link rel="stylesheet" href="assets/admin/pages/menu.css?v=20260917">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">

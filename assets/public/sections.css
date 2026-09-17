@@ -1,0 +1,150 @@
+/* Page sections. Desktop, tablet and mobile settings share one layout owner.
+   Padding belongs to the outer section; its inner container only limits width. */
+
+.sb-page-sections {
+    width: 100%;
+    min-width: 0;
+}
+
+.sb-page-section {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    min-height: var(--sb-section-min-height, 0px);
+    overflow: hidden;
+    padding: var(--sb-section-padding-top, 32px) var(--sb-section-padding-x, 24px) var(--sb-section-padding-bottom, 32px);
+    border-radius: var(--sb-section-radius, 0);
+    color: var(--sb-section-text-color, inherit);
+}
+
+.sb-page-section + .sb-page-section {
+    margin-top: var(--sb-section-stack-gap, 24px);
+}
+
+.sb-page-section__inner {
+    width: 100%;
+    margin: 0 auto;
+}
+
+.sb-page-section--container-default .sb-page-section__inner {
+    max-width: 1120px;
+}
+
+.sb-page-section--container-wide .sb-page-section__inner {
+    max-width: 1380px;
+}
+
+.sb-page-section--container-full .sb-page-section__inner {
+    max-width: none;
+}
+
+.sb-page-section__grid,
+.sb-section-grid {
+    display: grid;
+    grid-template-columns: var(--sb-section-grid-template, repeat(var(--sb-section-columns, 1), minmax(0, 1fr)));
+    align-items: var(--sb-section-align, start);
+    gap: var(--sb-section-gap, 24px);
+    width: 100%;
+    min-width: 0;
+}
+
+.sb-page-section__column,
+.sb-section-column {
+    min-width: 0;
+}
+
+.sb-page-section__column > *,
+.sb-section-column > * {
+    max-width: 100%;
+    min-width: 0;
+}
+
+.sb-page-section__column > * + *,
+.sb-section-column > * + * {
+    margin-top: 16px;
+}
+
+.sb-page-section--has-image::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(15, 23, 42, .12), rgba(15, 23, 42, .02));
+    pointer-events: none;
+}
+
+.sb-page-section--has-image .sb-page-section__inner {
+    position: relative;
+    z-index: 1;
+}
+
+@media (max-width: 1024px) {
+    .sb-page-section__grid,
+    .sb-section-grid {
+        grid-template-columns: repeat(var(--sb-section-tablet-columns, 1), minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 1000px) {
+    .sb-page-section {
+        min-height: var(--sb-sr-tablet-min-height, var(--sb-section-min-height, 0px));
+        padding-top: var(--sb-sr-tablet-padding-top, var(--sb-section-padding-top, 32px));
+        padding-right: var(--sb-sr-tablet-padding-x, var(--sb-section-padding-x, 24px));
+        padding-bottom: var(--sb-sr-tablet-padding-bottom, var(--sb-section-padding-bottom, 32px));
+        padding-left: var(--sb-sr-tablet-padding-x, var(--sb-section-padding-x, 24px));
+    }
+
+    .sb-page-section__grid,
+    .sb-section-grid {
+        gap: var(--sb-sr-tablet-gap, var(--sb-section-gap, 24px));
+        align-items: var(--sb-sr-tablet-align, var(--sb-section-align, start));
+    }
+}
+
+@media (max-width: 640px) {
+    .sb-page-section {
+        min-height: var(--sb-sr-mobile-min-height, var(--sb-sr-tablet-min-height, var(--sb-section-min-height, 0px)));
+        padding-top: var(--sb-sr-mobile-padding-top, var(--sb-sr-tablet-padding-top, var(--sb-section-padding-top, 32px)));
+        padding-right: var(--sb-sr-mobile-padding-x, var(--sb-sr-tablet-padding-x, var(--sb-section-padding-x, 24px)));
+        padding-bottom: var(--sb-sr-mobile-padding-bottom, var(--sb-sr-tablet-padding-bottom, var(--sb-section-padding-bottom, 32px)));
+        padding-left: var(--sb-sr-mobile-padding-x, var(--sb-sr-tablet-padding-x, var(--sb-section-padding-x, 24px)));
+    }
+
+    .sb-page-section__grid,
+    .sb-section-grid {
+        grid-template-columns: repeat(var(--sb-section-mobile-columns, 1), minmax(0, 1fr));
+        gap: var(--sb-sr-mobile-gap, var(--sb-sr-tablet-gap, var(--sb-section-gap, 24px)));
+        align-items: var(--sb-sr-mobile-align, var(--sb-sr-tablet-align, var(--sb-section-align, start)));
+    }
+}
+
+/* A disk is a full-width application embedded in the section. */
+.sb-page-section:has(.sb-disk) {
+    max-width: none;
+    margin-top: 0;
+    overflow: visible;
+    padding: 0;
+}
+
+.sb-page-section:has(.sb-disk) .sb-page-section__inner,
+.sb-page-section:has(.sb-disk) .sb-page-section__grid {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+}
+
+.sb-page-section__column:has(.sb-disk) {
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+}
+
+.sb-block--disk,
+.sb-block--disk .sb-block__inner,
+.sb-page-section__column:has(.sb-disk) > *,
+.sb-page-section__column:has(.sb-disk) .sb-disk {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin-inline: 0;
+}

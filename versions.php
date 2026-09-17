@@ -44,16 +44,8 @@ $typeTitles = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SiteBuilder / История</title>
     <?php $APPLICATION->ShowHead(); ?>
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-    <style>
-        .sb-history-grid{display:grid;grid-template-columns:minmax(420px,1fr) minmax(360px,.9fr);gap:16px;align-items:start}
-        .sb-history-list{display:flex;flex-direction:column;gap:10px}
-        .sb-history-row{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff;display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
-        .sb-history-row.is-selected{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
-        .sb-history-json{min-height:520px;max-height:70vh;overflow:auto;white-space:pre-wrap;word-break:break-word}
-        .sb-history-meta{font-size:12px;color:#64748b;line-height:1.6}
-        @media(max-width:980px){.sb-history-grid{grid-template-columns:1fr}}
-    </style>
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
+    <link rel="stylesheet" href="assets/admin/pages/versions.css?v=20260917">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">

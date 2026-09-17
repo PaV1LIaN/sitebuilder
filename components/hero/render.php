@@ -19,8 +19,8 @@ $backgroundColor = sb_public_safe_color($props['backgroundColor'] ?? '', '');
 $textColor = sb_public_safe_color($props['textColor'] ?? '', '');
 
 $styles = [
-    '--sb-hero-min-height:' . $minHeight . 'px',
-    '--sb-hero-radius:' . $radius . 'px',
+    '--sb-hero-config-min-height:' . $minHeight . 'px',
+    '--sb-hero-config-radius:' . $radius . 'px',
 ];
 
 if ($backgroundColor !== '') {

@@ -35,12 +35,8 @@ if (!sitebuilder_is_admin()) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SiteBuilder / Корзина</title>
     <?php $APPLICATION->ShowHead(); ?>
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-    <style>
-        .sb-trash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
-        .sb-trash-card{border:1px solid #e5e7eb;border-radius:14px;background:#fff;padding:16px}
-        .sb-trash-title{margin:0 0 8px;font-size:17px}.sb-trash-meta{color:#64748b;font-size:13px;line-height:1.6}
-    </style>
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
+    <link rel="stylesheet" href="assets/admin/pages/trash.css?v=20260917">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">

@@ -21,7 +21,7 @@ if ($siteId <= 0) {
         <meta charset="UTF-8">
         <title>SiteBuilder / Files</title>
         <?php $APPLICATION->ShowHead(); ?>
-        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
+        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
     </head>
     <body class="sb-admin-body">
         <div class="sb-page">
@@ -40,46 +40,8 @@ if ($siteId <= 0) {
     <meta charset="UTF-8">
     <title>SiteBuilder / Files</title>
     <?php $APPLICATION->ShowHead(); ?>
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-    <style>
-        .sb-files-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .sb-file-card {
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 14px;
-            background: #fafafa;
-        }
-
-        .sb-file-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 12px;
-        }
-
-        .sb-file-title {
-            margin: 0 0 6px;
-            font-size: 15px;
-            font-weight: 700;
-            word-break: break-word;
-        }
-
-        .sb-file-actions {
-            margin-top: 10px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .sb-file-upload-input {
-            max-width: 360px;
-        }
-    </style>
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
+    <link rel="stylesheet" href="assets/admin/pages/files.css?v=20260917">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">

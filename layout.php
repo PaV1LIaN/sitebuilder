@@ -35,7 +35,7 @@ if ($siteId <= 0) {
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <title>Каркас сайта</title>
         <?php $APPLICATION->ShowHead(); ?>
-        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
+        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
     </head>
     <body class="sb-admin-body">
         <div class="sb-page">
@@ -74,9 +74,9 @@ $h = static function ($value): string {
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title><?= $h($siteName) ?> · Каркас сайта</title>
     <?php $APPLICATION->ShowHead(); ?>
-    <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/admin.css">
-    <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/layout2.css?v=3">
-    <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/layout2-preview.css?v=1">
+    <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/admin.css?v=20260917">
+    <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/layout2.css?v=20260917">
+    <link rel="stylesheet" href="<?= $h($basePath) ?>/assets/admin/layout2-preview.css?v=20260917">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page sb-layout2-page">

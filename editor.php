@@ -40,13 +40,7 @@ if ($siteId <= 0) {
         <meta charset="UTF-8">
         <title>SiteBuilder / Editor</title>
         <?php $APPLICATION->ShowHead(); ?>
-        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=21">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v2.css?v=17">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v3.css?v=17">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v4.css?v=18">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v5.css?v=19">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v6.css?v=20">
+        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
     </head>
     <body class="sb-admin-body">
     <div class="sb-page">
@@ -132,7 +126,7 @@ if (!$canOpenEditor) {
                 $basePath,
                 ENT_QUOTES | ENT_SUBSTITUTE,
                 'UTF-8'
-            ) ?>/assets/admin/admin.css"
+            ) ?>/assets/admin/admin.css?v=20260917"
         >
     </head>
 
@@ -181,24 +175,10 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
     <meta charset="UTF-8">
     <title>SiteBuilder / Editor</title>
     <?php $APPLICATION->ShowHead(); ?>
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=21">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v2.css?v=17">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v3.css?v=17">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v4.css?v=18">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v5.css?v=19">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v7.css?v=3">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v8.css?v=4">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v9.css?v=1">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v10.css?v=1">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v11.css?v=1">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v12.css?v=1">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v13.css?v=1">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v14.css?v=1">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v15.css?v=2">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor-v16.css?v=1">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/forms2.css?v=1">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/public/lists.css?v=1">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor.css?v=20260917">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/forms2.css?v=20260917">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/public/lists.css?v=20260917">
 </head>
 <body class="sb-admin-body" data-editor-inspector-tab="page">
 <div class="sb-page">
@@ -296,7 +276,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                             </div>
                         </div>
 
-                        <div class="sb-form-row align-end" style="margin-top:12px;">
+                        <div class="sb-editor-space sb-form-row align-end">
                             <div class="sb-field">
                                 <label for="newPageSlug">Slug</label>
                                 <input class="sb-input" type="text" id="newPageSlug" placeholder="Например: home">
@@ -310,7 +290,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                             </div>
                         </div>
 
-                        <div class="sb-form-row" style="margin-top:12px;">
+                        <div class="sb-editor-space sb-form-row">
                             <button class="sb-btn sb-btn-primary" type="button" id="createPageBtn">Создать страницу</button>
                         </div>
                         </div>
@@ -452,12 +432,12 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                         <input class="sb-input" type="text" id="pageTitleInput">
                     </div>
 
-                    <div class="sb-field" style="margin-top:12px;">
+                    <div class="sb-editor-space sb-field">
                         <label for="pageSlugInput">Slug</label>
                         <input class="sb-input" type="text" id="pageSlugInput">
                     </div>
 
-                    <div class="sb-field" style="margin-top:12px;">
+                    <div class="sb-editor-space sb-field">
                         <label for="pageStatusInput">Статус</label>
                         <select class="sb-select" id="pageStatusInput">
                             <option value="draft">draft</option>
@@ -465,7 +445,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                         </select>
                     </div>
 
-                    <div class="sb-field" style="margin-top:12px;">
+                    <div class="sb-editor-space sb-field">
                         <label for="pageParentInput">Родительская страница</label>
                         <select class="sb-select" id="pageParentInput">
                             <option value="0">Без родителя</option>
@@ -513,7 +493,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                             <input class="sb-input" type="text" id="blockTypeInput" disabled>
                         </div>
 
-                        <div class="sb-form-row sb-block-placement-row" style="margin-top:12px;">
+                        <div class="sb-editor-space sb-form-row sb-block-placement-row">
                             <div class="sb-field">
                                 <label for="blockSectionInput">Секция</label>
                                 <select class="sb-select" id="blockSectionInput">
@@ -529,7 +509,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                             </div>
                         </div>
 
-                        <details class="sb-block-design-panel" id="blockDesignPanel" style="margin-top:12px;">
+                        <details class="sb-editor-space sb-block-design-panel" id="blockDesignPanel">
                             <summary>Адаптивность и анимация</summary>
                             <div class="sb-block-design-panel__body">
                                 <div class="sb-form-row sb-block-visibility-row">
@@ -537,43 +517,43 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                                     <label><input type="checkbox" id="blockVisibleTabletInput" checked> Планшет</label>
                                     <label><input type="checkbox" id="blockVisibleMobileInput" checked> Телефон</label>
                                 </div>
-                                <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;">
+                                <div class="sb-editor-space sb-form-grid sb-form-grid--3">
                                     <div class="sb-field"><label for="blockAnimationInput">Появление</label><select class="sb-select" id="blockAnimationInput"><option value="none">Без анимации</option><option value="fade">Проявление</option><option value="fade-up">Снизу вверх</option><option value="zoom">Масштаб</option><option value="slide-left">Слева</option><option value="slide-right">Справа</option></select></div>
                                     <div class="sb-field"><label for="blockAnimationDelayInput">Задержка, мс</label><input class="sb-input" type="number" id="blockAnimationDelayInput" min="0" max="3000" step="50" value="0"></div>
                                     <div class="sb-field"><label for="blockAnimationDurationInput">Длительность, мс</label><input class="sb-input" type="number" id="blockAnimationDurationInput" min="150" max="3000" step="50" value="600"></div>
                                 </div>
-                                <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                                <div class="sb-editor-space sb-form-grid sb-form-grid--2">
                                     <div class="sb-field"><label for="blockMarginTopInput">Отступ сверху, px</label><input class="sb-input" type="number" id="blockMarginTopInput" min="0" max="240" value="0"></div>
                                     <div class="sb-field"><label for="blockMarginBottomInput">Отступ снизу, px</label><input class="sb-input" type="number" id="blockMarginBottomInput" min="0" max="240" value="0"></div>
                                 </div>
-                                <div class="sb-editor-inspector-actions" style="margin-top:12px;">
+                                <div class="sb-editor-space sb-editor-inspector-actions">
                                     <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="copyBlockStyleBtn">Копировать стиль</button>
                                     <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="pasteBlockStyleBtn">Вставить стиль</button>
                                 </div>
-                                <div class="sb-editor-inspector-actions sb-global-block-actions" style="margin-top:8px;">
+                                <div class="sb-editor-space--small sb-editor-inspector-actions sb-global-block-actions">
                                     <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="saveGlobalBlockBtn">Сохранить как глобальный</button>
                                     <button class="sb-btn sb-btn-light sb-btn-small" type="button" id="openGlobalBlocksBtn">Глобальные блоки</button>
                                 </div>
                             </div>
                         </details>
 
-                        <div id="headingBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="headingBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field">
                                 <label for="headingTextInput">Текст заголовка</label>
                                 <textarea class="sb-textarea sb-textarea--compact" id="headingTextInput" placeholder="Введите заголовок"></textarea>
                             </div>
-                            <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--3">
                                 <div class="sb-field"><label for="headingLevelInput">Уровень</label><select class="sb-select" id="headingLevelInput"><option value="h1">H1</option><option value="h2">H2</option><option value="h3">H3</option><option value="h4">H4</option><option value="h5">H5</option><option value="h6">H6</option></select></div>
                                 <div class="sb-field"><label for="headingAlignInput">Выравнивание</label><select class="sb-select" id="headingAlignInput"><option value="left">Слева</option><option value="center">По центру</option><option value="right">Справа</option></select></div>
                                 <div class="sb-field"><label for="headingColorInput">Цвет</label><input class="sb-input sb-color-input" type="color" id="headingColorInput" value="#111827"></div>
                             </div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2">
                                 <div class="sb-field"><label for="headingSizeInput">Размер, px (0 = авто)</label><input class="sb-input" type="number" min="0" max="120" id="headingSizeInput" value="0"></div>
                                 <div class="sb-field"><label for="headingMaxWidthInput">Макс. ширина, px (0 = авто)</label><input class="sb-input" type="number" min="0" max="1800" id="headingMaxWidthInput" value="0"></div>
                             </div>
                         </div>
 
-                        <div id="textBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="textBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field">
                                 <label for="textTextInput">Текст блока</label>
                                 <div class="sb-rich-editor" id="textRichEditorWrap">
@@ -600,76 +580,76 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                                 <textarea class="sb-textarea sb-rich-editor__source" id="textTextInput" placeholder="Введите текст" aria-hidden="true" tabindex="-1"></textarea>
                                 <p class="sb-block-form-note">Редактируй текст визуально. HTML очищается перед публикацией.</p>
                             </div>
-                            <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--3">
                                 <div class="sb-field"><label for="textAlignInput">Выравнивание</label><select class="sb-select" id="textAlignInput"><option value="left">Слева</option><option value="center">По центру</option><option value="right">Справа</option><option value="justify">По ширине</option></select></div>
                                 <div class="sb-field"><label for="textSizeInput">Размер, px</label><input class="sb-input" type="number" min="12" max="72" id="textSizeInput" value="16"></div>
                                 <div class="sb-field"><label for="textColorInput">Цвет</label><input class="sb-input sb-color-input" type="color" id="textColorInput" value="#374151"></div>
                             </div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2">
                                 <div class="sb-field"><label for="textLineHeightInput">Межстрочный интервал</label><input class="sb-input" type="number" min="1" max="2.4" step="0.05" id="textLineHeightInput" value="1.65"></div>
                                 <div class="sb-field"><label for="textMaxWidthInput">Макс. ширина, px (0 = авто)</label><input class="sb-input" type="number" min="0" max="1800" id="textMaxWidthInput" value="0"></div>
                             </div>
                         </div>
 
-                        <div id="buttonBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="buttonBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field"><label for="buttonLabelInput">Текст кнопки</label><input class="sb-input" type="text" id="buttonLabelInput" placeholder="Например: Подробнее"></div>
-                            <div class="sb-field" style="margin-top:12px;"><label for="buttonHrefInput">Ссылка</label><input class="sb-input" type="text" id="buttonHrefInput" placeholder="https://... или /path/"></div>
-                            <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-field"><label for="buttonHrefInput">Ссылка</label><input class="sb-input" type="text" id="buttonHrefInput" placeholder="https://... или /path/"></div>
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--3">
                                 <div class="sb-field"><label for="buttonTargetInput">Открывать</label><select class="sb-select" id="buttonTargetInput"><option value="_self">В этом окне</option><option value="_blank">В новой вкладке</option></select></div>
                                 <div class="sb-field"><label for="buttonStyleInput">Стиль</label><select class="sb-select" id="buttonStyleInput"><option value="primary">Основная</option><option value="secondary">Тёмная</option><option value="outline">Контурная</option><option value="ghost">Лёгкая</option></select></div>
                                 <div class="sb-field"><label for="buttonSizeInput">Размер</label><select class="sb-select" id="buttonSizeInput"><option value="small">Маленькая</option><option value="medium">Средняя</option><option value="large">Большая</option></select></div>
                             </div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2">
                                 <div class="sb-field"><label for="buttonAlignInput">Выравнивание</label><select class="sb-select" id="buttonAlignInput"><option value="left">Слева</option><option value="center">По центру</option><option value="right">Справа</option></select></div>
                                 <label class="sb-switch"><input type="checkbox" id="buttonFullWidthInput"><span>На всю ширину</span></label>
                             </div>
                         </div>
 
-                        <div id="imageBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="imageBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field"><label for="imageSrcInput">Изображение</label><div class="sb-media-field"><input class="sb-input" type="text" id="imageSrcInput" placeholder="https://... или выберите из медиатеки"><button class="sb-btn sb-btn-light sb-btn-small" type="button" data-open-media data-media-target="imageSrcInput">Медиатека</button></div></div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2">
                                 <div class="sb-field"><label for="imageAltInput">Alt-текст</label><input class="sb-input" type="text" id="imageAltInput"></div>
                                 <div class="sb-field"><label for="imageHrefInput">Ссылка при клике</label><input class="sb-input" type="text" id="imageHrefInput"></div>
                             </div>
-                            <div class="sb-field" style="margin-top:12px;"><label for="imageCaptionInput">Подпись</label><input class="sb-input" type="text" id="imageCaptionInput"></div>
-                            <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-field"><label for="imageCaptionInput">Подпись</label><input class="sb-input" type="text" id="imageCaptionInput"></div>
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--3">
                                 <div class="sb-field"><label for="imageRatioInput">Пропорции</label><select class="sb-select" id="imageRatioInput"><option value="auto">Оригинал</option><option value="16:9">16:9</option><option value="4:3">4:3</option><option value="3:2">3:2</option><option value="1:1">Квадрат</option></select></div>
                                 <div class="sb-field"><label for="imageFitInput">Заполнение</label><select class="sb-select" id="imageFitInput"><option value="cover">Обрезать</option><option value="contain">Вместить</option><option value="fill">Растянуть</option><option value="none">Без масштабирования</option></select></div>
                                 <div class="sb-field"><label for="imageAlignInput">Выравнивание</label><select class="sb-select" id="imageAlignInput"><option value="left">Слева</option><option value="center">По центру</option><option value="right">Справа</option></select></div>
                             </div>
-                            <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--3">
                                 <div class="sb-field"><label for="imageWidthInput">Ширина, %</label><input class="sb-input" type="number" min="10" max="100" id="imageWidthInput" value="100"></div>
                                 <div class="sb-field"><label for="imageRadiusInput">Скругление, px</label><input class="sb-input" type="number" min="0" max="80" id="imageRadiusInput" value="18"></div>
                                 <label class="sb-switch"><input type="checkbox" id="imageShadowInput"><span>Тень</span></label>
                             </div>
                         </div>
 
-                        <div id="heroBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="heroBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field"><label for="heroEyebrowInput">Надзаголовок</label><input class="sb-input" type="text" id="heroEyebrowInput"></div>
-                            <div class="sb-field" style="margin-top:12px;"><label for="heroTitleInput">Заголовок</label><textarea class="sb-textarea sb-textarea--compact" id="heroTitleInput"></textarea></div>
-                            <div class="sb-field" style="margin-top:12px;"><label for="heroTextInput">Описание</label><textarea class="sb-textarea" id="heroTextInput"></textarea></div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-field"><label for="heroTitleInput">Заголовок</label><textarea class="sb-textarea sb-textarea--compact" id="heroTitleInput"></textarea></div>
+                            <div class="sb-editor-space sb-field"><label for="heroTextInput">Описание</label><textarea class="sb-textarea" id="heroTextInput"></textarea></div>
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2">
                                 <div class="sb-field"><label for="heroPrimaryLabelInput">Основная кнопка</label><input class="sb-input" type="text" id="heroPrimaryLabelInput"></div>
                                 <div class="sb-field"><label for="heroPrimaryHrefInput">Ссылка</label><input class="sb-input" type="text" id="heroPrimaryHrefInput"></div>
                             </div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2">
                                 <div class="sb-field"><label for="heroSecondaryLabelInput">Вторая кнопка</label><input class="sb-input" type="text" id="heroSecondaryLabelInput"></div>
                                 <div class="sb-field"><label for="heroSecondaryHrefInput">Ссылка</label><input class="sb-input" type="text" id="heroSecondaryHrefInput"></div>
                             </div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2">
                                 <div class="sb-field"><label for="heroImageSrcInput">Изображение</label><div class="sb-media-field"><input class="sb-input" type="text" id="heroImageSrcInput"><button class="sb-btn sb-btn-light sb-btn-small" type="button" data-open-media data-media-target="heroImageSrcInput">Медиатека</button></div></div>
                                 <div class="sb-field"><label for="heroImageAltInput">Alt-текст</label><input class="sb-input" type="text" id="heroImageAltInput"></div>
                             </div>
-                            <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--3">
                                 <div class="sb-field"><label for="heroThemeInput">Тема</label><select class="sb-select" id="heroThemeInput"><option value="light">Светлая</option><option value="soft">Мягкая</option><option value="accent">Акцентная</option><option value="dark">Тёмная</option></select></div>
                                 <div class="sb-field"><label for="heroAlignInput">Текст</label><select class="sb-select" id="heroAlignInput"><option value="left">Слева</option><option value="center">По центру</option></select></div>
                                 <div class="sb-field"><label for="heroImagePositionInput">Изображение</label><select class="sb-select" id="heroImagePositionInput"><option value="right">Справа</option><option value="left">Слева</option><option value="background">Фоном</option><option value="none">Скрыть</option></select></div>
                             </div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2">
                                 <div class="sb-field"><label for="heroMinHeightInput">Мин. высота, px</label><input class="sb-input" type="number" min="220" max="900" id="heroMinHeightInput" value="380"></div>
                                 <div class="sb-field"><label for="heroRadiusInput">Скругление, px</label><input class="sb-input" type="number" min="0" max="80" id="heroRadiusInput" value="28"></div>
                             </div>
-                            <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--3">
                                 <div class="sb-field"><label for="heroBackgroundColorInput">Свой цвет фона</label><input class="sb-input sb-color-input" type="color" id="heroBackgroundColorInput" value="#eff6ff"></div>
                                 <div class="sb-field"><label for="heroTextColorInput">Свой цвет текста</label><input class="sb-input sb-color-input" type="color" id="heroTextColorInput" value="#0f172a"></div>
                                 <label class="sb-switch"><input type="checkbox" id="heroUseCustomColorsInput"><span>Использовать свои цвета</span></label>
@@ -677,11 +657,11 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                             <p class="sb-block-form-note">Если переключатель выключен, цвета определяются выбранной темой.</p>
                         </div>
 
-                        <div id="cardsBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="cardsBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field"><label for="cardsTitleInput">Заголовок группы</label><input class="sb-input" type="text" id="cardsTitleInput"></div>
                             <div class="sb-repeater-head"><strong>Карточки</strong><button class="sb-btn sb-btn-light sb-btn-small" type="button" data-cards-action="add">+ Карточка</button></div>
                             <div id="cardsItemsEditor" class="sb-repeater"></div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2">
                                 <div class="sb-field"><label for="cardsColumnsInput">Колонки</label><select class="sb-select" id="cardsColumnsInput"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
                                 <div class="sb-field"><label for="cardsStyleInput">Стиль</label><select class="sb-select" id="cardsStyleInput"><option value="elevated">С тенью</option><option value="outlined">Контур</option><option value="soft">Мягкий фон</option><option value="minimal">Минимализм</option></select></div>
                                 <div class="sb-field"><label for="cardsImageRatioInput">Фото</label><select class="sb-select" id="cardsImageRatioInput"><option value="16:9">16:9</option><option value="4:3">4:3</option><option value="1:1">1:1</option><option value="auto">Оригинал</option></select></div>
@@ -689,34 +669,34 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                             </div>
                         </div>
 
-                        <div id="quoteBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="quoteBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field"><label for="quoteTextInput">Цитата</label><textarea class="sb-textarea" id="quoteTextInput"></textarea></div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;"><div class="sb-field"><label for="quoteAuthorInput">Автор</label><input class="sb-input" type="text" id="quoteAuthorInput"></div><div class="sb-field"><label for="quoteRoleInput">Должность</label><input class="sb-input" type="text" id="quoteRoleInput"></div></div>
-                            <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;"><div class="sb-field"><label for="quoteStyleInput">Стиль</label><select class="sb-select" id="quoteStyleInput"><option value="accent">Акцент</option><option value="soft">Мягкий</option><option value="minimal">Минимальный</option><option value="dark">Тёмный</option></select></div><div class="sb-field"><label for="quoteAlignInput">Выравнивание</label><select class="sb-select" id="quoteAlignInput"><option value="left">Слева</option><option value="center">По центру</option></select></div><div class="sb-field"><label for="quoteAccentColorInput">Цвет акцента</label><input class="sb-input sb-color-input" type="color" id="quoteAccentColorInput" value="#2563eb"></div></div>
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2"><div class="sb-field"><label for="quoteAuthorInput">Автор</label><input class="sb-input" type="text" id="quoteAuthorInput"></div><div class="sb-field"><label for="quoteRoleInput">Должность</label><input class="sb-input" type="text" id="quoteRoleInput"></div></div>
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--3"><div class="sb-field"><label for="quoteStyleInput">Стиль</label><select class="sb-select" id="quoteStyleInput"><option value="accent">Акцент</option><option value="soft">Мягкий</option><option value="minimal">Минимальный</option><option value="dark">Тёмный</option></select></div><div class="sb-field"><label for="quoteAlignInput">Выравнивание</label><select class="sb-select" id="quoteAlignInput"><option value="left">Слева</option><option value="center">По центру</option></select></div><div class="sb-field"><label for="quoteAccentColorInput">Цвет акцента</label><input class="sb-input sb-color-input" type="color" id="quoteAccentColorInput" value="#2563eb"></div></div>
                         </div>
 
-                        <div id="statsBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="statsBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field"><label for="statsTitleInput">Заголовок</label><input class="sb-input" type="text" id="statsTitleInput"></div>
                             <div class="sb-repeater-head"><strong>Показатели</strong><button class="sb-btn sb-btn-light sb-btn-small" type="button" data-stats-action="add">+ Показатель</button></div>
                             <div id="statsItemsEditor" class="sb-repeater"></div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;"><div class="sb-field"><label for="statsColumnsInput">Колонки</label><select class="sb-select" id="statsColumnsInput"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div><div class="sb-field"><label for="statsStyleInput">Стиль</label><select class="sb-select" id="statsStyleInput"><option value="cards">Карточки</option><option value="line">Линии</option><option value="plain">Без фона</option><option value="accent">Акцентный фон</option></select></div></div>
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2"><div class="sb-field"><label for="statsColumnsInput">Колонки</label><select class="sb-select" id="statsColumnsInput"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div><div class="sb-field"><label for="statsStyleInput">Стиль</label><select class="sb-select" id="statsStyleInput"><option value="cards">Карточки</option><option value="line">Линии</option><option value="plain">Без фона</option><option value="accent">Акцентный фон</option></select></div></div>
                         </div>
 
-                        <div id="dividerBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="dividerBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field"><label for="dividerLabelInput">Подпись (необязательно)</label><input class="sb-input" type="text" id="dividerLabelInput"></div>
-                            <div class="sb-form-grid sb-form-grid--3" style="margin-top:12px;"><div class="sb-field"><label for="dividerStyleInput">Стиль</label><select class="sb-select" id="dividerStyleInput"><option value="solid">Линия</option><option value="dashed">Пунктир</option><option value="gradient">Градиент</option><option value="dots">Точки</option></select></div><div class="sb-field"><label for="dividerColorInput">Цвет</label><input class="sb-input sb-color-input" type="color" id="dividerColorInput" value="#cbd5e1"></div><div class="sb-field"><label for="dividerThicknessInput">Толщина, px</label><input class="sb-input" type="number" min="1" max="8" id="dividerThicknessInput" value="1"></div></div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;"><div class="sb-field"><label for="dividerWidthInput">Ширина, %</label><input class="sb-input" type="number" min="10" max="100" id="dividerWidthInput" value="100"></div><div class="sb-field"><label for="dividerMarginInput">Отступ, px</label><input class="sb-input" type="number" min="0" max="160" id="dividerMarginInput" value="24"></div></div>
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--3"><div class="sb-field"><label for="dividerStyleInput">Стиль</label><select class="sb-select" id="dividerStyleInput"><option value="solid">Линия</option><option value="dashed">Пунктир</option><option value="gradient">Градиент</option><option value="dots">Точки</option></select></div><div class="sb-field"><label for="dividerColorInput">Цвет</label><input class="sb-input sb-color-input" type="color" id="dividerColorInput" value="#cbd5e1"></div><div class="sb-field"><label for="dividerThicknessInput">Толщина, px</label><input class="sb-input" type="number" min="1" max="8" id="dividerThicknessInput" value="1"></div></div>
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2"><div class="sb-field"><label for="dividerWidthInput">Ширина, %</label><input class="sb-input" type="number" min="10" max="100" id="dividerWidthInput" value="100"></div><div class="sb-field"><label for="dividerMarginInput">Отступ, px</label><input class="sb-input" type="number" min="0" max="160" id="dividerMarginInput" value="24"></div></div>
                         </div>
 
-                        <div id="spacerBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="spacerBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field"><label for="spacerHeightInput">Высота на компьютере, px</label><input class="sb-input" type="range" min="0" max="400" step="4" id="spacerHeightInput" value="40"><output id="spacerHeightOutput">40 px</output></div>
-                            <div class="sb-form-grid sb-form-grid--2" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-grid sb-form-grid--2">
                                 <div class="sb-field"><label for="spacerTabletHeightInput">На планшете, px</label><input class="sb-input" type="number" min="0" max="400" id="spacerTabletHeightInput" value="32"></div>
                                 <div class="sb-field"><label for="spacerMobileHeightInput">На телефоне, px</label><input class="sb-input" type="number" min="0" max="400" id="spacerMobileHeightInput" value="24"></div>
                             </div>
                         </div>
 
-                        <div id="htmlBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="htmlBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field">
                                 <label for="htmlInput">HTML</label>
                                 <textarea class="sb-textarea" id="htmlInput" placeholder="<div>HTML-код</div>"></textarea>
@@ -726,13 +706,13 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                             </div>
                         </div>
 
-                        <div id="tableBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="tableBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field">
                                 <label for="tableTitleInput">Заголовок таблицы</label>
                                 <input class="sb-input" type="text" id="tableTitleInput" placeholder="Например: Прайс-лист, контакты, расписание">
                             </div>
 
-                            <div class="sb-table-editor" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-table-editor">
                                 <div class="sb-table-editor__head">
                                     <div>
                                         <strong>Столбцы</strong>
@@ -746,7 +726,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
 
                                 <div id="tableColumnsEditor" class="sb-table-editor__columns"></div>
 
-                                <div class="sb-table-editor__head" style="margin-top:16px;">
+                                <div class="sb-editor-space--large sb-table-editor__head">
                                     <div>
                                         <strong>Строки</strong>
                                         <p class="sb-editor-note">Добавляй строки и заполняй значения по столбцам</p>
@@ -761,13 +741,13 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                             </div>
                         </div>
 
-                        <div id="diskBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="diskBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-field">
                                 <label for="diskTitleInput">Заголовок блока</label>
                                 <input class="sb-input" type="text" id="diskTitleInput">
                             </div>
 
-                            <div class="sb-field" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-field">
                                 <label for="diskRootModeInput">Режим корня</label>
                                 <select class="sb-select" id="diskRootModeInput">
                                     <option value="site">Корень сайта</option>
@@ -775,7 +755,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                                 </select>
                             </div>
 
-                            <div class="sb-field" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-field">
                                 <label for="diskViewModeInput">Вид</label>
                                 <select class="sb-select" id="diskViewModeInput">
                                     <option value="table">Таблица</option>
@@ -783,7 +763,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                                 </select>
                             </div>
 
-                            <div class="sb-field" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-field">
                                 <label for="diskPermissionModeInput">Режим прав</label>
                                 <select class="sb-select" id="diskPermissionModeInput">
                                     <option value="inherit_site">Наследовать права сайта</option>
@@ -792,7 +772,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                                 </select>
                             </div>
 
-                            <div class="sb-field" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-field">
                                 <label for="diskMaxFileSizeInput">Максимальный размер файла</label>
                                 <input class="sb-input" type="number" id="diskMaxFileSizeInput" min="0">
                             </div>
@@ -803,33 +783,33 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                                 <p class="sb-help">Объём корневой папки с подпапками. 0 — без ограничения.</p>
                             </div>
 
-                            <div class="sb-field" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-field">
                                 <label for="diskAllowedExtensionsInput">Разрешенные расширения</label>
                                 <input class="sb-input" type="text" id="diskAllowedExtensionsInput" placeholder="pdf docx xlsx png jpg">
                             </div>
 
-                            <div class="sb-form-row" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-row">
                                 <label><input type="checkbox" id="diskAllowUploadInput"> Загрузка</label>
                                 <label><input type="checkbox" id="diskAllowCreateFolderInput"> Создание папок</label>
                             </div>
 
-                            <div class="sb-form-row" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-row">
                                 <label><input type="checkbox" id="diskAllowRenameInput"> Переименование</label>
                                 <label><input type="checkbox" id="diskAllowDeleteInput"> Удаление</label>
                             </div>
 
-                            <div class="sb-form-row" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-row">
                                 <label><input type="checkbox" id="diskAllowDownloadInput"> Скачивание</label>
                                 <label><input type="checkbox" id="diskShowSearchInput"> Показывать поиск</label>
                             </div>
 
-                            <div class="sb-form-row" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-form-row">
                                 <label><input type="checkbox" id="diskShowBreadcrumbsInput"> Показывать breadcrumbs</label>
                                 <label><input type="checkbox" id="diskUseSiteRootFallbackInput"> Использовать корень сайта как fallback</label>
                             </div>
                         </div>
 
-                        <div id="unknownBlockForm" class="sb-block-type-form" style="margin-top:12px;">
+                        <div id="unknownBlockForm" class="sb-editor-space sb-block-type-form">
                             <div class="sb-empty">
                                 Для этого типа блока пока нет визуальной формы. Используй технический JSON ниже.
                             </div>
@@ -838,12 +818,12 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                         <button class="sb-advanced-toggle" type="button" id="toggleAdvancedJsonBtn">Технический JSON</button>
 
                         <div id="blockJsonFields" class="sb-editor-advanced-json">
-                            <div class="sb-field" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-field">
                                 <label for="blockContentInput">Контент (JSON)</label>
                                 <textarea class="sb-textarea" id="blockContentInput"></textarea>
                             </div>
 
-                            <div class="sb-field" style="margin-top:12px;">
+                            <div class="sb-editor-space sb-field">
                                 <label for="blockPropsInput">Свойства (JSON)</label>
                                 <textarea class="sb-textarea" id="blockPropsInput"></textarea>
                             </div>
@@ -870,7 +850,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                         <button class="sb-btn sb-btn-light" type="button" id="blockHistoryBtn">История блока</button>
                     </div>
 
-                    <div id="historyMessage" class="sb-empty" style="margin-top:12px;">
+                    <div id="historyMessage" class="sb-editor-space sb-empty">
                         Выберите страницу или блок и откройте историю.
                     </div>
 
@@ -917,7 +897,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                         <button class="sb-btn sb-btn-light" type="button" id="reloadPageAccessBtn">Обновить</button>
                     </div>
 
-                    <div id="pageAccessMessage" class="sb-empty sb-hidden" style="margin-top:12px;"></div>
+                    <div id="pageAccessMessage" class="sb-editor-space sb-empty sb-hidden"></div>
 
                     <div id="pageAccessList" class="sb-access-list">
                         <div class="sb-empty">Выберите страницу</div>
@@ -939,7 +919,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                         <button class="sb-btn sb-btn-light" type="button" id="syncAccessBtn">Синхронизировать права</button>
                     </div>
 
-                    <div id="syncAccessResult" class="sb-output" style="margin-top:12px;"></div>
+                    <div id="syncAccessResult" class="sb-editor-space sb-output"></div>
                 </div>
 
                     <div class="sb-panel sb-access-scope-panel" id="siteAccessPanel" hidden>
@@ -973,7 +953,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                         <button class="sb-btn sb-btn-light" type="button" id="reloadAccessBtn">Обновить</button>
                     </div>
 
-                    <div id="accessMessage" class="sb-empty sb-hidden" style="margin-top:12px;"></div>
+                    <div id="accessMessage" class="sb-editor-space sb-empty sb-hidden"></div>
 
                     <div id="accessList" class="sb-access-list">
                         <div class="sb-empty">Права не загружены</div>
@@ -986,7 +966,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                     <div id="output" class="sb-output">Здесь будут ответы API...</div>
                 </div>
 
-                <div id="outputFallback" style="display:none;"></div>
+                <div id="outputFallback" hidden></div>
             </div>
         </aside>
     </div>
@@ -1014,7 +994,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                     <input class="sb-input" type="text" id="templateNameInput" placeholder="Например: Корпоративный портал">
                 </div>
 
-                <div class="sb-field" style="margin-top:12px;">
+                <div class="sb-editor-space sb-field">
                     <label for="templateDescriptionInput">Описание</label>
                     <textarea class="sb-input" id="templateDescriptionInput" rows="4" placeholder="Кратко опиши, для каких сайтов подходит этот шаблон"></textarea>
                 </div>

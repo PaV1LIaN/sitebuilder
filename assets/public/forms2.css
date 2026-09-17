@@ -1,5 +1,5 @@
 /* =========================================================
-   SITEBUILDER / FORMS 2.0 / STAGE 1
+   SITEBUILDER / FORM OPTIONS AND VALIDATION
    ========================================================= */
 
 .sb-form-label {
@@ -16,10 +16,10 @@
 
 .sb-form-radio {
     min-height: 38px;
-    display: flex !important;
+    display: flex;
     align-items: center;
     gap: 9px;
-    margin: 0 !important;
+    margin: 0;
     padding: 8px 10px;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
@@ -32,12 +32,12 @@
     background: #f8fbff;
 }
 
-.sb-form-radio input {
-    width: 16px !important;
-    height: 16px !important;
+.sb-form-field .sb-form-radio input[type="radio"] {
+    width: 16px;
+    height: 16px;
     flex: 0 0 16px;
-    margin: 0 !important;
-    padding: 0 !important;
+    margin: 0;
+    padding: 0;
 }
 
 .sb-form-radio span {
@@ -48,7 +48,7 @@
 .sb-form-field.is-error input:not([type="radio"]):not([type="checkbox"]),
 .sb-form-field.is-error select,
 .sb-form-field.is-error textarea {
-    border-color: #dc2626 !important;
+    border-color: #dc2626;
     box-shadow: 0 0 0 3px rgba(220, 38, 38, .08);
 }
 

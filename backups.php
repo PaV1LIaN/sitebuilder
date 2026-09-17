@@ -27,10 +27,8 @@ $returnUrl = $basePath . '/settings.php?siteId=' . $siteId;
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>SiteBuilder / Резервные копии</title>
     <?php $APPLICATION->ShowHead(); ?>
-    <link rel="stylesheet" href="<?=htmlspecialchars($basePath,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8')?>/assets/admin/admin.css">
-    <style>
-        .backup-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(340px,.7fr);gap:16px}.backup-table{width:100%;border-collapse:collapse;min-width:920px}.backup-table th,.backup-table td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top}.badge{display:inline-flex;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:800}.ready,.succeeded{background:#dcfce7;color:#166534}.creating,.running{background:#dbeafe;color:#1d4ed8}.corrupt,.failed{background:#fee2e2;color:#991b1b}.deleted{background:#e5e7eb;color:#374151}.integrity-list{display:grid;gap:8px}.integrity-item{padding:10px;border:1px solid #e5e7eb;border-radius:9px;cursor:pointer}.details{white-space:pre-wrap;word-break:break-word;max-height:48vh;overflow:auto}.create-row{display:flex;flex-wrap:wrap;gap:12px;align-items:end}.small{font-size:12px;color:#64748b}@media(max-width:1050px){.backup-grid{grid-template-columns:1fr}}
-    </style>
+    <link rel="stylesheet" href="<?=htmlspecialchars($basePath,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8')?>/assets/admin/admin.css?v=20260917">
+    <link rel="stylesheet" href="assets/admin/pages/backups.css?v=20260917">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">

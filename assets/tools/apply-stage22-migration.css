@@ -1,0 +1,73 @@
+/* Styles for tools/apply_stage22_migration.php. */
+
+body {
+    font-family: Arial,sans-serif;
+    background: #f4f7fb;
+    color: #172033;
+    margin: 0;
+    padding: 32px;
+}
+
+.box {
+    max-width: 980px;
+    margin: auto;
+    background: #fff;
+    border: 1px solid #dfe6ef;
+    border-radius: 18px;
+    padding: 28px;
+    box-shadow: 0 18px 50px rgba(15,23,42,.08);
+}
+
+h1 {
+    margin-top: 0;
+}
+
+.ok,.err {
+    padding: 12px 14px;
+    border-radius: 10px;
+    margin: 14px 0;
+}
+
+.ok {
+    background: #ecfdf3;
+    color: #166534;
+}
+
+.err {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+button {
+    border: 0;
+    border-radius: 10px;
+    padding: 12px 18px;
+    background: #2563eb;
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th,td {
+    text-align: left;
+    padding: 10px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.pending {
+    color: #b45309;
+}
+
+.applied {
+    color: #15803d;
+}
+
+.drift,.missing {
+    color: #b91c1c;
+}

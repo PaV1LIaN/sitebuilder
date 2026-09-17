@@ -1,0 +1,26 @@
+/* Styles for tools/run_stage9_queue.php. */
+
+body {
+    font-family: Arial;
+    background: #f3f6fb;
+    padding: 32px;
+}
+
+.card {
+    max-width: 760px;
+    margin: auto;
+    background: #fff;
+    padding: 28px;
+    border-radius: 16px;
+}
+
+pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 16px;
+    border-radius: 10px;
+}
+
+button,input {
+    padding: 10px;
+}

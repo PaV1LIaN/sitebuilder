@@ -1,6 +1,4 @@
-/* =========================================================
-   SITEBUILDER / FORMS 2.0 / STAGE 2
-   ========================================================= */
+/* SITEBUILDER / FORM SUBMISSIONS */
 
 .sb-forms2-page {
     max-width: 1420px;
@@ -306,8 +304,9 @@
         grid-template-columns: 1fr;
     }
 
-    .sb-forms2-payload__item {
-        padding-right: 0 !important;
+    .sb-forms2-payload__item,
+    .sb-forms2-payload__item:nth-child(odd) {
+        padding-right: 0;
     }
 
     .sb-forms2-submission__footer {

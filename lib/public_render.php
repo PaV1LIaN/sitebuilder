@@ -891,10 +891,6 @@ if (!function_exists('sb_public_render_page_sections')) {
                 );
             }
 
-            if ($minHeight > 0) {
-                $sectionStyles[] = 'min-height:' . $minHeight . 'px';
-            }
-
             if ($backgroundColor !== '') {
                 $sectionStyles[] = 'background-color:' . $backgroundColor;
             }
@@ -2384,6 +2380,18 @@ if (!function_exists('sb_public_render_block')) {
             $attributes .=
                 ' data-sb-responsive-type="'
                 . sb_public_h($type)
+                . '"';
+
+            // Apply only the responsive properties explicitly set by the editor.
+            // CSS consumes these tokens; values remain in the custom properties.
+            $responsiveTokens = [];
+            foreach ($responsiveStyles as $responsiveStyle) {
+                if (preg_match('/^--sb-r-((?:tablet|mobile)-[a-z0-9-]+):/', $responsiveStyle, $match)) {
+                    $responsiveTokens[] = $match[1];
+                }
+            }
+            $attributes .= ' data-sb-responsive="'
+                . sb_public_h(implode(' ', array_unique($responsiveTokens)))
                 . '"';
         }
 

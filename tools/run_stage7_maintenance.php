@@ -42,7 +42,7 @@ function sbStage7MaintenanceEscape(string $value): string
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Обслуживание SiteBuilder — этап 7</title>
-    <style>body{margin:0;padding:32px;font-family:Arial,sans-serif;background:#f3f6fb;color:#1f2937}.card{max-width:760px;margin:auto;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:28px}.notice{margin:16px 0;padding:14px;border-radius:10px}.ok{background:#f0fdf4;color:#166534}.error{background:#fef2f2;color:#991b1b}button{padding:11px 18px;border:0;border-radius:9px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer}pre{white-space:pre-wrap;background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px}</style>
+    <link rel="stylesheet" href="../assets/tools/run-stage7-maintenance.css?v=20260917">
 </head>
 <body><div class="card">
     <h1>Очистка истории SiteBuilder</h1>

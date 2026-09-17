@@ -397,9 +397,7 @@ if (!is_string($reportJson)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SiteBuilder — диагностика записи</title>
-    <style>
-        *{box-sizing:border-box}body{margin:0;background:#f3f4f6;color:#111827;font-family:Arial,sans-serif}.wrap{max-width:1180px;margin:0 auto;padding:24px}.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}.card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:18px;margin-bottom:16px}.title{margin:0 0 8px;font-size:28px}.muted{color:#6b7280;line-height:1.5}.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.btn{border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}.primary{background:#2563eb;color:#fff}.secondary{background:#e5e7eb;color:#111827}.select{min-width:240px;padding:10px;border:1px solid #d1d5db;border-radius:9px;background:#fff}.output{white-space:pre-wrap;word-break:break-word;overflow:auto;max-height:70vh;background:#111827;color:#e5e7eb;border-radius:12px;padding:16px;font:13px/1.55 Consolas,monospace}.notice{padding:12px 14px;border-radius:10px;background:#eff6ff;color:#1e40af;margin-bottom:14px}@media(max-width:760px){.top{display:block}.actions{margin-top:14px}}
-    </style>
+    <link rel="stylesheet" href="assets/admin/pages/diagnostics.css?v=20260917">
 </head>
 <body>
 <div class="wrap">

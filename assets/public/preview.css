@@ -1,0 +1,29 @@
+/* Public-page preview uses the same layout with interaction disabled.
+   The server places sb-layout-preview-mode on <html> before scripts are stripped. */
+html.sb-layout-preview-mode {
+    scroll-behavior: auto;
+}
+
+.sb-layout-preview-mode body {
+    margin: 0;
+}
+
+.sb-layout-preview-mode :is(.sb-motion, [data-sb-animate]) {
+    opacity: 1;
+    transform: none;
+    animation: none;
+    transition: none;
+}
+
+.sb-layout-preview-mode :is(a, button, input, select, textarea, label, form, [role="button"]) {
+    cursor: default;
+    pointer-events: none;
+}
+
+.sb-preview-empty {
+    margin: 0;
+    padding: 28px;
+    font-family: Arial, sans-serif;
+    color: #475569;
+    background: #f8fafc;
+}

@@ -20,12 +20,7 @@ header('Content-Type: text/html; charset=UTF-8');
     <meta charset="UTF-8">
     <title>SiteBuilder API Test</title>
     <?php $APPLICATION->ShowHead(); ?>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        button { margin: 0 10px 10px 0; padding: 10px 14px; cursor: pointer; }
-        pre { white-space: pre-wrap; background: #f5f5f5; padding: 16px; border: 1px solid #ccc; min-height: 180px; }
-        .row { margin-bottom: 12px; }
-    </style>
+    <link rel="stylesheet" href="assets/admin/pages/test-api.css?v=20260917">
 </head>
 <body>
     <h1>Проверка API SiteBuilder</h1>

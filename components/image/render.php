@@ -22,7 +22,7 @@ if ($shadow) {
     $classes[] = 'sb-media--shadow';
 }
 ?>
-<figure class="sb-block sb-block--image <?= sb_public_h(implode(' ', $classes)) ?>" style="--sb-media-radius:<?= $radius ?>px;--sb-media-width:<?= $width ?>%;--sb-media-fit:<?= sb_public_h($fit) ?>">
+<figure class="sb-block sb-block--image <?= sb_public_h(implode(' ', $classes)) ?>" style="--sb-media-config-radius:<?= $radius ?>px;--sb-media-config-width:<?= $width ?>%;--sb-media-fit:<?= sb_public_h($fit) ?>">
     <?php if ($src !== ''): ?>
         <?php if ($href !== ''): ?>
             <a class="sb-media__link" href="<?= sb_public_h($href) ?>">

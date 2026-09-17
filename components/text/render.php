@@ -17,9 +17,9 @@ $maxWidth = sb_public_clamp_int($props['maxWidth'] ?? $content['maxWidth'] ?? 0,
 $safeText = sb_public_sanitize_rich_html($text);
 
 $style = [
-    'text-align:' . $align,
-    'font-size:' . $size . 'px',
-    'line-height:' . $lineHeight,
+    '--sb-text-align:' . $align,
+    '--sb-text-size:' . $size . 'px',
+    '--sb-text-line-height:' . $lineHeight,
 ];
 
 if ($color !== '') {
@@ -27,10 +27,9 @@ if ($color !== '') {
 }
 
 if ($maxWidth > 0) {
-    $style[] = 'max-width:' . $maxWidth . 'px';
+    $style[] = '--sb-text-max-width:' . $maxWidth . 'px';
     if ($align === 'center') {
-        $style[] = 'margin-left:auto';
-        $style[] = 'margin-right:auto';
+        $style[] = '--sb-text-margin:auto';
     }
 }
 ?>
