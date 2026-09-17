@@ -64,6 +64,7 @@
       this.state.rootFolderId = data.rootFolderId || null;
       this.state.currentFolderId = data.currentFolderId || null;
       this.state.viewMode = (this.state.settings && this.state.settings.viewMode) || 'table';
+      this.renderTitle();
 
       this.prepareModernUi();
       this.applyPermissions();
@@ -85,6 +86,11 @@
       this.state.error = e.message || 'BOOTSTRAP_ERROR';
       this.renderState('error');
     }
+  };
+
+  DiskComponent.prototype.renderTitle = function () {
+    var title = this.root.querySelector('.sb-disk__title');
+    if (title) title.textContent = this.state.settings.title || 'Файлы';
   };
 
   DiskComponent.prototype.prepareModernUi = function () {
@@ -346,6 +352,10 @@
       this.state.items = Array.isArray(res.data.items) ? res.data.items : [];
       this.state.breadcrumbs = Array.isArray(res.data.breadcrumbs) ? res.data.breadcrumbs : [];
       this.state.permissions = res.data.permissions || this.state.permissions || {};
+      if (res.data.root && Number(res.data.root.id) === Number(this.state.rootFolderId)) {
+        this.state.settings.title = res.data.root.name;
+        this.renderTitle();
+      }
       this.state.selectedIds = [];
 
       this.applyPermissions();
@@ -2949,13 +2959,6 @@
       }
     }
 
-    if (crumbs.length) {
-      crumbs[0] = {
-        id: crumbs[0].id,
-        name: this.state.settings && this.state.settings.title ? this.state.settings.title : 'Файлы'
-      };
-    }
-
     container.innerHTML = crumbs.map(function (item) {
       return '<button type="button" class="sb-disk__crumb" data-folder-id="' + escapeHtml(item.id) + '">' +
         escapeHtml(item.name) +
@@ -3737,6 +3740,7 @@
         settingsRes.data.settings || {},
         rootOptionsRes.data || {}
       );
+      this.settingsRootRevision = settingsRes.data.root || null;
 
       this.arrangeSettingsModal();
       this.activateSettingsTab('main');
@@ -3929,7 +3933,7 @@
 
     setFormValue(form, 'title', settings.title || 'Файлы');
 
-    var settingsRootValue = settings.rootFolderId
+    var settingsRootValue = settings.rootMode === 'block' && settings.rootFolderId
       ? String(settings.rootFolderId)
       : (rootData.siteRootFolderId ? '' : '__create_site_root__');
 
@@ -4145,6 +4149,7 @@
       payload.sessid = this.getSessid();
       payload.expectedVersion = Number(this.state.blockVersion || 1);
       payload.settings = this.collectSettingsForm();
+      payload.rootRevision = this.settingsRootRevision || null;
 
       var res = await this.api('saveSettings', payload);
       if (!res || !res.ok) {
@@ -4157,6 +4162,8 @@
       this.state.settings = res.data.settings || this.state.settings;
       this.state.blockVersion = Number(res.data.blockVersion || this.state.blockVersion || 1);
       this.state.viewMode = this.state.settings.viewMode || 'table';
+      this.renderTitle();
+      this.settingsRootRevision = null;
 
       this.applyInitialViewMode();
 
@@ -4172,6 +4179,15 @@
           this.setSettingsMessage('Настройки сохранены, но итоговые права требуют проверки. Окно оставлено открытым.');
           return false;
         }
+      }
+
+      var titleSync = res.data.titleSync;
+      if (titleSync && titleSync.status !== 'succeeded') {
+        this.setSettingsMessage(titleSync.error === 'DISK_TITLE_CONFLICT'
+          ? 'Настройки сохранены. Папку уже переименовали на портале. Обновите настройки и проверьте название.'
+          : 'Настройки сохранены. Название папки пока не изменено в Битрикс24; синхронизация будет повторена.');
+        await this.loadResolvedRoot();
+        return false;
       }
 
       this.setSettingsMessage('Настройки и права сохранены.');
@@ -4191,7 +4207,9 @@
         return false;
       }
 
-      this.setSettingsMessage('Не удалось сохранить настройки.');
+      this.setSettingsMessage(e && e.code === 'DISK_TITLE_CONFLICT'
+        ? 'Папку переименовали на портале после открытия настроек. Закройте и снова откройте настройки, чтобы увидеть актуальное название.'
+        : 'Не удалось сохранить настройки.');
       return false;
     }
   };

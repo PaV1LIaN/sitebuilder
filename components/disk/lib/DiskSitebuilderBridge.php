@@ -137,7 +137,8 @@ class DiskSitebuilderBridge
         int $blockId,
         array $props,
         ?int $expectedVersion = null,
-        int $userId = 0
+        int $userId = 0,
+        string $operation = 'disk_settings_update'
     ): bool {
         $startedHere = sb_db_transaction_scope_begin();
 
@@ -154,7 +155,7 @@ class DiskSitebuilderBridge
                     ? RevisionService::requireExpectedVersion($expectedVersion)
                     : (int)$block['version'],
                 $userId,
-                'disk_settings_update'
+                $operation
             );
 
             sb_db_transaction_scope_commit($startedHere);

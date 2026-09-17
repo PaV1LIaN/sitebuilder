@@ -233,6 +233,8 @@ final class RevisionService
     {
         $blockId=(int)($block['id']??0); $current=self::getBlock($blockId,true); if(!$current) throw new RuntimeException('BLOCK_NOT_FOUND');
         self::assertExpected($current,$expectedVersion,self::ENTITY_BLOCK);
+        require_once __DIR__ . '/DiskTitleSyncService.php';
+        $titleChange = DiskTitleSyncService::prepare($current, $block, $userId, $operation);
         $stmt=sb_db()->prepare("UPDATE sitebuilder.block SET page_id=:page_id,type=:type,sort=:sort,content_json=CAST(:content_json AS jsonb),props_json=CAST(:props_json AS jsonb),updated_by=:updated_by,updated_at=NOW(),version=version+1 WHERE id=:id AND version=:expected_version RETURNING id,page_id,type,sort,content_json,props_json,created_by,created_at,updated_by,updated_at,version");
         $stmt->execute([
             ':page_id'=>(int)($block['pageId']??$current['pageId']), ':type'=>(string)($block['type']??$current['type']), ':sort'=>(int)($block['sort']??$current['sort']),
@@ -241,7 +243,12 @@ final class RevisionService
             ':updated_by'=>$userId, ':id'=>$blockId, ':expected_version'=>$expectedVersion,
         ]);
         $row=$stmt->fetch(); if(!$row) self::throwLatestConflict(self::ENTITY_BLOCK,$blockId,$expectedVersion);
-        $saved=sb_map_block_row($row); self::recordBlock($saved,$operation,$userId,$restoredFromRevisionId); return $saved;
+        $saved=sb_map_block_row($row);
+        self::recordBlock($saved,$operation,$userId,$restoredFromRevisionId);
+        if ($titleChange !== null) {
+            DiskTitleSyncService::enqueue($titleChange, (int)$saved['version']);
+        }
+        return $saved;
     }
 
     public static function saveMenu(array $menu, int $expectedVersion, int $userId, string $operation, ?int $restoredFromRevisionId = null): array

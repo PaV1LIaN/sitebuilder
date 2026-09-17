@@ -52,7 +52,8 @@ if (isset($settings['allowedExtensions'])) {
     }
 }
 
-$rootFolderIdValue = null;
+$rootFolderIdValue = ($currentSettings['rootMode'] ?? 'site') === 'block'
+    && !empty($currentSettings['rootFolderId']) ? (int)$currentSettings['rootFolderId'] : null;
 if (array_key_exists('rootFolderId', $settings)) {
     $tmp = trim((string)$settings['rootFolderId']);
     $rootFolderIdValue = ($tmp !== '' && (int)$tmp > 0) ? (int)$tmp : null;
@@ -61,6 +62,7 @@ if (array_key_exists('rootFolderId', $settings)) {
 $normalized = [
     'title' => trim((string)($settings['title'] ?? 'Файлы')),
     'rootFolderId' => $rootFolderIdValue,
+    'rootMode' => $rootFolderIdValue !== null ? 'block' : 'site',
     'viewMode' => in_array((string)($settings['viewMode'] ?? 'table'), ['table', 'grid'], true)
         ? (string)$settings['viewMode']
         : 'table',
@@ -88,13 +90,20 @@ $expectedVersion = RevisionService::requireExpectedVersion(
     $data['expectedVersion'] ?? null
 );
 
+$newRootId = DiskRootResolver::resolve($context, array_merge($currentSettings, $normalized));
+$rootRevision = $data['rootRevision'] ?? null;
+if (is_array($rootRevision) && $newRootId && (int)($rootRevision['id'] ?? 0) === $newRootId) {
+    DiskTitleSyncService::assertUnchanged($newRootId, (string)($rootRevision['name'] ?? ''));
+}
+
 $startedHere = sb_db_transaction_scope_begin();
 try {
     DiskSettingsRepository::save(
         $context->blockId,
         $normalized,
         $expectedVersion,
-        $currentUserId
+        $currentUserId,
+        'disk_settings_save'
     );
 
     $accessReconcileJob = OutboxService::enqueueUnifiedAccessReconcile(
@@ -111,9 +120,12 @@ try {
 
 $updatedSettings = DiskSettingsRepository::getByBlockId($context->blockId);
 $updatedBlock = BlockRepository::getById($context->blockId);
+$updatedRootId = DiskRootResolver::resolve($context, $updatedSettings);
+$updatedSettings['title'] = DiskTitleSyncService::folderName($updatedRootId, (string)$updatedSettings['title']);
 
 DiskResponse::success([
     'settings' => $updatedSettings,
     'blockVersion' => max(1, (int)($updatedBlock['version'] ?? 1)),
     'accessReconcileJob' => $accessReconcileJob,
+    'titleSync' => DiskTitleSyncService::requestStatus($context->blockId),
 ]);

@@ -33,6 +33,9 @@ class SitebuilderDiskComponent
 
             $root = DiskRootResolver::resolveWithSource($context, $settings);
             $permissions = DiskPermissionService::resolve($context, $settings, $root['rootFolderId']);
+            if (!empty($permissions['canView'])) {
+                $settings['title'] = DiskTitleSyncService::folderName($root['rootFolderId'], (string)$settings['title']);
+            }
 
             $this->result = [
                 'SITE_ID' => $context->siteId,

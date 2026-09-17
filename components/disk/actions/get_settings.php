@@ -26,8 +26,13 @@ if (!$settings) {
 }
 
 $block = BlockRepository::getById($context->blockId);
+$rootFolderId = DiskRootResolver::resolve($context, $settings);
+$permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId);
+DiskValidator::assertCan($permissions, 'canEditSettings');
+$settings['title'] = DiskTitleSyncService::folderName($rootFolderId, (string)$settings['title']);
 
 DiskResponse::success([
     'settings' => $settings,
+    'root' => ['id' => $rootFolderId, 'name' => $settings['title']],
     'blockVersion' => max(1, (int)($block['version'] ?? 1)),
 ]);

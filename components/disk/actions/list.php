@@ -61,12 +61,15 @@ $items = DiskValidator::filterVisibleItems(
 );
 
 $breadcrumbs = $adapter->getBreadcrumbs($context, $currentFolderId);
+$currentFolder = end($breadcrumbs);
+$rootName = DiskTitleSyncService::folderName($rootFolderId, (string)$settings['title']);
 
 DiskResponse::success([
     'folder' => [
         'id' => $currentFolderId,
-        'name' => 'Текущая папка',
+        'name' => $currentFolder ? (string)$currentFolder['name'] : '',
     ],
+    'root' => ['id' => $rootFolderId, 'name' => $rootName],
     'breadcrumbs' => $breadcrumbs,
     'items' => $items,
     'permissions' => $permissions,

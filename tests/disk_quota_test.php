@@ -156,6 +156,10 @@ namespace {
     function sb_disk_release_session_lock(): void {}
 }
 
+namespace Bitrix\Main {
+    class Loader { public static function includeModule($name): bool { return true; } }
+}
+
 namespace Bitrix\Disk {
     class FixtureObject
     {

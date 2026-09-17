@@ -33,9 +33,7 @@ class BlockDiskInitializer
             throw new RuntimeException('SITE_ROOT_FOLDER_NOT_FOUND');
         }
 
-        $folderBaseName = $blockTitle !== ''
-            ? ('Блок ' . $blockTitle)
-            : ('Блок ' . $blockId);
+        $folderBaseName = $blockTitle !== '' ? $blockTitle : 'Файлы';
 
         $folderName = DiskNameSanitizer::sanitizeFolderName($folderBaseName, 'Блок');
 

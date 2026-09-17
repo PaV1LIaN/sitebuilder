@@ -3,6 +3,8 @@
 use Bitrix\Disk\File;
 use Bitrix\Disk\Folder;
 
+require_once __DIR__ . '/../../../lib/DiskTitleSyncService.php';
+
 class DiskBitrixStorageAdapter
 {
     protected int $currentUserId;
@@ -173,14 +175,14 @@ class DiskBitrixStorageAdapter
 
         if ($entityType === 'folder') {
             $folder = $this->getFolderById($entityId);
-            $folder->rename($safeName, $context->currentUserId);
+            DiskTitleSyncService::renameObject($folder, $safeName, $context->currentUserId);
 
             return $this->normalizeFolder($context, $folder);
         }
 
         if ($entityType === 'file') {
             $file = $this->getFileById($entityId);
-            $file->rename($safeName, $context->currentUserId);
+            DiskTitleSyncService::renameObject($file, $safeName, $context->currentUserId);
 
             return $this->normalizeFile($context, $file);
         }

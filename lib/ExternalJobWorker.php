@@ -82,19 +82,38 @@ final class ExternalJobWorker
         }
     }
 
-    private static function claimOne(string $workerId): ?array
+    /** Best-effort immediate delivery after COMMIT; failures stay in the outbox. */
+    public static function runDiskTitleJob(int $jobId): void
+    {
+        $existing = OutboxService::get($jobId);
+        if (!$existing || $existing['jobType'] !== OutboxService::JOB_DISK_TITLE_SYNC) {
+            return;
+        }
+        $job = self::claimOne(self::defaultWorkerId(), $jobId);
+        if (!$job) {
+            return;
+        }
+        try {
+            self::markSucceeded($job, self::execute($job));
+        } catch (Throwable $e) {
+            self::markFailed($job, $e);
+        }
+    }
+
+    private static function claimOne(string $workerId, ?int $jobId = null): ?array
     {
         $pdo = sb_db();
         $pdo->beginTransaction();
         try {
+            $jobFilter = $jobId !== null ? ' AND id = :job_id' : '';
             $row = sb_db_fetch_one("
                 SELECT *
                 FROM sitebuilder.outbox_job
-                WHERE status IN ('pending','retry') AND available_at <= NOW()
+                WHERE status IN ('pending','retry') AND available_at <= NOW() {$jobFilter}
                 ORDER BY priority ASC, available_at ASC, id ASC
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
-            ");
+            ", $jobId !== null ? [':job_id' => $jobId] : []);
             if (!$row) {
                 $pdo->commit();
                 return null;
@@ -146,6 +165,7 @@ final class ExternalJobWorker
             OutboxService::JOB_UNIFIED_ACCESS_RECONCILE => self::reconcileUnifiedAccess($job),
             OutboxService::JOB_GROUP_MEMBER_RECONCILE => self::reconcileGroupMember($job),
             OutboxService::JOB_DISK_FOLDER_ENSURE => self::ensureDiskFolder($job),
+            OutboxService::JOB_DISK_TITLE_SYNC => self::syncDiskTitle($job),
             OutboxService::JOB_GROUP_DELETE => self::deleteGroup($job),
             OutboxService::JOB_DISK_FOLDER_DELETE => self::deleteDiskFolder($job),
             OutboxService::JOB_EXTERNAL_RECONCILE => self::reconcileExternalResources($job),
@@ -335,6 +355,13 @@ final class ExternalJobWorker
                 error_log('SiteBuilder worker advisory unlock failed: ' . $e->getMessage());
             }
         }
+    }
+
+    private static function syncDiskTitle(array $job): array
+    {
+        require_once __DIR__ . '/DiskTitleSyncService.php';
+        return self::withAdvisoryLock(761341, (int)$job['payload']['folderId'], false,
+            static fn(): array => DiskTitleSyncService::execute($job));
     }
 
     private static function ensureDiskFolder(array $job): array
@@ -554,8 +581,10 @@ final class ExternalJobWorker
     {
         $attempts = (int)$job['attempts'];
         $maxAttempts = (int)$job['maxAttempts'];
-        $dead = $attempts >= $maxAttempts;
         $errorCode = self::errorCode($e);
+        $dead = $attempts >= $maxAttempts
+            || (($job['jobType'] ?? '') === OutboxService::JOB_DISK_TITLE_SYNC
+                && in_array($errorCode, ['DISK_TITLE_CONFLICT', 'DISK_STORAGE_ROOT_RENAME_FORBIDDEN'], true));
         $delay = self::retryDelay($attempts);
         $status = $dead ? 'dead' : 'retry';
         $availableAt = $dead
