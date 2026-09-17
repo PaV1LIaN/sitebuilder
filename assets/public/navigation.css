@@ -105,10 +105,9 @@
 .sb-brand__text {
     display: block;
     min-width: 0;
-    max-width: min(760px, calc(100vw - 160px));
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .sb-public-header .sb-container.sb-header-container {
@@ -751,8 +750,8 @@
     }
 
     .sb-header-brand-row {
-        flex-direction: row;
-        align-items: center;
+        flex-direction: column;
+        align-items: stretch;
         gap: 10px;
     }
 
@@ -761,10 +760,6 @@
         width: auto;
         min-width: 0;
         font-size: 18px;
-    }
-
-    .sb-brand__text {
-        max-width: calc(100vw - 130px);
     }
 
     .sb-header-menu-row {
@@ -799,8 +794,7 @@
     }
 
     .sb-header-custom {
-        max-width: 48%;
-        overflow: hidden;
+        max-width: 100%;
     }
 
     .sb-header-menu-row .sb-public-menu::-webkit-scrollbar {
