@@ -555,7 +555,7 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
     <?php if ($pageSeoOgImage !== ''): ?><meta property="og:image" content="<?= sb_public_h($pageSeoOgImage) ?>"><?php endif; ?>
 
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=20260917">
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/navigation.css?v=20260917-2">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/navigation.css?v=20260917-3">
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/blocks.css?v=20260917">
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/table/styles.css?v=20260917">
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/lists.css?v=20260917">
