@@ -205,8 +205,8 @@ class PublicHomeTest(unittest.TestCase):
         self.assertIn("<title>Page " + str(id), body)
 
     def test_root_renders_selected_home(self):
-        self.assert_page(BASE + "/s/project/", 20)
-        self.assert_page(BASE + "/s/project/?utm_source=test", 20)
+        self.assert_page(BASE + "/s/project", 20)
+        self.assert_page(BASE + "/s/project?utm_source=test", 20)
 
     def test_regular_page_and_home_child_keep_their_paths(self):
         self.assert_page(BASE + "/s/project/about/", 10)
@@ -216,16 +216,16 @@ class PublicHomeTest(unittest.TestCase):
         self.data["sites"][0]["homePageId"] = 21
         self.data["pages"].append(page(22, "deep", parent=21))
         self.write_data()
-        self.assert_page(BASE + "/s/project/", 21)
+        self.assert_page(BASE + "/s/project", 21)
         self.assert_page(BASE + "/s/project/home/child/deep/", 22)
 
     def test_home_and_legacy_redirects_end_at_root(self):
-        for path in ["/s/project/home/", "/s/project", "/public.php?siteId=1",
+        for path in ["/s/project/home/", "/s/project/", "/public.php?siteId=1",
                      "/public.php?siteId=1&pageId=20"]:
             with self.subTest(path=path):
                 status, headers, _ = self.request(BASE + path)
                 self.assertEqual(status, 302)
-                self.assertEqual(headers["Location"], BASE + "/s/project/")
+                self.assertEqual(headers["Location"], BASE + "/s/project")
                 self.assert_page(headers["Location"], 20)
 
     def test_regular_legacy_redirect_preserves_query(self):
@@ -233,18 +233,28 @@ class PublicHomeTest(unittest.TestCase):
         self.assertEqual(status, 301)
         self.assertEqual(headers["Location"], BASE + "/s/project/home/child/?utm_source=test")
 
+    def test_home_redirect_preserves_folder_link_and_query(self):
+        query = {"blockId": "7", "folderId": "42", "utm_source": "test"}
+        for path in ["/s/project/", "/s/project/home/", "/public.php?siteId=1&pageId=20"]:
+            with self.subTest(path=path):
+                separator = "&" if "?" in path else "?"
+                status, headers, _ = self.request(BASE + path + separator + urlencode(query))
+                self.assertEqual(status, 302)
+                self.assertEqual(headers["Location"], BASE + "/s/project?" + urlencode(query))
+                self.assert_page(headers["Location"], 20)
+
     def test_missing_invalid_unpublished_or_foreign_home_falls_back(self):
         for id in [0, 999, 30, 31, 40, 50, 90]:
             with self.subTest(home=id):
                 self.data["sites"][0]["homePageId"] = id
                 self.write_data()
-                self.assert_page(BASE + "/s/project/", 10)
+                self.assert_page(BASE + "/s/project", 10)
 
     def test_viewer_access_filters_home_before_selection(self):
-        self.assert_page(BASE + "/s/project/", 10, {"X-Test-Visible": "10"})
+        self.assert_page(BASE + "/s/project", 10, {"X-Test-Visible": "10"})
         self.assertEqual(self.request(BASE + "/s/project/home/", {"X-Test-Visible": "10"})[0], 404)
-        self.assertEqual(self.request(BASE + "/s/project/", {"X-Test-Visible": "0"})[0], 404)
-        self.assertEqual(self.request(BASE + "/s/project/", {"X-Test-User": "0"})[0], 403)
+        self.assertEqual(self.request(BASE + "/s/project", {"X-Test-Visible": "0"})[0], 404)
+        self.assertEqual(self.request(BASE + "/s/project", {"X-Test-User": "0"})[0], 403)
 
     def test_unknown_paths_and_unpublished_pages_stay_404(self):
         for path in ["/s/missing/", "/s/project/missing/", "/s/project/draft/",
@@ -255,18 +265,18 @@ class PublicHomeTest(unittest.TestCase):
     def test_empty_site_is_404(self):
         self.data["pages"] = []
         self.write_data()
-        self.assertEqual(self.request(BASE + "/s/project/")[0], 404)
+        self.assertEqual(self.request(BASE + "/s/project")[0], 404)
 
     def test_cyrillic_slug_and_case_normalization(self):
-        self.assert_page(BASE + "/s/" + quote("сайт") + "/", 90)
+        self.assert_page(BASE + "/s/" + quote("сайт"), 90)
         status, headers, _ = self.request(BASE + "/s/" + quote("САЙТ") + "/")
         self.assertEqual(status, 302)
-        self.assertEqual(headers["Location"], BASE + "/s/" + quote("сайт") + "/")
+        self.assertEqual(headers["Location"], BASE + "/s/" + quote("сайт"))
 
     def test_sitemap_home_uses_root_and_child_keeps_parent(self):
         status, _, body = self.request(BASE + "/s/project/sitemap.xml")
         self.assertEqual(status, 200)
-        self.assertIn(self.url + BASE + "/s/project/</loc>", body)
+        self.assertIn(self.url + BASE + "/s/project</loc>", body)
         self.assertNotIn(self.url + BASE + "/s/project/home/</loc>", body)
         self.assertIn(self.url + BASE + "/s/project/home/child/</loc>", body)
         self.assertNotIn('/draft/', body)
@@ -282,12 +292,12 @@ class PublicHomeTest(unittest.TestCase):
         self.assertEqual(status, 200, body)
         site = json.loads(body)["site"]
         self.assertEqual((site["homePageId"], site["version"]), (21, 6))
-        self.assertEqual(site["publicUrl"], BASE + "/s/project/")
+        self.assertEqual(site["publicUrl"], BASE + "/s/project")
         self.assert_page(site["publicUrl"], 21)
         status, _, body = self.save_home(0, version=6)
         self.assertEqual(status, 200, body)
         self.assertEqual(json.loads(body)["site"]["homePageId"], 0)
-        self.assert_page(BASE + "/s/project/", 10)
+        self.assert_page(BASE + "/s/project", 10)
 
     def test_save_rejects_invalid_home(self):
         for id, error in [(30, "HOME_PAGE_NOT_PUBLISHED"), (31, "HOME_PAGE_NOT_PUBLISHED"),
@@ -303,7 +313,7 @@ class PublicHomeTest(unittest.TestCase):
         self.assertEqual(self.save_home(21, headers={"X-Test-Rank": "2"})[0], 403)
         self.assertEqual(self.save_home(21, version=4)[0], 409)
         self.assertEqual(self.save_home(21, version=0)[0], 422)
-        self.assert_page(BASE + "/s/project/", 20)
+        self.assert_page(BASE + "/s/project", 20)
 
 
 if __name__ == "__main__":

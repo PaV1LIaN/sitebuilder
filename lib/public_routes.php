@@ -115,8 +115,7 @@ if (!function_exists('sb_public_site_url')) {
 
         return rtrim($basePath, '/')
             . '/s/'
-            . sb_public_route_segment($slug)
-            . '/';
+            . sb_public_route_segment($slug);
     }
 }
 
@@ -263,7 +262,7 @@ if (!function_exists('sb_public_sitemap_url')) {
     function sb_public_sitemap_url(string $basePath, $site): string
     {
         $siteUrl = sb_public_site_url($basePath, $site);
-        return $siteUrl === '#' ? '#' : $siteUrl . 'sitemap.xml';
+        return $siteUrl === '#' ? '#' : $siteUrl . '/sitemap.xml';
     }
 }
 
@@ -294,7 +293,7 @@ if (!function_exists('sb_public_page_url')) {
             return $siteUrl;
         }
 
-        return $siteUrl . $pagePath . '/';
+        return $siteUrl . '/' . $pagePath . '/';
     }
 }
 

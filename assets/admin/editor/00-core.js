@@ -47,7 +47,7 @@ function buildPublicSiteUrl(site) {
         return '#';
     }
 
-    return BASE_PATH + '/s/' + encodeURIComponent(slug) + '/';
+    return BASE_PATH + '/s/' + encodeURIComponent(slug);
 }
 
 function buildPublicPageUrl(pageId) {
@@ -94,7 +94,7 @@ function buildPublicPageUrl(pageId) {
         return siteUrl;
     }
 
-    return siteUrl + segments.join('/') + '/';
+    return siteUrl.replace(/\/$/, '') + '/' + segments.join('/') + '/';
 }
 
 window.sbBuildPublicSiteUrl = buildPublicSiteUrl;

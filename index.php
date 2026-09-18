@@ -323,7 +323,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
 
         var slug = String((site && site.slug) || '').trim();
         return slug
-            ? BASE_PATH + '/s/' + encodeURIComponent(slug) + '/'
+            ? BASE_PATH + '/s/' + encodeURIComponent(slug)
             : '#';
     }
 

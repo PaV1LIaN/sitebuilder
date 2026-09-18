@@ -250,7 +250,7 @@ if (!function_exists('sb_public_site_url')) {
             return '';
         }
 
-        return rtrim($basePath, '/') . '/s/' . sb_route_encode_segment($slug) . '/';
+        return rtrim($basePath, '/') . '/s/' . sb_route_encode_segment($slug);
     }
 }
 
@@ -271,7 +271,7 @@ if (!function_exists('sb_public_page_url')) {
             return $siteUrl;
         }
 
-        return $siteUrl . $pagePath . '/';
+        return $siteUrl . '/' . $pagePath . '/';
     }
 }
 

@@ -484,7 +484,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
         }
         if (publicLink && site.slug) {
             publicLink.href = String(site.publicUrl || '')
-                || (BASE_PATH + '/s/' + encodeURIComponent(String(site.slug)) + '/');
+                || (BASE_PATH + '/s/' + encodeURIComponent(String(site.slug)));
         }
     }
 
