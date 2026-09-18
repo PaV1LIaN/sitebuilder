@@ -27,7 +27,8 @@ class DiskSettingsRepository
         int $blockId,
         array $settings,
         ?int $expectedVersion = null,
-        int $userId = 0
+        int $userId = 0,
+        string $operation = 'disk_settings_update'
     ): bool
     {
         $current = self::getByBlockId($blockId);
@@ -38,7 +39,8 @@ class DiskSettingsRepository
             $blockId,
             $normalized,
             $expectedVersion,
-            $userId
+            $userId,
+            $operation
         );
     }
 

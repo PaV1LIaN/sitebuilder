@@ -492,6 +492,17 @@ try {
         );
     }
 
+    if ($e->getMessage() === 'DISK_TITLE_CONFLICT') {
+        http_response_code(409);
+        DiskResponse::error('DISK_TITLE_CONFLICT', 'Название папки изменилось на портале. Обновите настройки.');
+    }
+
+    if (str_starts_with($e->getMessage(), 'DISK_RENAME_')) {
+        http_response_code(409);
+        DiskResponse::error('DISK_RENAME_FAILED',
+            'Не удалось переименовать объект в Битрикс24.Диске. Проверьте название и наличие объекта с таким же именем.');
+    }
+
     error_log(sprintf(
         'SiteBuilder Disk API error: %s in %s:%d',
         $e->getMessage(),

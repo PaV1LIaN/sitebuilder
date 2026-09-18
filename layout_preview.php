@@ -1042,17 +1042,9 @@ if (!$vm) {
     <html lang="ru">
     <head>
         <meta charset="UTF-8">
-        <style>
-            body {
-                margin: 0;
-                padding: 28px;
-                font-family: Arial, sans-serif;
-                color: #475569;
-                background: #f8fafc;
-            }
-        </style>
+        <link rel="stylesheet" href="assets/public/preview.css?v=20260917">
     </head>
-    <body>
+    <body class="sb-preview-empty">
         <strong>Нет страницы для предпросмотра.</strong>
     </body>
     </html>
@@ -1195,33 +1187,9 @@ if (!function_exists('sb_layout_preview_strip_scripts')) {
         return $html;
     }
 }
-$previewCss = <<<'HTML'
-<style id="sb-layout-preview-guard">
-html {
-    scroll-behavior: auto !important;
-}
-body {
-    margin: 0 !important;
-}
-.sb-motion,
-[data-sb-animate] {
-    opacity: 1 !important;
-    transform: none !important;
-    animation: none !important;
-}
-a,
-button,
-input,
-select,
-textarea,
-label,
-form,
-[role="button"] {
-    cursor: default !important;
-    pointer-events: none !important;
-}
-</style>
-HTML;
+$previewCss = '<link id="sb-layout-preview-guard" rel="stylesheet" href="'
+    . sb_public_h($basePath)
+    . '/assets/public/preview.css?v=20260917">';
 
 $previewJs = <<<'HTML'
 <script id="sb-layout-preview-guard-script">

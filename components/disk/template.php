@@ -183,9 +183,9 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
 
                                     <div class="sb-disk-settings-native__grid">
                                         <div class="sb-disk-form__field sb-disk-settings-native__field--full">
-                                            <label class="sb-disk-form__label">Заголовок блока</label>
-                                            <input type="text" class="sb-disk-form__input" name="title">
-                                            <div class="sb-disk-form__hint">Отображается над списком файлов.</div>
+                                            <label class="sb-disk-form__label">Название диска</label>
+                                            <input type="text" class="sb-disk-form__input" name="title" maxlength="100">
+                                            <div class="sb-disk-form__hint">Название связано с папкой на портале. Диски с общей папкой используют одно название.</div>
                                         </div>
 
                                         <div class="sb-disk-form__field">

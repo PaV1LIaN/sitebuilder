@@ -1,0 +1,39 @@
+/* Styles for files.php. */
+
+.sb-files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sb-file-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 14px;
+    background: #fafafa;
+}
+
+.sb-file-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.sb-file-title {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 700;
+    word-break: break-word;
+}
+
+.sb-file-actions {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.sb-file-upload-input {
+    max-width: 360px;
+}

@@ -37,8 +37,8 @@ if ($siteId <= 0) {
         <meta charset="UTF-8">
         <title>SiteBuilder / Settings</title>
         <?php $APPLICATION->ShowHead(); ?>
-        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/settings.css?v=1">
+        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
+        <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/settings.css?v=20260917">
     </head>
     <body class="sb-admin-body">
     <div class="sb-page">
@@ -66,8 +66,8 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
     <meta charset="UTF-8">
     <title>SiteBuilder / Settings</title>
     <?php $APPLICATION->ShowHead(); ?>
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/settings.css?v=1">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/settings.css?v=20260917">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">
@@ -484,7 +484,7 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
         }
         if (publicLink && site.slug) {
             publicLink.href = String(site.publicUrl || '')
-                || (BASE_PATH + '/s/' + encodeURIComponent(String(site.slug)) + '/');
+                || (BASE_PATH + '/s/' + encodeURIComponent(String(site.slug)));
         }
     }
 

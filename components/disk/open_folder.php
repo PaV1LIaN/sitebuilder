@@ -53,7 +53,7 @@ if ($view) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <title><?= $escape($title) ?></title>
-    <link rel="stylesheet" href="open_folder.css?v=1">
+    <link rel="stylesheet" href="open_folder.css?v=20260917">
 </head>
 <body>
 <main class="sb-shared-folder">

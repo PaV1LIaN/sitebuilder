@@ -75,9 +75,7 @@ function sbStage7Escape(string $value): string
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Миграция SiteBuilder — этап 7</title>
-    <style>
-        body{margin:0;padding:32px;font-family:Arial,sans-serif;background:#f3f6fb;color:#1f2937}.card{max-width:820px;margin:0 auto;padding:28px;background:#fff;border:1px solid #e5e7eb;border-radius:16px}.notice{margin:16px 0;padding:12px 14px;border-radius:10px}.ok{color:#166534;background:#f0fdf4;border:1px solid #bbf7d0}.error{color:#991b1b;background:#fef2f2;border:1px solid #fecaca}button{padding:11px 18px;border:0;border-radius:9px;color:#fff;background:#2563eb;cursor:pointer;font-weight:700}code{background:#f3f4f6;padding:2px 5px;border-radius:5px}.stats{margin:12px 0;padding:14px;background:#f8fafc;border-radius:10px;line-height:1.7}
-    </style>
+    <link rel="stylesheet" href="../assets/tools/apply-stage7-migration.css?v=20260917">
 </head>
 <body>
 <div class="card">

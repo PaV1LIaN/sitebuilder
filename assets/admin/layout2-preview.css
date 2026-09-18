@@ -1,7 +1,4 @@
-/* =========================================================
-   SITEBUILDER / LAYOUT 2.0 / STAGE 3
-   Real public preview.
-   ========================================================= */
+/* SITEBUILDER / LAYOUT PREVIEW */
 
 .sb-layout2-real-preview-panel {
     margin-bottom: 16px;
@@ -292,7 +289,7 @@
 }
 
 .sb-layout2-preview-loading[hidden] {
-    display: none !important;
+    display: none;
 }
 
 .sb-layout2-preview-loading::before {
@@ -319,7 +316,7 @@
 }
 
 .sb-layout2-preview-empty[hidden] {
-    display: none !important;
+    display: none;
 }
 
 .sb-layout2-preview-hint {
@@ -406,7 +403,7 @@
 @media (prefers-reduced-motion: reduce) {
     .sb-layout2-preview-frame-shell,
     .sb-layout2-preview-frame {
-        transition: none !important;
+        transition: none;
     }
 
     .sb-layout2-preview-loading::before {

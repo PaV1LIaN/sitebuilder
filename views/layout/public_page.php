@@ -538,7 +538,7 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
 }
 ?>
 <!doctype html>
-<html lang="ru">
+<html lang="ru"<?= $isLayoutPreview ? ' class="sb-layout-preview-mode"' : '' ?>>
 <head>
     <meta charset="UTF-8">
 
@@ -554,12 +554,15 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
     <?php if ($pageSeoOgDescription !== ''): ?><meta property="og:description" content="<?= sb_public_h($pageSeoOgDescription) ?>"><?php endif; ?>
     <?php if ($pageSeoOgImage !== ''): ?><meta property="og:image" content="<?= sb_public_h($pageSeoOgImage) ?>"><?php endif; ?>
 
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=26">
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/lists.css?v=1">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=20260917">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/navigation.css?v=20260917-3">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/blocks.css?v=20260917">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/table/styles.css?v=20260917">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/lists.css?v=20260917">
 
     <?php if ($pageHasDiskBlock): ?>
-        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=16">
-        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/access.css?v=2">
+        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=20260917">
+        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/access.css?v=20260917">
     <?php endif; ?>
 
     <style>
@@ -570,12 +573,11 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
             --sb-right-width: <?= (int)$vm['rightWidth'] ?>px;
         }
     </style>
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.css?v=20">
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/forms2.css?v=1">
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/responsive-blocks.css?v=1">
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/responsive-stage2.css?v=1">
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/responsive-stage3.css?v=1">
-    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/sections2.css?v=1">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.css?v=20260917">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/forms2.css?v=20260917">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/sections.css?v=20260917">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/responsive.css?v=20260917">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/motion.css?v=20260917">
 </head>
 <body>
 <div class="sb-public-shell" style="<?= sb_public_h($appearanceStyle) ?>">
@@ -697,7 +699,7 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
 
 
 <?php if ($pageHasDiskBlock && !$isLayoutPreview): ?>
-    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=18"></script>
+    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=19"></script>
     <script src="<?= sb_public_h($basePath) ?>/components/disk/access.js?v=4"></script>
 <?php endif; ?>
 
@@ -710,7 +712,6 @@ $isPublicEditMode = (
 );
 ?>
 
-<link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/table/styles.css">
 <?php if (!$isLayoutPreview): ?>
     <script src="<?= sb_public_h($basePath) ?>/components/table/view.js"></script>
 <?php endif; ?>
@@ -723,7 +724,7 @@ $isPublicEditMode = (
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     </script>
 
-    <script src="<?= sb_public_h($basePath) ?>/components/table/edit.js"></script>
+    <script src="<?= sb_public_h($basePath) ?>/components/table/edit.js?v=20260917"></script>
 <?php endif; ?>
 
 <?php if (!$isLayoutPreview): ?>

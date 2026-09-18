@@ -10,6 +10,7 @@ final class OutboxService
     public const JOB_UNIFIED_ACCESS_RECONCILE = 'access.unified.reconcile';
     public const JOB_GROUP_MEMBER_RECONCILE = 'bitrix.group.member.reconcile';
     public const JOB_DISK_FOLDER_ENSURE = 'disk.site_folder.ensure';
+    public const JOB_DISK_TITLE_SYNC = 'disk.title.sync';
     public const JOB_GROUP_DELETE = 'bitrix.group.delete';
     public const JOB_DISK_FOLDER_DELETE = 'disk.site_folder.delete';
     public const JOB_EXTERNAL_RECONCILE = 'external.resources.reconcile';
@@ -605,6 +606,7 @@ final class OutboxService
             self::JOB_GROUP_MEMBER_RECONCILE,
             self::JOB_DISK_FOLDER_ENSURE,
             self::JOB_GROUP_DELETE,
+            self::JOB_DISK_TITLE_SYNC,
             self::JOB_DISK_FOLDER_DELETE,
             self::JOB_EXTERNAL_RECONCILE,
         ];

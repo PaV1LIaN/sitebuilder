@@ -16,8 +16,8 @@ $returnUrl = $siteId > 0 ? $basePath . '/settings.php?siteId=' . $siteId : $base
 ?>
 <!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SiteBuilder / Оповещения</title><?php $APPLICATION->ShowHead(); ?>
-<link rel="stylesheet" href="<?=htmlspecialchars($basePath,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8')?>/assets/admin/admin.css">
-<style>.alert-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,.7fr);gap:16px}.alert-table{width:100%;border-collapse:collapse;min-width:900px}.alert-table th,.alert-table td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top}.badge{display:inline-flex;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:800}.critical{background:#fee2e2;color:#991b1b}.warning{background:#fef3c7;color:#92400e}.info{background:#dbeafe;color:#1d4ed8}.open{font-weight:800}.details{white-space:pre-wrap;word-break:break-word;max-height:70vh;overflow:auto}@media(max-width:1050px){.alert-layout{grid-template-columns:1fr}}</style>
+<link rel="stylesheet" href="<?=htmlspecialchars($basePath,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8')?>/assets/admin/admin.css?v=20260917">
+<link rel="stylesheet" href="assets/admin/pages/alerts.css?v=20260917">
 </head><body class="sb-admin-body"><div class="sb-page">
 <div class="sb-topbar"><div><a class="sb-back-link" href="<?=htmlspecialchars($returnUrl,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8')?>">← Назад</a><h1 class="sb-title">Системные оповещения</h1><p class="sb-subtitle"><?= $siteId>0?'Сайт #'.$siteId:'Все сайты и фоновые процессы' ?></p></div><div class="sb-actions"><a class="sb-btn sb-btn-light" href="<?=htmlspecialchars($basePath,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8')?>/external_resources.php<?= $siteId>0?'?siteId='.$siteId:'' ?>">Внешние ресурсы</a><button class="sb-btn sb-btn-light" id="reloadBtn">Обновить</button></div></div>
 <div id="message" class="sb-panel" style="display:none"></div>

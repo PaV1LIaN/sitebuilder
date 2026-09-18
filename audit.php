@@ -37,10 +37,8 @@ $isBitrixAdmin = sitebuilder_is_admin();
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SiteBuilder / Журнал действий</title>
     <?php $APPLICATION->ShowHead(); ?>
-    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css">
-    <style>
-        .sb-audit-filters{display:grid;grid-template-columns:repeat(6,minmax(150px,1fr));gap:10px;align-items:end}.sb-audit-table-wrap{overflow:auto}.sb-audit-table{width:100%;border-collapse:collapse;min-width:1050px}.sb-audit-table th,.sb-audit-table td{padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top;font-size:13px}.sb-audit-table th{background:#f8fafc;color:#475569;position:sticky;top:0}.sb-audit-status{display:inline-flex;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:700}.sb-audit-status.success{color:#166534;background:#dcfce7}.sb-audit-status.error{color:#991b1b;background:#fee2e2}.sb-audit-details{min-height:280px;max-height:65vh;overflow:auto;white-space:pre-wrap;word-break:break-word}.sb-audit-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(340px,.7fr);gap:16px;align-items:start}.sb-audit-pager{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px}.sb-maintenance-meta{font-size:13px;color:#64748b;line-height:1.6;white-space:pre-line}@media(max-width:1200px){.sb-audit-filters{grid-template-columns:repeat(3,minmax(160px,1fr))}.sb-audit-grid{grid-template-columns:1fr}}@media(max-width:680px){.sb-audit-filters{grid-template-columns:1fr}}
-    </style>
+    <link rel="stylesheet" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/admin.css?v=20260917">
+    <link rel="stylesheet" href="assets/admin/pages/audit.css?v=20260917">
 </head>
 <body class="sb-admin-body">
 <div class="sb-page">

@@ -943,20 +943,20 @@
             var th = table.querySelector('th[data-column-id="' + cssEscape(columnId) + '"]');
 
             if (col) {
-                col.style.setProperty('width', width + 'px', 'important');
+                col.style.setProperty('width', width + 'px');
                 col.setAttribute('width', String(width));
             }
 
             if (th) {
-                th.style.setProperty('width', width + 'px', 'important');
-                th.style.setProperty('min-width', width + 'px', 'important');
-                th.style.setProperty('max-width', width + 'px', 'important');
+                th.style.setProperty('width', width + 'px');
+                th.style.setProperty('min-width', width + 'px');
+                th.style.setProperty('max-width', width + 'px');
             }
         });
 
-        table.style.setProperty('table-layout', 'fixed', 'important');
-        table.style.setProperty('width', total + 'px', 'important');
-        table.style.setProperty('min-width', total + 'px', 'important');
+        table.style.setProperty('table-layout', 'fixed');
+        table.style.setProperty('width', total + 'px');
+        table.style.setProperty('min-width', total + 'px');
 
         content.columns = columns;
         setContent(root, content);

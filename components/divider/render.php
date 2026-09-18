@@ -5,7 +5,7 @@ $color = sb_public_safe_color($props['color'] ?? '', '');
 $thickness = sb_public_clamp_int($props['thickness'] ?? 1, 1, 8);
 $width = sb_public_clamp_int($props['width'] ?? 100, 10, 100);
 $margin = sb_public_clamp_int($props['margin'] ?? 24, 0, 160);
-$css = '--sb-divider-width:' . $width . '%;--sb-divider-thickness:' . $thickness . 'px;--sb-divider-margin:' . $margin . 'px';
+$css = '--sb-divider-config-width:' . $width . '%;--sb-divider-config-thickness:' . $thickness . 'px;--sb-divider-config-margin:' . $margin . 'px';
 if ($color !== '') {
     $css .= ';--sb-divider-color:' . $color;
 }

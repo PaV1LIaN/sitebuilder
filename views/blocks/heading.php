@@ -10,7 +10,7 @@ if (!in_array($align, ['left', 'center', 'right'], true)) {
 }
 ?>
 <section class="sb-block sb-block--heading">
-    <<?= $level ?> class="sb-heading sb-heading--<?= sb_public_h($level) ?>" style="text-align:<?= sb_public_h($align) ?>;">
+    <<?= $level ?> class="sb-heading sb-heading--<?= sb_public_h($level) ?>" style="--sb-heading-align:<?= sb_public_h($align) ?>;">
         <?= $text ?>
     </<?= $level ?>>
 </section>

@@ -14,7 +14,7 @@ $maxWidth = sb_public_clamp_int($props['maxWidth'] ?? $content['maxWidth'] ?? 0,
 $weight = sb_public_clamp_int($props['weight'] ?? $content['weight'] ?? 700, 300, 900);
 
 $style = [
-    'text-align:' . $align,
+    '--sb-heading-align:' . $align,
     'font-weight:' . $weight,
 ];
 
@@ -23,12 +23,12 @@ if ($color !== '') {
 }
 
 if ($size > 0) {
-    $style[] = 'font-size:' . $size . 'px';
+    $style[] = '--sb-heading-size:' . $size . 'px';
 }
 
 if ($maxWidth > 0) {
-    $style[] = 'max-width:' . $maxWidth . 'px';
-    $style[] = $align === 'center' ? 'margin-left:auto;margin-right:auto' : '';
+    $style[] = '--sb-heading-max-width:' . $maxWidth . 'px';
+    $style[] = $align === 'center' ? '--sb-heading-margin:auto' : '';
 }
 ?>
 <section class="sb-block sb-block--heading">

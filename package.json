@@ -1,0 +1,13 @@
+{
+  "name": "sitebuilder-style-checks",
+  "private": true,
+  "description": "Development checks for SiteBuilder CSS and browser layout contracts",
+  "scripts": {
+    "test:styles": "node tests/styles_policy_test.js --parse",
+    "test:styles:browser": "node tests/styles_browser_test.js && node tests/table_resize_style_test.js && node tests/responsive_styles_test.js"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1",
+    "postcss": "8.5.28"
+  }
+}

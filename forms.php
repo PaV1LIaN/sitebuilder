@@ -427,11 +427,11 @@ $xlsxUrl =
 
     <link
         rel="stylesheet"
-        href="<?= sb_forms_h($basePath) ?>/assets/admin/admin.css"
+        href="<?= sb_forms_h($basePath) ?>/assets/admin/admin.css?v=20260917"
     >
     <link
         rel="stylesheet"
-        href="<?= sb_forms_h($basePath) ?>/assets/admin/forms2-admin.css?v=1"
+        href="<?= sb_forms_h($basePath) ?>/assets/admin/forms2-admin.css?v=20260917"
     >
 </head>
 
