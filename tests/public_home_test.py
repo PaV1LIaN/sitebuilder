@@ -205,8 +205,9 @@ class PublicHomeTest(unittest.TestCase):
         self.assertIn("<title>Page " + str(id), body)
 
     def test_root_renders_selected_home(self):
-        self.assert_page(BASE + "/s/project", 20)
-        self.assert_page(BASE + "/s/project?utm_source=test", 20)
+        for suffix in ["", "/", "?utm_source=test", "/?utm_source=test"]:
+            with self.subTest(suffix=suffix):
+                self.assert_page(BASE + "/s/project" + suffix, 20)
 
     def test_regular_page_and_home_child_keep_their_paths(self):
         self.assert_page(BASE + "/s/project/about/", 10)
@@ -217,10 +218,11 @@ class PublicHomeTest(unittest.TestCase):
         self.data["pages"].append(page(22, "deep", parent=21))
         self.write_data()
         self.assert_page(BASE + "/s/project", 21)
+        self.assert_page(BASE + "/s/project/", 21)
         self.assert_page(BASE + "/s/project/home/child/deep/", 22)
 
     def test_home_and_legacy_redirects_end_at_root(self):
-        for path in ["/s/project/home/", "/s/project/", "/public.php?siteId=1",
+        for path in ["/s/project/home/", "/public.php?siteId=1",
                      "/public.php?siteId=1&pageId=20"]:
             with self.subTest(path=path):
                 status, headers, _ = self.request(BASE + path)
@@ -235,7 +237,10 @@ class PublicHomeTest(unittest.TestCase):
 
     def test_home_redirect_preserves_folder_link_and_query(self):
         query = {"blockId": "7", "folderId": "42", "utm_source": "test"}
-        for path in ["/s/project/", "/s/project/home/", "/public.php?siteId=1&pageId=20"]:
+        for path in ["/s/project", "/s/project/"]:
+            with self.subTest(path=path):
+                self.assert_page(BASE + path + "?" + urlencode(query), 20)
+        for path in ["/s/project/home/", "/public.php?siteId=1&pageId=20"]:
             with self.subTest(path=path):
                 separator = "&" if "?" in path else "?"
                 status, headers, _ = self.request(BASE + path + separator + urlencode(query))
@@ -251,10 +256,12 @@ class PublicHomeTest(unittest.TestCase):
                 self.assert_page(BASE + "/s/project", 10)
 
     def test_viewer_access_filters_home_before_selection(self):
-        self.assert_page(BASE + "/s/project", 10, {"X-Test-Visible": "10"})
+        for path in ["/s/project", "/s/project/"]:
+            with self.subTest(path=path):
+                self.assert_page(BASE + path, 10, {"X-Test-Visible": "10"})
+                self.assertEqual(self.request(BASE + path, {"X-Test-Visible": "0"})[0], 404)
+                self.assertEqual(self.request(BASE + path, {"X-Test-User": "0"})[0], 403)
         self.assertEqual(self.request(BASE + "/s/project/home/", {"X-Test-Visible": "10"})[0], 404)
-        self.assertEqual(self.request(BASE + "/s/project", {"X-Test-Visible": "0"})[0], 404)
-        self.assertEqual(self.request(BASE + "/s/project", {"X-Test-User": "0"})[0], 403)
 
     def test_unknown_paths_and_unpublished_pages_stay_404(self):
         for path in ["/s/missing/", "/s/project/missing/", "/s/project/draft/",
@@ -269,6 +276,7 @@ class PublicHomeTest(unittest.TestCase):
 
     def test_cyrillic_slug_and_case_normalization(self):
         self.assert_page(BASE + "/s/" + quote("сайт"), 90)
+        self.assert_page(BASE + "/s/" + quote("сайт") + "/", 90)
         status, headers, _ = self.request(BASE + "/s/" + quote("САЙТ") + "/")
         self.assertEqual(status, 302)
         self.assertEqual(headers["Location"], BASE + "/s/" + quote("сайт"))

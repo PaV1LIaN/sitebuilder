@@ -61,12 +61,14 @@ $canonicalPath = !$isSiteRootRequest && $currentPageId > 0
     : $sitePath;
 
 $requestPath = (string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?: '');
+$isAcceptedPath = $requestPath === $canonicalPath
+    || ($isSiteRootRequest && $requestPath === $sitePath . '/');
 
 if (
     $canonicalPath !== '#'
     && (
         !$isCleanRoute
-        || $requestPath !== $canonicalPath
+        || !$isAcceptedPath
     )
 ) {
     header(
