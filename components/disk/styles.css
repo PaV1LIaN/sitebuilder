@@ -1570,7 +1570,7 @@
 
 .sb-disk-folder-access {
     position: relative;
-    width: min(760px, 100%);
+    width: min(920px, 100%);
     max-height: min(760px, calc(100vh - 48px));
     overflow: auto;
     border: 1px solid #dbe4ef;
@@ -1607,6 +1607,7 @@
 
 .sb-disk-folder-access .sb-disk-modal__body:not(:where([hidden])) {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     padding: 22px;
 }

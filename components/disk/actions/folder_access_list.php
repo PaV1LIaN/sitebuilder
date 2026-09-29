@@ -30,6 +30,7 @@ $items = FolderAccessRepository::listForFolder(
     $context->blockId,
     $folderId
 );
+$revision = FolderAccessRepository::revision($items);
 
 foreach ($items as &$item) {
     $userId = FolderAccessRepository::userIdFromAccessCode((string)$item['access_code']);
@@ -47,5 +48,6 @@ unset($item);
 DiskResponse::success([
     'folderId' => $folderId,
     'items' => $items,
+    'revision' => $revision,
     'permissionMode' => (string)($settings['permissionMode'] ?? 'inherit_site'),
 ]);

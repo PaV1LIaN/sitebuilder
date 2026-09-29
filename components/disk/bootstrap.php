@@ -38,6 +38,7 @@ if (!defined('SITEBUILDER_DISK_BOOTSTRAP')) {
     require_once __DIR__ . '/lib/SiteRepository.php';
     require_once __DIR__ . '/lib/SiteAccessRepository.php';
     require_once __DIR__ . '/lib/FolderAccessRepository.php';
+    require_once __DIR__ . '/lib/FolderAccessBulkService.php';
     require_once __DIR__ . '/lib/DiskSettingsRepository.php';
     require_once __DIR__ . '/lib/DiskRootResolver.php';
     require_once __DIR__ . '/lib/DiskValidator.php';

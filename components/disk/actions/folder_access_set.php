@@ -26,6 +26,7 @@ $role = strtoupper(trim((string)($data['role'] ?? '')));
 DiskValidator::assertFolderInsideRoot($folderId, $rootFolderId, $context);
 $permissions = DiskPermissionService::resolve($context, $settings, $folderId, $rootFolderId);
 DiskValidator::assertCan($permissions, 'canManageAccess');
+FolderAccessBulkService::assertMode($settings);
 
 if ($userId <= 0) {
     throw new RuntimeException('INVALID_USER_ID');
