@@ -3458,6 +3458,199 @@
      FOLDER ACCESS
      ========================================================= */
 
+  DiskComponent.prototype.initBulkFolderAccess = function () {
+    var modal = this.root.querySelector('[data-role="folder-access-modal"]');
+    var folderId = Number(this.state.currentFolderId || 0);
+    if (!this.bulkAccess || this.bulkAccess.folderId !== folderId) {
+      this.bulkAccess = {folderId: folderId, rows: [], busy: false};
+      modal.querySelector('[data-role="bulk-access-input"]').value = '';
+      this.renderBulkAccessRows();
+      this.bulkAccessStatus('');
+    }
+    if (modal.dataset.bulkBound) return;
+    modal.dataset.bulkBound = '1';
+    var self = this;
+    modal.querySelector('[data-action="bulk-access-resolve"]').addEventListener('click', function () { self.resolveBulkAccessUsers(); });
+    modal.querySelector('[data-action="bulk-access-apply"]').addEventListener('click', function () { self.applyBulkAccess(); });
+    modal.querySelector('[data-action="bulk-access-edit"]').addEventListener('click', function () {
+      self.bulkAccess.rows = [];
+      self.renderBulkAccessRows();
+      self.bulkAccessStatus('Измените список и заново найдите пользователей.');
+      modal.querySelector('[data-role="bulk-access-input"]').focus();
+    });
+    modal.querySelector('[data-action="folder-access-refresh"]').addEventListener('click', async function () {
+      if (await self.loadFolderAccess()) self.bulkAccessStatus('Текущие права перечитаны. Проверьте изменения перед применением.');
+    });
+    modal.querySelector('[data-action="folder-access-settings"]').addEventListener('click', async function () {
+      self.closeFolderAccessModal();
+      await self.openSettingsModal();
+      self.activateSettingsTab('access');
+    });
+    modal.querySelector('[data-role="bulk-access-input"]').addEventListener('input', function () {
+      self.bulkAccess.rows = [];
+      self.renderBulkAccessRows();
+      self.bulkAccessStatus('Список изменён. Нажмите «Найти пользователей».');
+    });
+    modal.querySelector('[data-action="bulk-access-toggle"]').addEventListener('click', function () {
+      var select = !self.bulkAccess.rows.some(function (row) { return row.checked; });
+      self.bulkAccess.rows.forEach(function (row) { row.checked = select && !!row.selectedId; });
+      self.renderBulkAccessRows();
+    });
+    modal.querySelector('[data-role="bulk-access-rows"]').addEventListener('change', function (event) {
+      var rowNode = event.target.closest('[data-bulk-row]');
+      if (!rowNode) return;
+      var row = self.bulkAccess.rows[Number(rowNode.dataset.bulkRow)];
+      if (event.target.matches('select')) {
+        row.selectedId = Number(event.target.value) || null;
+        row.checked = !!row.selectedId;
+        self.renderBulkAccessRows();
+      } else {
+        row.checked = event.target.checked;
+        self.updateBulkAccessSummary();
+      }
+    });
+  };
+
+  DiskComponent.prototype.updateFolderAccessMode = function () {
+    var active = this.state.settings.permissionMode === 'custom';
+    var warning = this.root.querySelector('[data-role="folder-access-warning"]');
+    if (warning) warning.hidden = active;
+    var save = this.root.querySelector('[data-action="save-folder-access"]');
+    if (save) save.disabled = !active || !!(this.bulkAccess && this.bulkAccess.busy);
+  };
+
+  DiskComponent.prototype.bulkAccessStatus = function (text, kind) {
+    var node = this.root.querySelector('[data-role="bulk-access-status"]');
+    if (node) { node.textContent = text; node.dataset.kind = kind || ''; }
+  };
+
+  DiskComponent.prototype.setBulkAccessBusy = function (busy) {
+    this.bulkAccess.busy = busy;
+    this.root.querySelectorAll('[data-role="folder-access-modal"] button, [data-role="folder-access-modal"] input, [data-role="folder-access-modal"] textarea, [data-role="folder-access-modal"] select').forEach(function (node) {
+      node.disabled = busy;
+    });
+    this.updateFolderAccessMode();
+    if (!busy) this.renderBulkAccessRows();
+    this.updateBulkAccessSummary();
+  };
+
+  DiskComponent.prototype.selectedBulkAccessIds = function () {
+    return Array.from(new Set((this.bulkAccess ? this.bulkAccess.rows : []).filter(function (row) {
+      return row.checked && row.selectedId;
+    }).map(function (row) { return Number(row.selectedId); })));
+  };
+
+  DiskComponent.prototype.updateBulkAccessSummary = function () {
+    if (!this.bulkAccess) return;
+    var ids = this.selectedBulkAccessIds();
+    var rows = this.bulkAccess.rows;
+    var selectedRows = rows.filter(function (row) { return row.checked && row.selectedId; }).length;
+    var unresolved = rows.filter(function (row) { return !row.selectedId; }).length;
+    var existing = this.state.folderAccessItems.filter(function (item) { return ids.indexOf(Number(item.userId)) !== -1; }).length;
+    this.root.querySelector('[data-role="bulk-access-summary"]').textContent = 'Выбрано: ' + ids.length
+      + '. Без выбора: ' + unresolved + '. Повторных строк в выборе: ' + (selectedRows - ids.length)
+      + '. Уже имеют личное правило: ' + existing + ' — оно будет заменено выбранным правом.';
+    var apply = this.root.querySelector('[data-action="bulk-access-apply"]');
+    apply.textContent = 'Применить выбранным (' + ids.length + ')';
+    apply.disabled = this.bulkAccess.busy || !ids.length || !this.state.folderAccessRevision
+      || this.state.settings.permissionMode !== 'custom';
+    this.root.querySelector('[data-action="bulk-access-toggle"]').textContent = selectedRows ? 'Снять выбор' : 'Выбрать найденных';
+  };
+
+  DiskComponent.prototype.renderBulkAccessRows = function () {
+    if (!this.bulkAccess) return;
+    var rows = this.bulkAccess.rows;
+    var root = this.root;
+    root.querySelector('[data-role="bulk-access-review"]').hidden = !rows.length;
+    root.querySelector('[data-role="bulk-access-source"]').hidden = !!rows.length;
+    root.querySelector('[data-role="bulk-access-rows"]').innerHTML = rows.map(function (row, index) {
+      var selected = row.candidates.find(function (user) { return Number(user.id) === Number(row.selectedId); });
+      var person = '';
+      if (!row.candidates.length) {
+        person = '<span>Не найден. Проверьте ФИО или вставьте точный логин.</span>';
+      } else if (row.candidates.length === 1 && row.selectedId) {
+        person = '<strong>' + escapeHtml(selected.name) + '</strong><small>' + escapeHtml(selected.login)
+          + ' · ID ' + Number(selected.id) + '</small>';
+      } else {
+        person = '<select class="sb-disk-form__select" aria-label="Пользователь для строки ' + (index + 1) + '"><option value="">Выберите пользователя</option>'
+          + row.candidates.map(function (user) {
+            return '<option value="' + Number(user.id) + '"' + (Number(user.id) === Number(row.selectedId) ? ' selected' : '') + '>'
+              + escapeHtml(user.name + ' · ' + user.login + ' · ID ' + user.id + (user.email ? ' · ' + user.email : '')) + '</option>';
+          }).join('') + '</select>';
+      }
+      return '<div class="sb-disk-bulk__row' + (!row.candidates.length ? ' sb-disk-bulk__row--missing' : '') + '" data-bulk-row="' + index + '">'
+        + '<input type="checkbox" aria-label="Выбрать строку ' + (index + 1) + '"' + (row.checked ? ' checked' : '') + (!row.selectedId ? ' disabled' : '') + '>'
+        + '<div class="sb-disk-bulk__person"><strong>' + escapeHtml(row.query) + '</strong><small>'
+        + (row.truncated ? 'Больше 20 совпадений. Уточните логин.' : (row.selectedId ? 'Пользователь найден' : (row.candidates.length ? 'Нужен ваш выбор' : 'Нет совпадений'))) + '</small></div>'
+        + '<div class="sb-disk-bulk__person">' + person + '</div></div>';
+    }).join('');
+    this.updateBulkAccessSummary();
+  };
+
+  DiskComponent.prototype.resolveBulkAccessUsers = async function () {
+    if (this.bulkAccess.busy) return;
+    var text = this.root.querySelector('[data-role="bulk-access-input"]').value;
+    var lines = text.split(/[\r\n;]+/).map(function (line) { return line.trim(); }).filter(Boolean);
+    if (!lines.length || lines.length > 200) {
+      this.bulkAccessStatus('Вставьте от 1 до 200 строк.', 'error');
+      return;
+    }
+    this.bulkAccess.rows = [];
+    this.renderBulkAccessRows();
+    this.setBulkAccessBusy(true);
+    try {
+      var rows = [];
+      // Small chunks avoid a long portal request; writes remain one atomic request.
+      for (var offset = 0; offset < lines.length; offset += 20) {
+        this.bulkAccessStatus('Поиск пользователей: ' + offset + ' из ' + lines.length + '…');
+        var payload = this.getBasePayload();
+        payload.folderId = this.bulkAccess.folderId;
+        payload.text = lines.slice(offset, offset + 20).join('\n');
+        payload.sessid = this.getSessid();
+        var res = await this.api('folderAccessResolveUsers', payload);
+        if (!res || !res.ok) throw new Error((res && (res.message || res.error)) || 'Не удалось найти пользователей.');
+        rows = rows.concat(res.data.rows.map(function (row) { row.checked = !!row.selectedId; return row; }));
+      }
+      this.bulkAccess.rows = rows;
+      this.bulkAccessStatus('Поиск завершён. Проверьте список и выберите право.');
+    } catch (e) {
+      this.bulkAccessStatus(e.message || 'Не удалось найти пользователей.', 'error');
+    } finally {
+      this.setBulkAccessBusy(false);
+    }
+  };
+
+  DiskComponent.prototype.applyBulkAccess = async function () {
+    if (this.bulkAccess.busy || this.state.settings.permissionMode !== 'custom') return;
+    var ids = this.selectedBulkAccessIds();
+    if (!ids.length || !this.state.folderAccessRevision) return;
+    var payload = this.getBasePayload();
+    payload.folderId = this.bulkAccess.folderId;
+    payload.userIds = ids;
+    payload.role = this.root.querySelector('[data-role="bulk-access-role"]').value;
+    payload.expectedRevision = this.state.folderAccessRevision;
+    payload.sessid = this.getSessid();
+    this.setBulkAccessBusy(true);
+    this.bulkAccessStatus('Сохранение прав для ' + ids.length + ' пользователей…');
+    try {
+      var res = await this.api('folderAccessBulkSet', payload);
+      if (!res || !res.ok) {
+        if (res && res.error === 'FOLDER_ACCESS_VERSION_CONFLICT') this.state.folderAccessRevision = '';
+        throw new Error((res && (res.message || res.error)) || 'Не удалось сохранить права.');
+      }
+      this.state.folderAccessRevision = res.data.revision;
+      this.bulkAccess.rows.forEach(function (row) { row.checked = false; });
+      var refreshed = await this.loadFolderAccess();
+      this.bulkAccessStatus('Права сохранены для ' + Number(res.data.count) + ' пользователей.'
+        + (refreshed ? '' : ' Не удалось перечитать список правил. Нажмите «Перечитать права».'), 'success');
+    } catch (e) {
+      this.bulkAccessStatus((e.message || 'Не удалось получить результат сохранения.')
+        + ' При обрыве соединения перечитайте права перед повторной попыткой.', 'error');
+    } finally {
+      this.setBulkAccessBusy(false);
+    }
+  };
+
   DiskComponent.prototype.openFolderAccessModal = async function () {
     var modal = this.root.querySelector('[data-role="folder-access-modal"]');
     if (!modal || !this.state.permissions.canManageAccess || !this.state.currentFolderId) {
@@ -3465,6 +3658,7 @@
     }
 
     modal.hidden = false;
+    this.initBulkFolderAccess();
     this.state.selectedFolderAccessUser = null;
 
     var editor = this.root.querySelector('[data-role="folder-access-editor"]');
@@ -3490,6 +3684,7 @@
   };
 
   DiskComponent.prototype.closeFolderAccessModal = function () {
+    if (this.bulkAccess && this.bulkAccess.busy) return;
     var modal = this.root.querySelector('[data-role="folder-access-modal"]');
     if (modal) {
       modal.hidden = true;
@@ -3504,6 +3699,8 @@
   };
 
   DiskComponent.prototype.loadFolderAccess = async function () {
+    var folderId = Number(this.state.currentFolderId || 0);
+    this.state.folderAccessRevision = '';
     try {
       this.setFolderAccessMessage('Загрузка прав...');
       var payload = this.getBasePayload();
@@ -3516,11 +3713,19 @@
       }
 
       this.state.folderAccessItems = Array.isArray(res.data.items) ? res.data.items : [];
+      if (folderId !== Number(this.state.currentFolderId || 0)) return false;
+      this.state.folderAccessRevision = res.data.revision || '';
+      this.state.settings.permissionMode = res.data.permissionMode || 'inherit_site';
+      this.updateFolderAccessMode();
       this.renderFolderAccessList();
       this.setFolderAccessMessage('');
+      this.updateBulkAccessSummary();
+      return true;
     } catch (e) {
       console.error(e);
       this.setFolderAccessMessage('Не удалось загрузить права папки.');
+      this.updateBulkAccessSummary();
+      return false;
     }
   };
 
@@ -3676,7 +3881,7 @@
       this.setFolderAccessMessage('Права сохранены.');
     } catch (e) {
       console.error(e);
-      this.setFolderAccessMessage('Не удалось сохранить права.');
+      this.setFolderAccessMessage(e.message || 'Не удалось сохранить права.');
     }
   };
 

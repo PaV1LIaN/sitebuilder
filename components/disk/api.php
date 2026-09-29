@@ -263,6 +263,11 @@ try {
             require __DIR__ . '/actions/folder_access_list.php';
             break;
 
+        case 'folderAccessResolveUsers':
+        case 'folderAccessBulkSet':
+            require __DIR__ . '/actions/folder_access_bulk.php';
+            break;
+
         case 'folderAccessSet':
             require __DIR__ . '/actions/folder_access_set.php';
             break;
@@ -349,6 +354,21 @@ try {
 } catch (Throwable $e) {
     while (ob_get_level() > 0) {
         @ob_end_clean();
+    }
+
+    $folderAccessErrors = [
+        'ACCESS_DENIED' => [403, 'Недостаточно прав для этой операции.'],
+        'FOLDER_ACCESS_MODE_REQUIRED' => [409, 'В настройках блока выберите «Индивидуальные права папок SiteBuilder» и сохраните настройки.'],
+        'FOLDER_ACCESS_VERSION_CONFLICT' => [409, 'Права папки изменились. Перечитайте текущие правила, проверьте их и повторите применение.'],
+        'INVALID_BULK_USERS' => [422, 'Укажите от 1 до 200 пользователей: по одному ФИО, логину или ID на строку.'],
+        'BULK_USER_NOT_ACTIVE' => [422, 'Один из выбранных пользователей удалён или неактивен. Заново проверьте список. Изменения не сохранены.'],
+        'INVALID_FOLDER_ACCESS_ROLE' => [422, 'Выберите доступное право папки.'],
+        'INVALID_FOLDER_ACCESS_TARGET' => [422, 'Не удалось проверить папку или список пользователей. Перечитайте права папки.'],
+    ];
+    if (isset($folderAccessErrors[$e->getMessage()])) {
+        [$status, $message] = $folderAccessErrors[$e->getMessage()];
+        http_response_code($status);
+        DiskResponse::error($e->getMessage(), $message);
     }
 
     if ($e instanceof DiskQuotaExceededException) {

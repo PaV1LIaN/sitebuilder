@@ -363,20 +363,61 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
     <?php if (!empty($arResult['PERMISSIONS']['canManageAccess'])): ?>
         <div class="sb-disk-modal" data-role="folder-access-modal" hidden>
             <div class="sb-disk-modal__backdrop" data-action="close-folder-access"></div>
-            <div class="sb-disk-modal__dialog sb-disk-folder-access">
+            <div class="sb-disk-modal__dialog sb-disk-folder-access" role="dialog" aria-modal="true" aria-label="Права текущей папки">
                 <div class="sb-disk-modal__header">
                     <div>
                         <h3 class="sb-disk-modal__title">Права текущей папки</h3>
                         <div class="sb-disk-form__hint" data-role="folder-access-folder"></div>
                     </div>
-                    <button type="button" class="sb-disk-modal__close" data-action="close-folder-access">×</button>
+                    <button type="button" class="sb-disk-modal__close" data-action="close-folder-access" aria-label="Закрыть права папки">×</button>
                 </div>
 
                 <div class="sb-disk-modal__body">
                     <div class="sb-disk-folder-access__warning" data-role="folder-access-warning" hidden>
-                        В настройках блока включите режим «Индивидуальные права папок», иначе записи сохранятся, но применяться не будут.
+                        Права этого окна сейчас не применяются. В настройках блока выберите «Индивидуальные права папок SiteBuilder» и сохраните настройки.
+                        <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="folder-access-settings">Открыть настройки доступа</button>
                     </div>
 
+                    <section class="sb-disk-bulk">
+                        <h4 class="sb-disk-bulk__title">Добавить пользователей списком</h4>
+                        <div data-role="bulk-access-source">
+                        <label class="sb-disk-bulk__label">
+                            <span>1. Вставьте ФИО, логины или ID — по одному на строку</span>
+                            <textarea class="sb-disk-form__input sb-disk-bulk__input" data-role="bulk-access-input" rows="5" maxlength="60000" placeholder="Иванов Иван Иванович&#10;petrova.aa&#10;ID 125"></textarea>
+                        </label>
+                        <div class="sb-disk-bulk__toolbar">
+                            <span class="sb-disk-form__hint">До 200 строк. Можно вставить столбец из Excel.</span>
+                            <button type="button" class="sb-disk__btn" data-action="bulk-access-resolve">Найти пользователей</button>
+                        </div>
+                        </div>
+                        <div data-role="bulk-access-review" hidden>
+                            <div class="sb-disk-bulk__toolbar">
+                                <strong>2. Проверьте найденных пользователей</strong>
+                                <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="bulk-access-toggle">Снять выбор</button>
+                            </div>
+                            <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="bulk-access-edit">Изменить исходный список</button>
+                            <p class="sb-disk-form__hint">У тёзок выберите нужный логин. Ненайденные и невыбранные строки не применяются.</p>
+                            <div class="sb-disk-bulk__rows" data-role="bulk-access-rows"></div>
+                            <div class="sb-disk-bulk__toolbar">
+                                <label class="sb-disk-bulk__label">
+                                    <span>3. Право для выбранных пользователей</span>
+                                    <select class="sb-disk-form__select" data-role="bulk-access-role">
+                                        <option value="VIEWER">Просмотр и скачивание</option>
+                                        <option value="EDITOR">Редактирование содержимого</option>
+                                        <option value="DENY">Нет доступа</option>
+                                        <option value="INHERIT">Наследовать — удалить личное правило</option>
+                                    </select>
+                                </label>
+                                <button type="button" class="sb-disk__btn" data-action="bulk-access-apply" disabled>Применить выбранным (0)</button>
+                            </div>
+                            <p class="sb-disk-form__hint" data-role="bulk-access-summary"></p>
+                        </div>
+                        <p class="sb-disk-bulk__status" data-role="bulk-access-status" role="status" aria-live="polite"></p>
+                        <p class="sb-disk-form__hint">Меняются права текущей папки. Вложенные папки наследуют их, если у них нет собственных правил. Пользователю также нужен доступ к странице и Диску. Администраторы и владельцы сохраняют полный доступ.</p>
+                    </section>
+
+                    <details class="sb-disk-bulk__single">
+                        <summary>Добавить одного пользователя</summary>
                     <div class="sb-disk-folder-access__search">
                         <input type="search" class="sb-disk-form__input" data-role="folder-access-query" placeholder="ФИО, логин, email или ID">
                         <button type="button" class="sb-disk__btn" data-action="search-folder-access-user">Найти</button>
@@ -392,7 +433,12 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
                         </select>
                         <button type="button" class="sb-disk__btn" data-action="save-folder-access">Сохранить</button>
                     </div>
+                    </details>
 
+                    <div class="sb-disk-bulk__toolbar">
+                        <strong>Текущие правила папки</strong>
+                        <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="folder-access-refresh">Перечитать права</button>
+                    </div>
                     <div class="sb-disk-folder-access__list" data-role="folder-access-list"></div>
                     <div class="sb-disk-modal__message" data-role="folder-access-message"></div>
                 </div>

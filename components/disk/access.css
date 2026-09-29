@@ -234,7 +234,40 @@
 .sb-disk-access__status[data-status-kind="error"] { color: #a12622; }
 .sb-disk-access__status[data-status-kind="pending"] { color: #795b00; }
 
+.sb-disk-bulk {
+  min-width: 0;
+  padding: 18px;
+  margin-bottom: 20px;
+  border: 1px solid #dfe5ec;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.sb-disk-bulk__title { margin: 0 0 16px; font-size: 17px; color: #172b4d; }
+.sb-disk-bulk__label { display: grid; gap: 8px; min-width: 0; font-size: 13px; }
+.sb-disk-bulk__label select { min-width: 0; width: 100%; }
+.sb-disk-bulk__input { width: 100%; box-sizing: border-box; resize: vertical; min-height: 110px; }
+.sb-disk-bulk__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
+.sb-disk-bulk__rows { max-height: 240px; overflow: auto; border: 1px solid #dfe5ec; border-radius: 8px; background: #fff; }
+.sb-disk-bulk .sb-disk-form__hint { font-size: 13px; line-height: 1.45; }
+.sb-disk-bulk__row { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1.5fr); gap: 12px; align-items: start; padding: 12px; border-bottom: 1px solid #edf0f4; font-size: 13px; }
+.sb-disk-bulk__row:last-child { border-bottom: 0; }
+.sb-disk-bulk__person { min-width: 0; overflow-wrap: anywhere; }
+.sb-disk-bulk__person strong, .sb-disk-bulk__person small { display: block; margin-bottom: 4px; }
+.sb-disk-bulk__row select { width: 100%; min-width: 0; }
+.sb-disk-bulk__status { margin: 12px 0 0; font-size: 13px; color: #344563; overflow-wrap: anywhere; }
+.sb-disk-bulk__single { margin-bottom: 20px; }
+.sb-disk-bulk__single summary { cursor: pointer; margin-bottom: 12px; }
+
+.sb-disk-bulk__row--missing { background: #fff4e5; }
+.sb-disk-bulk__status[data-kind="error"] { color: #a12622; }
+.sb-disk-bulk__status[data-kind="success"] { color: #176b35; }
+
 @media (max-width: 760px) {
+  .sb-disk-bulk { padding: 12px; }
+  .sb-disk-bulk__toolbar { align-items: stretch; flex-direction: column; }
+  .sb-disk-bulk__row { grid-template-columns: 22px minmax(0, 1fr); }
+  .sb-disk-bulk__person { grid-column: 2; }
   .sb-disk-access {
     padding: 14px;
   }
