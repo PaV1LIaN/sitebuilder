@@ -70,7 +70,7 @@
       this.applyPermissions();
       this.applyInitialViewMode();
 
-      if (!this.state.permissions.canView) {
+      if (!this.state.permissions.canBrowse && !this.state.permissions.canView) {
         this.renderState('no-access');
         return;
       }
@@ -2033,6 +2033,21 @@
   DiskComponent.prototype.bindStaticEvents = function () {
     var self = this;
 
+    var settingsForm = this.root.querySelector('[data-role="settings-form"]');
+    if (settingsForm) {
+      settingsForm.addEventListener('change', function (event) {
+        var flag = settingsForm.querySelector('[name="requireFolderAccess"]');
+        var mode = settingsForm.querySelector('[name="permissionMode"]');
+        if (!flag || !mode) return;
+        if (event.target === flag) {
+          mode.value = flag.checked ? (mode.value === 'inherit_site' ? 'custom' : mode.value) : 'inherit_site';
+          mode.dispatchEvent(new Event('change', {bubbles: true}));
+        } else if (event.target === mode) {
+          flag.checked = mode.value !== 'inherit_site';
+        }
+      });
+    }
+
     document.addEventListener('sb-disk-storage-changed', function (event) {
       if (event.detail && event.detail.source === self.root) return;
       clearTimeout(self._quotaRefreshTimer);
@@ -3743,7 +3758,7 @@
     };
 
     if (!this.state.folderAccessItems.length) {
-      container.innerHTML = '<div class="sb-disk-folder-access__empty">Для этой папки нет собственных правил — используются права родительской папки или сайта.</div>';
+      container.innerHTML = '<div class="sb-disk-folder-access__empty">Для этой папки нет собственных правил. Действуют права родительской папки; если их нет, доступ закрыт.</div>';
       return;
     }
 
@@ -4149,6 +4164,9 @@
     setFormValue(form, 'maxFileSizeMb', Math.max(1, Math.round((Number(settings.maxFileSize || 52428800) / 1048576) * 100) / 100));
     setFormValue(form, 'maxDiskSizeMb', Number(settings.maxDiskSize || 0) / 1048576);
     setFormValue(form, 'permissionMode', settings.permissionMode || 'inherit_site');
+    setFormCheckbox(form, 'requireFolderAccess', settings.requireFolderAccess === undefined
+      ? (settings.permissionMode || 'inherit_site') !== 'inherit_site'
+      : !!settings.requireFolderAccess);
 
     var extValue = Array.isArray(settings.allowedExtensions)
       ? settings.allowedExtensions.join(' ')
@@ -4321,6 +4339,7 @@
         .map(function (value) { return String(value || '').toLowerCase().replace(/^\.+/, ''); })
         .filter(Boolean),
       permissionMode: getFormValue(form, 'permissionMode'),
+      requireFolderAccess: getFormCheckbox(form, 'requireFolderAccess'),
       allowUpload: getFormCheckbox(form, 'allowUpload'),
       allowCreateFolder: getFormCheckbox(form, 'allowCreateFolder'),
       allowRename: getFormCheckbox(form, 'allowRename'),

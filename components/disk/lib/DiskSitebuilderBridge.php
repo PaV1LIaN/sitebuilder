@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/DiskFolderAccessPolicy.php';
+
 class DiskSitebuilderBridge
 {
     public static function getSiteById(int $siteId): ?array
@@ -202,6 +204,7 @@ class DiskSitebuilderBridge
 
     public static function normalizeDiskProps(array $props): array
     {
+        $access = DiskFolderAccessPolicy::settings($props);
         return [
             'title' => trim((string)($props['title'] ?? 'Файлы')),
             'rootMode' => in_array((string)($props['rootMode'] ?? 'site'), ['site', 'block'], true)
@@ -223,9 +226,8 @@ class DiskSitebuilderBridge
             'allowedExtensions' => is_array($props['allowedExtensions'] ?? null) ? array_values($props['allowedExtensions']) : [],
             'maxFileSize' => max(0, (int)($props['maxFileSize'] ?? 52428800)),
             'maxDiskSize' => max(0, (int)($props['maxDiskSize'] ?? 0)),
-            'permissionMode' => in_array((string)($props['permissionMode'] ?? 'inherit_site'), ['inherit_site', 'custom', 'bitrix_disk'], true)
-                ? (string)($props['permissionMode'] ?? 'inherit_site')
-                : 'inherit_site',
+            'requireFolderAccess' => $access['requireFolderAccess'],
+            'permissionMode' => $access['permissionMode'],
             'useSiteRootFallback' => !array_key_exists('useSiteRootFallback', $props) || !empty($props['useSiteRootFallback']),
         ];
     }

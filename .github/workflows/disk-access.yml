@@ -1,0 +1,56 @@
+name: Disk access checks
+on:
+  push:
+    branches: [feature/disk-folder-policy]
+  pull_request:
+    paths:
+      - 'components/disk/**'
+      - 'assets/admin/editor*'
+      - 'assets/admin/editor/**'
+      - 'editor.php'
+      - 'views/layout/public_page.php'
+      - 'tests/**'
+      - '.github/workflows/disk-access.yml'
+permissions:
+  contents: read
+jobs:
+  disk-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: PHP and HTTP access checks
+        run: |
+          php tests/disk_folder_policy_test.php
+          php tests/admin_access_test.php
+          php tests/admin_access_test.php missing
+          php tests/admin_access_test.php invalid
+          php tests/disk_folder_bulk_test.php
+          php tests/disk_quota_test.php
+          php tests/disk_title_sync_test.php
+          python3 tests/shared_folder_test.py
+      - run: npm run test:styles
+      - run: npm run test:styles:browser
+      - name: Disk UI checks
+        env:
+          SCREENSHOT_DIR: artifacts
+        run: |
+          node tests/disk_folder_policy_ui_test.js
+          node tests/disk_folder_bulk_ui_test.js
+          node tests/disk_title_ui_test.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: disk-access-ui
+          path: artifacts

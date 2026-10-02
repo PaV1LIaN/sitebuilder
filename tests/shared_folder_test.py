@@ -36,7 +36,7 @@ OBJECTS = [obj(1, 'PARENT_NOT_TO_BE_SHOWN', 0), obj(10, 'Документы <о�
            obj(1002, 'DELETED_FILE.pdf', 10, 'file', deleted=True),
            obj(1100, 'Вложенный документ.docx', 11, 'file')]
 DATA = dict(objects={str(o['id']): o for o in OBJECTS}, blockRoot=1,
-            pageDeniedUsers=[], diskDeniedUsers=[], folderRoles={'2:13': 'DENY'})
+            pageDeniedUsers=[], diskDeniedUsers=[], folderRoles={'1:10': 'VIEWER', '2:10': 'VIEWER', '2:13': 'DENY'})
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -52,12 +52,15 @@ class SharedFolderTest(unittest.TestCase):
         app = cls.root / BASE.lstrip('/')
         files = ['open_folder.php', 'open_folder.css', 'actions/get_internal_link.php']
         files += ['lib/' + name + '.php' for name in ['DiskContext', 'DiskValidator',
-                  'DiskPermissionService', 'DiskRootResolver', 'DiskBitrixStorageAdapter',
-                  'DiskSharedFolderService', 'DiskCsrf', 'DiskResponse', 'helpers']]
+                  'DiskPermissionService', 'DiskFolderAccessPolicy', 'DiskRootResolver', 'DiskBitrixStorageAdapter',
+                  'DiskSharedFolderService', 'DiskCsrf', 'DiskResponse', 'DiskNameSanitizer', 'helpers']]
         for name in files:
             target = app / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(SOURCE / 'components/disk' / name, target)
+        title_service = app.parent.parent / 'lib/DiskTitleSyncService.php'
+        title_service.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(SOURCE / 'lib/DiskTitleSyncService.php', title_service)
         shutil.copy2(SOURCE / 'tests/fixtures/shared_folder_runtime.php', cls.root / 'runtime.php')
         requires = ['DiskContext', 'DiskValidator', 'DiskPermissionService', 'DiskRootResolver',
                     'DiskBitrixStorageAdapter', 'DiskCsrf', 'DiskResponse', 'helpers']

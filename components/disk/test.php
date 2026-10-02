@@ -42,7 +42,7 @@ echo '</pre>';
     </div>
 
     <script src="/bitrix/js/main/core/core.js"></script>
-    <script src="/local/sitebuilder/components/disk/script.js?v=20260929"></script>
+    <script src="/local/sitebuilder/components/disk/script.js?v=20261002"></script>
     <script src="/local/sitebuilder/components/disk/access.js"></script>
 </body>
 </html>

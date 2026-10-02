@@ -23,7 +23,7 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 
 $rootInfo = DiskRootResolver::resolveWithSource($context, $settings, true);
 $permissions = DiskPermissionService::resolve($context, $settings, $rootInfo['rootFolderId']);
-if (!empty($permissions['canView'])) {
+if (!empty($permissions['canBrowse'])) {
     $settings['title'] = DiskTitleSyncService::folderName($rootInfo['rootFolderId'], (string)$settings['title']);
 }
 

@@ -43,7 +43,7 @@ $permissions = DiskPermissionService::resolve(
     $currentFolderId,
     $rootFolderId
 );
-DiskValidator::assertCan($permissions, 'canView');
+DiskValidator::assertCan($permissions, 'canBrowse');
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 
@@ -61,6 +61,7 @@ $items = DiskValidator::filterVisibleItems(
 );
 
 $breadcrumbs = $adapter->getBreadcrumbs($context, $currentFolderId);
+$breadcrumbs = DiskValidator::filterVisibleBreadcrumbs($context, $settings, $breadcrumbs, $rootFolderId);
 $currentFolder = end($breadcrumbs);
 $rootName = DiskTitleSyncService::folderName($rootFolderId, (string)$settings['title']);
 
