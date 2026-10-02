@@ -99,7 +99,8 @@ const html = execFileSync(process.env.PHP_BIN || 'php', [path.join(__dirname, 'f
     // Existing page editor round-trips the same flag through its real form helpers.
     const editor = fs.readFileSync(path.join(root,'editor.php'),'utf8');
     const editorForm = editor.slice(editor.indexOf('<div id="diskBlockForm"'),editor.indexOf('<div id="blockJsonFields"'));
-    const editorPage = await browser.newPage();
+    const editorPage = page;
+    await editorPage.goto('about:blank');
     await editorPage.setContent(editorForm);
     await editorPage.addScriptTag({content:fs.readFileSync(path.join(root,'assets/admin/editor/30-blocks.js'),'utf8')});
     await editorPage.evaluate(() => {
@@ -113,7 +114,6 @@ const html = execFileSync(process.env.PHP_BIN || 'php', [path.join(__dirname, 'f
     assert.equal(props.requireFolderAccess,false);
     assert.equal(props.permissionMode,'inherit_site');
     assert.equal(props.rootFolderId,20);
-    await editorPage.close();
     assert.deepEqual(errors,[]);
     console.log('PASS: flag on/off save and reopen, native mode sync, page editor, root navigation without file access, 1440/768/390.');
   } finally { await browser.close(); }
