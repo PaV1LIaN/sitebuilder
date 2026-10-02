@@ -53,12 +53,12 @@ const html = execFileSync(process.env.PHP_BIN || 'php', [path.join(__dirname, 'f
     const flag = modal.locator('[name="requireFolderAccess"]');
     const select = modal.locator('[name="permissionMode"]');
     assert.equal(await flag.isChecked(), false);
-    await flag.check();
+    await flag.locator('..').click();
     assert.equal(await select.inputValue(), 'custom', 'flag activates folder rules');
     for (const width of [1440,768,390]) {
       await page.setViewportSize({width,height:1000});
       await page.emulateMedia({reducedMotion:'reduce'});
-      await flag.scrollIntoViewIfNeeded();
+      await flag.locator('..').scrollIntoViewIfNeeded();
       const overflow = await modal.evaluate(el => {
         const dialog = el.querySelector('[role="dialog"]');
         return {page:document.documentElement.scrollWidth-innerWidth,dialog:dialog.scrollWidth-dialog.clientWidth};
@@ -78,7 +78,7 @@ const html = execFileSync(process.env.PHP_BIN || 'php', [path.join(__dirname, 'f
     assert(await flag.isChecked(), 'saved value restored');
     await select.selectOption('bitrix_disk');
     assert(await flag.isChecked(), 'native mode also requires folder rights');
-    await flag.uncheck();
+    await flag.locator('..').click();
     assert.equal(await select.inputValue(),'inherit_site');
     await modal.locator('[data-action="save-settings"]').click();
     await modal.waitFor({state:'hidden'});
