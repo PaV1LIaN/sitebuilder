@@ -274,6 +274,11 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
                                 </div>
 
                                 <div class="sb-disk-settings-native__card">
+                                    <label class="sb-disk-settings-native__switch">
+                                        <span><strong>Проверять права на папки</strong><small>Включено: видны только разрешённые папки. Выключено: вся структура доступна пользователям с допуском к Диску на этой странице.</small></span>
+                                        <input type="checkbox" name="requireFolderAccess" value="1">
+                                        <i></i>
+                                    </label>
                                     <div class="sb-disk-form__field">
                                         <label class="sb-disk-form__label">Режим прав</label>
                                         <select class="sb-disk-form__select" name="permissionMode">
@@ -281,7 +286,7 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
                                             <option value="custom">Индивидуальные права папок SiteBuilder</option>
                                             <option value="bitrix_disk">Точные права Битрикс24.Диск</option>
                                         </select>
-                                        <div class="sb-disk-form__hint">Точный режим записывает штатный ACL выбранной папки Битрикс24.Диск.</div>
+                                        <div class="sb-disk-form__hint">Права папки наследуются подпапками. Для выборочного доступа назначайте права нужным папкам; разрешение на корень откроет его подпапки. Точный режим использует штатные права Битрикс24.Диск.</div>
                                     </div>
 
                                     <div class="sb-disk-settings-native__quick-presets">

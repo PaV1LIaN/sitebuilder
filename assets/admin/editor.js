@@ -1143,6 +1143,20 @@
         document.getElementById('diskRootModeInput').value = props.rootMode || 'site';
         document.getElementById('diskViewModeInput').value = props.viewMode || 'table';
         document.getElementById('diskPermissionModeInput').value = props.permissionMode || 'inherit_site';
+        var diskPermissionModeInput = document.getElementById('diskPermissionModeInput');
+        var diskRequireFolderAccessInput = document.getElementById('diskRequireFolderAccessInput');
+        if (diskRequireFolderAccessInput) {
+            diskRequireFolderAccessInput.checked = props.requireFolderAccess === undefined
+                ? (props.permissionMode || 'inherit_site') !== 'inherit_site' : !!props.requireFolderAccess;
+            diskRequireFolderAccessInput.onchange = function () {
+                diskPermissionModeInput.value = this.checked
+                    ? (diskPermissionModeInput.value === 'inherit_site' ? 'custom' : diskPermissionModeInput.value)
+                    : 'inherit_site';
+            };
+            diskPermissionModeInput.onchange = function () {
+                diskRequireFolderAccessInput.checked = this.value !== 'inherit_site';
+            };
+        }
         document.getElementById('diskMaxFileSizeInput').value = props.maxFileSize || 52428800;
         document.getElementById('diskAllowedExtensionsInput').value = Array.isArray(props.allowedExtensions) ? props.allowedExtensions.join(' ') : '';
 
@@ -1228,6 +1242,7 @@
             rootFolderId: oldProps.rootFolderId || null,
             viewMode: getInputValue('diskViewModeInput') || 'table',
             permissionMode: getInputValue('diskPermissionModeInput') || 'inherit_site',
+            requireFolderAccess: getChecked('diskRequireFolderAccessInput'),
             maxFileSize: Number(getInputValue('diskMaxFileSizeInput') || 0),
             allowedExtensions: String(getInputValue('diskAllowedExtensionsInput') || '')
                 .trim()
@@ -1438,6 +1453,7 @@
                 allowedExtensions: [],
                 maxFileSize: 52428800,
                 permissionMode: 'inherit_site',
+                requireFolderAccess: false,
                 useSiteRootFallback: true
             };
         }

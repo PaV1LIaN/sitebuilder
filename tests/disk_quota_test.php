@@ -257,6 +257,24 @@ namespace {
         rejects(static function () { require __DIR__ . '/../components/disk/actions/save_settings.php'; }, 'INVALID_MAX_DISK_SIZE');
         check(QuotaFixture::$settings['maxDiskSize'] === 100, 'invalid input does not reset cap');
     };
+    $tests['settings API persists folder flag and preserves it for an older client'] = static function () {
+        $GLOBALS['quotaPayload'] = ['siteId' => 1, 'pageId' => 2, 'blockId' => 3, 'expectedVersion' => 7,
+            'settings' => ['requireFolderAccess' => 1]];
+        try { require __DIR__ . '/../components/disk/actions/save_settings.php'; }
+        catch (QuotaResponse $response) {
+            check($response->data['settings']['requireFolderAccess'] === true, 'flag enabled');
+            check($response->data['settings']['permissionMode'] === 'custom', 'folder mode selected');
+        }
+        $GLOBALS['quotaPayload']['settings'] = ['permissionMode' => 'inherit_site'];
+        try { require __DIR__ . '/../components/disk/actions/save_settings.php'; }
+        catch (QuotaResponse $response) { check($response->data['settings']['requireFolderAccess'] === true, 'omitted flag never disables ACL'); }
+        $GLOBALS['quotaPayload']['settings']['requireFolderAccess'] = '0';
+        try { require __DIR__ . '/../components/disk/actions/save_settings.php'; }
+        catch (QuotaResponse $response) {
+            check($response->data['settings']['requireFolderAccess'] === false, 'explicit zero persisted');
+            check($response->data['settings']['permissionMode'] === 'inherit_site', 'page access selected');
+        }
+    };
     $tests['exact capacity succeeds; one byte over fails'] = static function () use ($context) {
         DiskQuotaService::assertAdditional($context, 10, 10);
         $e = rejects(static fn() => DiskQuotaService::assertAdditional($context, 10, 11), 'DISK_QUOTA_EXCEEDED');

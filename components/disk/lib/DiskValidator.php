@@ -222,6 +222,64 @@ class DiskValidator
             $rootFolderId,
             $permissionKey
         );
+        if ($entityType === 'folder' && DiskFolderAccessPolicy::settings($settings)['requireFolderAccess']) {
+            self::assertCanForFolderTree($context, $settings, $entityId, $rootFolderId, $permissionKey);
+        }
+    }
+
+    private static function assertCanForFolderTree(
+        DiskContext $context,
+        array $settings,
+        int $folderId,
+        int $rootFolderId,
+        string $permissionKey
+    ): void {
+        $pending = [$folderId];
+        $visited = [];
+        // Copy/move/delete of an allowed ancestor must not include denied descendants.
+        while ($pending) {
+            $id = array_pop($pending);
+            if (isset($visited[$id]) || count($visited) >= 10000) {
+                throw new RuntimeException('FOLDER_OUT_OF_SCOPE');
+            }
+            $visited[$id] = true;
+            $permissions = self::assertCanForFolder($context, $settings, $id, $rootFolderId, $permissionKey);
+            if (!empty($permissions['canManageAccess'])) {
+                return;
+            }
+            $folder = \Bitrix\Disk\Folder::loadById($id);
+            if (!$folder) {
+                throw new RuntimeException('DISK_FOLDER_NOT_FOUND');
+            }
+            $security = \Bitrix\Disk\Driver::getInstance()->getFakeSecurityContext($context->currentUserId);
+            foreach ($folder->getChildren($security) as $child) {
+                if ($child instanceof \Bitrix\Disk\Folder && !$child->isDeleted()) {
+                    $pending[] = (int)$child->getId();
+                }
+            }
+        }
+    }
+
+    public static function filterVisibleBreadcrumbs(
+        DiskContext $context,
+        array $settings,
+        array $breadcrumbs,
+        int $rootFolderId
+    ): array {
+        $result = [];
+        $insideRoot = false;
+        foreach ($breadcrumbs as $crumb) {
+            $id = (int)($crumb['id'] ?? 0);
+            $insideRoot = $insideRoot || $id === $rootFolderId;
+            if (!$insideRoot) {
+                continue;
+            }
+            $permissions = self::permissionsForFolder($context, $settings, $id, $rootFolderId);
+            if (!empty($permissions['canBrowse'])) {
+                $result[] = $crumb;
+            }
+        }
+        return $result;
     }
 
     public static function assertCanForItemParents(

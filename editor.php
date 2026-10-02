@@ -773,6 +773,11 @@ $publicSiteUrl = sb_public_entry_url($basePath, $siteId);
                             </div>
 
                             <div class="sb-editor-space sb-field">
+                                <label><input type="checkbox" id="diskRequireFolderAccessInput"> Проверять права на папки</label>
+                                <p class="sb-help">Включено: папки без прав скрыты. Выключено: вся структура доступна пользователям с допуском к Диску на этой странице. Права наследуются от родительской папки.</p>
+                            </div>
+
+                            <div class="sb-editor-space sb-field">
                                 <label for="diskMaxFileSizeInput">Максимальный размер файла</label>
                                 <input class="sb-input" type="number" id="diskMaxFileSizeInput" min="0">
                             </div>
@@ -1153,7 +1158,7 @@ window.SB_EDITOR_CONFIG = {
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/10-sections.js?v=17"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/20-pages.js?v=23"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/25-visual-builder.js?v=26"></script>
-<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=19"></script>
+<script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/30-blocks.js?v=20"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/32-visual-blocks.js?v=23"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/34-editor-ux.js?v=19"></script>
 <script src="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/assets/admin/editor/42-workspace-shell.js?v=1"></script>
