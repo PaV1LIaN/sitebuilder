@@ -33,6 +33,9 @@ jobs:
       - name: PHP and HTTP access checks
         run: |
           php tests/disk_folder_policy_test.php
+          php tests/admin_access_test.php
+          php tests/admin_access_test.php missing
+          php tests/admin_access_test.php invalid
           php tests/disk_folder_bulk_test.php
           php tests/disk_quota_test.php
           php tests/disk_title_sync_test.php

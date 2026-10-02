@@ -52,6 +52,8 @@ const html = execFileSync(process.env.PHP_BIN || 'php', [path.join(__dirname, 'f
     const modal = page.locator('[data-role="settings-modal"]');
     const flag = modal.locator('[name="requireFolderAccess"]');
     const select = modal.locator('[name="permissionMode"]');
+    assert(await page.locator('[data-action="settings"]').isVisible(), 'Bitrix admin sees settings');
+    assert(await page.locator('[data-action="folder-access"]').isVisible(), 'Bitrix admin sees folder rights');
     assert.equal(await flag.isChecked(), false);
     await flag.locator('..').click();
     assert.equal(await select.inputValue(), 'custom', 'flag activates folder rules');
@@ -95,6 +97,8 @@ const html = execFileSync(process.env.PHP_BIN || 'php', [path.join(__dirname, 'f
     assert(await page.locator('[data-state="empty"]').isVisible());
     assert.equal(await page.locator('[data-state="no-access"]').isVisible(),false);
     assert.equal(await page.locator('[data-action="upload"]').isVisible(),false);
+    assert.equal(await page.locator('[data-action="settings"]').isVisible(),false, 'server permissions hide settings after bootstrap');
+    assert.equal(await page.locator('[data-action="folder-access"]').isVisible(),false, 'server permissions hide folder rights after bootstrap');
 
     // Existing page editor round-trips the same flag through its real form helpers.
     const editor = fs.readFileSync(path.join(root,'editor.php'),'utf8');

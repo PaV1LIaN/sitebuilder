@@ -28,11 +28,11 @@ $initialStateJson = disk_h(json_encode($arResult['INITIAL_STATE'], JSON_UNESCAPE
             <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="refresh">Обновить</button>
 
             <?php if (!empty($arResult['PERMISSIONS']['canManageAccess'])): ?>
-                <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="folder-access">Права папки</button>
+                <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="folder-access" data-permission="canManageAccess">Права папки</button>
             <?php endif; ?>
 
             <?php if (!empty($arResult['PERMISSIONS']['canEditSettings'])): ?>
-                <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="settings">Настройки</button>
+                <button type="button" class="sb-disk__btn sb-disk__btn--ghost" data-action="settings" data-permission="canEditSettings">Настройки</button>
             <?php endif; ?>
         </div>
     </div>

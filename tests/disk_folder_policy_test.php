@@ -39,11 +39,15 @@ namespace {
     }
     class DiskCurrentUser {
         public static bool $admin = false;
+        public static bool $sitebuilderAdmin = false;
         public static function requireId() { return 5; }
-        public static function isAdmin() { return self::$admin; }
+        public static function isAdmin() { return self::$admin || self::$sitebuilderAdmin; }
         public static function isBitrixAdmin() { return self::$admin; }
     }
-    class SiteAccessRepository { public static function getUserRole(...$args) { return null; } }
+    class SiteAccessRepository {
+        public static ?string $role = null;
+        public static function getUserRole(...$args) { return self::$role; }
+    }
     class PageAccessService {
         public static bool $allowed = true;
         public static function canViewDisk(...$args) { return self::$allowed; }
@@ -52,6 +56,7 @@ namespace {
     }
     class SiteRepository { public static function getById($id) { return $id === 1 ? ['id' => 1] : null; } }
     class BlockRepository {
+        public static function getById($id) { return ['id' => $id, 'version' => 1]; }
         public static function getDiskBlockByContext($site, $page, $block) { return $site === 1 && $page === 2 && $block === 5 ? ['id' => 5] : null; }
     }
     class DiskCsrf { public static function validateFromRequest() {} }
@@ -60,7 +65,10 @@ namespace {
         public static function getByBlockId($id) { return DiskSitebuilderBridge::normalizeDiskProps(self::$raw); }
         public static function ensureExistsForBlock(...$args) { return self::getByBlockId(5); }
     }
-    class DiskRootResolver { public static function resolve(...$args) { return 20; } }
+    class DiskRootResolver {
+        public static function resolve(...$args) { return 20; }
+        public static function resolveWithSource(...$args) { return ['rootFolderId' => 20, 'source' => 'block']; }
+    }
     class DiskTitleSyncService { public static function folderName(...$args) { return 'Root'; } }
     class BitrixDiskRightsService {
         public static int $calls = 0;
@@ -168,5 +176,35 @@ namespace {
     check($resolve(21, ['requireFolderAccess' => 0, 'permissionMode' => 'bitrix_disk'])['canView'], 'Flag 0 selects page inheritance even from native mode');
     DiskCurrentUser::$admin = true;
     check($resolve(23)['canManageAccess'] && $resolve(23)['canView'], 'Admin can recover access');
+
+    // Management buttons and their API share the native Bitrix admin policy.
+    function disk_h($value) { return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+    function bitrix_sessid() { return 'fixture'; }
+    foreach (['bitrix_admin', 'configured_admin', 'site_admin', 'site_editor', 'site_viewer'] as $identity) {
+        DiskCurrentUser::$admin = $identity === 'bitrix_admin';
+        DiskCurrentUser::$sitebuilderAdmin = $identity === 'configured_admin';
+        SiteAccessRepository::$role = in_array($identity, ['site_admin', 'site_editor', 'site_viewer'], true) ? $identity : null;
+        $allowed = $identity === 'bitrix_admin';
+        foreach (['inherit_site', 'custom', 'bitrix_disk'] as $mode) {
+            $permissions = $resolve(20, ['permissionMode' => $mode]);
+            check($permissions['canManageAccess'] === $allowed && $permissions['canEditSettings'] === $allowed, $identity . ': management policy in ' . $mode);
+        }
+        $permissions = $resolve(20);
+        $arResult = ['SITE_ID' => 1, 'PAGE_ID' => 2, 'BLOCK_ID' => 5, 'TITLE' => 'Files',
+            'SETTINGS' => $settings, 'PERMISSIONS' => $permissions, 'INITIAL_STATE' => []];
+        ob_start();
+        require __DIR__ . '/../components/disk/template.php';
+        $html = ob_get_clean();
+        foreach (['data-action="settings"', 'data-action="folder-access"', 'data-role="settings-modal"', 'data-role="folder-access-modal"'] as $marker) {
+            check(str_contains($html, $marker) === $allowed, $identity . ': rendered ' . $marker);
+        }
+        if (!$allowed) {
+            foreach (['get_settings', 'save_settings', 'get_root_options', 'init_block_root', 'init_site_root',
+                'folder_access_list', 'folder_access_set', 'folder_access_delete', 'folder_access_bulk',
+                'get_access_matrix', 'save_access_matrix', 'user_search'] as $action) {
+                denied(static fn() => endpoint($action, ['folderId' => 20, 'userId' => 7, 'role' => 'EDITOR']));
+            }
+        }
+    }
     echo 'PASS: ' . $checks . " folder policy checks (flags, inheritance, list/search, direct links/download, subtrees, page admission, native ACL and admin).\n";
 }

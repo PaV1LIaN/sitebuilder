@@ -184,8 +184,10 @@ class DiskPermissionService
                 'canRename' => true,
                 'canDelete' => true,
                 'canDownload' => true,
-                'canManageAccess' => true,
-                'canEditSettings' => true,
+                // Site ownership/configured SiteBuilder admins grant file access,
+                // but these two management panels belong to native Bitrix admins.
+                'canManageAccess' => $role === 'bitrix_admin',
+                'canEditSettings' => $role === 'bitrix_admin',
             ];
         }
 
