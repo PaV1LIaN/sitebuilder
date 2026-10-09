@@ -726,6 +726,19 @@ function fillDiskForm(props) {
     if (diskPermissionModeInput) {
         diskPermissionModeInput.value = props.permissionMode || 'inherit_site';
     }
+    var diskRequireFolderAccessInput = document.getElementById('diskRequireFolderAccessInput');
+    if (diskRequireFolderAccessInput && diskPermissionModeInput) {
+        diskRequireFolderAccessInput.checked = props.requireFolderAccess === undefined
+            ? (props.permissionMode || 'inherit_site') !== 'inherit_site' : !!props.requireFolderAccess;
+        diskRequireFolderAccessInput.onchange = function () {
+            diskPermissionModeInput.value = this.checked
+                ? (diskPermissionModeInput.value === 'inherit_site' ? 'custom' : diskPermissionModeInput.value)
+                : 'inherit_site';
+        };
+        diskPermissionModeInput.onchange = function () {
+            diskRequireFolderAccessInput.checked = this.value !== 'inherit_site';
+        };
+    }
 
     if (diskMaxFileSizeInput) {
         diskMaxFileSizeInput.value = props.maxFileSize || 52428800;
@@ -853,6 +866,7 @@ function collectDiskBlockProps(block) {
         rootFolderId: oldProps.rootFolderId || null,
         viewMode: getInputValue('diskViewModeInput') || 'table',
         permissionMode: getInputValue('diskPermissionModeInput') || 'inherit_site',
+        requireFolderAccess: getChecked('diskRequireFolderAccessInput'),
         maxFileSize: Number(getInputValue('diskMaxFileSizeInput') || 0),
         maxDiskSize: maxDiskSize,
         allowedExtensions: String(getInputValue('diskAllowedExtensionsInput') || '')
@@ -1054,6 +1068,7 @@ async function createBlock(type) {
             maxFileSize: 52428800,
             maxDiskSize: 0,
             permissionMode: 'inherit_site',
+            requireFolderAccess: false,
             useSiteRootFallback: true
         };
     }

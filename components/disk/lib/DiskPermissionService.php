@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/DiskFolderAccessPolicy.php';
+
 class DiskPermissionService
 {
     public static function resolve(
@@ -12,10 +14,12 @@ class DiskPermissionService
         $rolePermissions = self::resolveRolePermissions($context);
         $rootFolderId = $rootFolderId ?: $folderId;
         $folderRule = null;
-        $permissionMode = (string)($settings['permissionMode'] ?? 'inherit_site');
+        $permissionMode = DiskFolderAccessPolicy::settings($settings)['permissionMode'];
+        $navigationOnly = false;
 
         if (
             $permissionMode === 'bitrix_disk'
+            && $rolePermissions['role'] !== ''
             && $rolePermissions['role'] !== 'bitrix_admin'
             && $rolePermissions['role'] !== 'site_admin'
             && $folderId !== null
@@ -45,12 +49,14 @@ class DiskPermissionService
                 $context->currentUserId
             );
 
-            if ($folderRule !== null) {
-                $rolePermissions = self::permissionsForFolderRole(
-                    (string)$folderRule['role'],
-                    $rolePermissions
-                );
-            }
+            // A page grant opens the root as a filtered entry point, but grants
+            // neither access to its files nor rights inherited by child folders.
+            $navigationOnly = $folderRule === null && $folderId === $rootFolderId
+                && !empty($rolePermissions['canView']);
+            $rolePermissions = self::permissionsForFolderRole(
+                (string)($folderRule['role'] ?? FolderAccessRepository::ROLE_DENY),
+                $rolePermissions
+            );
         }
 
         $blockRestrictions = self::resolveBlockRestrictions($settings);
@@ -60,6 +66,7 @@ class DiskPermissionService
         }
 
         return [
+            'canBrowse' => ($navigationOnly || $rolePermissions['canView']) && $blockRestrictions['canView'],
             'canView' => $rolePermissions['canView'] && $blockRestrictions['canView'],
             'canUpload' => $rolePermissions['canUpload'] && $blockRestrictions['canUpload'],
             'canCreateFolder' => $rolePermissions['canCreateFolder'] && $blockRestrictions['canCreateFolder'],
@@ -177,8 +184,10 @@ class DiskPermissionService
                 'canRename' => true,
                 'canDelete' => true,
                 'canDownload' => true,
-                'canManageAccess' => true,
-                'canEditSettings' => true,
+                // Site ownership/configured SiteBuilder admins grant file access,
+                // but these two management panels belong to native Bitrix admins.
+                'canManageAccess' => $role === 'bitrix_admin',
+                'canEditSettings' => $role === 'bitrix_admin',
             ];
         }
 

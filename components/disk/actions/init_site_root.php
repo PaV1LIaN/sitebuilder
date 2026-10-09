@@ -15,8 +15,7 @@ if (!$site) {
     throw new RuntimeException('SITE_NOT_FOUND');
 }
 
-$role = SiteAccessRepository::getUserRole($siteId, $currentUserId);
-if (!DiskCurrentUser::isAdmin() && !in_array($role, ['site_admin', 'site_editor'], true)) {
+if (!DiskCurrentUser::isBitrixAdmin()) {
     throw new RuntimeException('ACCESS_DENIED');
 }
 

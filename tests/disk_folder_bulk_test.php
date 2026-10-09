@@ -148,6 +148,7 @@ namespace {
     $inherited = endpoint('folderAccessBulkSet', ['userIds'=>range(1,100), 'role'=>'INHERIT', 'expectedRevision'=>$saved['revision']]);
     check(count(FolderAccessRepository::listForFolder(1,5,20)) === 1, 'Bulk inheritance removes only selected rules');
     DiskCurrentUser::$admin = false;
-    check(DiskPermissionService::resolve($context, DiskSettingsRepository::getByBlockId(5), 20, 20)['canView'], 'Rule cache invalidated after mutation');
+    $afterDelete = DiskPermissionService::resolve($context, DiskSettingsRepository::getByBlockId(5), 20, 20);
+    check($afterDelete['canBrowse'] && !$afterDelete['canView'] && $afterDelete['folderRole'] === null, 'Rule cache invalidated; unassigned root returns to navigation only');
     echo "PASS: 100 users, FIO and namesakes, duplicates, inactive/invalid targets, CSRF, mode guard, revisions, rollback, inheritance, deny visibility and direct access.\n";
 }

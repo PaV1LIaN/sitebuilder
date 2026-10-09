@@ -40,6 +40,8 @@ if (!is_array($settings)) {
     throw new RuntimeException('INVALID_SETTINGS_PAYLOAD');
 }
 
+$accessSettings = DiskFolderAccessPolicy::settings(array_merge($currentSettings, $settings));
+
 $allowedExtensions = [];
 if (isset($settings['allowedExtensions'])) {
     if (is_array($settings['allowedExtensions'])) {
@@ -64,7 +66,7 @@ $normalized = [
     'rootFolderId' => $rootFolderIdValue,
     'rootMode' => $rootFolderIdValue !== null ? 'block' : 'site',
     'viewMode' => in_array((string)($settings['viewMode'] ?? 'table'), ['table', 'grid'], true)
-        ? (string)$settings['viewMode']
+        ? (string)($settings['viewMode'] ?? 'table')
         : 'table',
     'allowUpload' => disk_normalize_bool($settings['allowUpload'] ?? true),
     'allowCreateFolder' => disk_normalize_bool($settings['allowCreateFolder'] ?? true),
@@ -80,9 +82,8 @@ $normalized = [
     }, $allowedExtensions))),
     'maxFileSize' => max(0, (int)($settings['maxFileSize'] ?? 52428800)),
     'maxDiskSize' => DiskQuotaService::validateLimit($settings['maxDiskSize'] ?? $currentSettings['maxDiskSize'] ?? 0),
-    'permissionMode' => in_array((string)($settings['permissionMode'] ?? 'inherit_site'), ['inherit_site', 'custom', 'bitrix_disk'], true)
-        ? (string)$settings['permissionMode']
-        : 'inherit_site',
+    'requireFolderAccess' => $accessSettings['requireFolderAccess'],
+    'permissionMode' => $accessSettings['permissionMode'],
     'useSiteRootFallback' => disk_normalize_bool($settings['useSiteRootFallback'] ?? true),
 ];
 

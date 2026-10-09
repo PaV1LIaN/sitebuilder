@@ -151,7 +151,8 @@ foreach ([123, 456, 1] as $id) {
         $permissions = DiskPermissionService::resolve($context, ['permissionMode' => $mode,
             'allowUpload' => true, 'allowCreateFolder' => true, 'allowRename' => true,
             'allowDelete' => true, 'allowDownload' => true], 1000, 1000);
-        check($permissions['canManageAccess'] && $permissions['canUpload'] && $permissions['canDelete'], 'admin retains disk permissions in ' . $mode);
+        check($permissions['canUpload'] && $permissions['canDelete'], 'admin retains file permissions in ' . $mode);
+        check($permissions['canManageAccess'] === ($id === 1) && $permissions['canEditSettings'] === ($id === 1), 'only native Bitrix admin manages Disk rights/settings in ' . $mode);
         check($permissions['role'] === ($id === 1 ? 'bitrix_admin' : 'site_admin'), 'configured admin is not mislabelled as a portal admin');
     }
 }
