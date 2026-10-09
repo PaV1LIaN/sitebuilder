@@ -140,8 +140,21 @@ if (ctype_digit($query)) {
      * CUser::GetList does NOT use D7-style filter keys such as %LOGIN.
      * Use the ORM here, where %FIELD is the supported substring operator.
      *
-     * One query searches all relevant identity fields with OR semantics.
+     * A full name spans LAST_NAME, NAME and SECOND_NAME. Every word must
+     * match at least one name field of the same user, in any word order.
+     * Keep login/email as whole-query alternatives. Apply the complete
+     * filter before the result limit, not to a limited surname-only page.
      */
+    $nameFilter = ['LOGIC' => 'AND'];
+    foreach (explode(' ', $query) as $word) {
+        $nameFilter[] = [
+            'LOGIC' => 'OR',
+            '%LAST_NAME' => $word,
+            '%NAME' => $word,
+            '%SECOND_NAME' => $word,
+        ];
+    }
+
     $result = \Bitrix\Main\UserTable::getList([
         'select' => [
             'ID',
@@ -158,9 +171,7 @@ if (ctype_digit($query)) {
                 'LOGIC' => 'OR',
                 '%LOGIN' => $query,
                 '%EMAIL' => $query,
-                '%NAME' => $query,
-                '%LAST_NAME' => $query,
-                '%SECOND_NAME' => $query,
+                $nameFilter,
             ],
         ],
         'order' => [
