@@ -1,0 +1,31 @@
+name: Disk user search
+on:
+  push:
+    paths:
+      - 'components/disk/actions/user_search.php'
+      - 'tests/disk_user_search_test.php'
+      - '.github/workflows/disk-user-search.yml'
+  pull_request:
+    paths:
+      - 'components/disk/actions/user_search.php'
+      - 'tests/disk_user_search_test.php'
+      - '.github/workflows/disk-user-search.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, ctype
+          coverage: none
+      - run: php -l components/disk/actions/user_search.php
+      - run: php tests/disk_user_search_test.php
