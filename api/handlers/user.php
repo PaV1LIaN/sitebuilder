@@ -7,7 +7,7 @@ if (!function_exists('sb_user_search_require_admin')) {
     {
         global $USER;
 
-        if ($USER && $USER->IsAdmin()) {
+        if ($USER && sitebuilder_is_admin()) {
             return;
         }
 

@@ -187,6 +187,9 @@ try {
     $zip->close();
 }
 
+// Early feedback; each extraction step checks capacity again under the write lock.
+DiskQuotaService::assertAdditional($context, (int)$targetFolder->getId(), $totalSize);
+
 $jobId = bin2hex(random_bytes(16));
 
 $job = [

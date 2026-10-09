@@ -410,7 +410,7 @@ class SiteAppearanceService
         return $aliases[$mime] ?? $mime;
     }
 
-    protected static function ensureUploadDirectory(): void
+    protected static function getUploadRoot(): string
     {
         $documentRoot = rtrim(
             (string)($_SERVER['DOCUMENT_ROOT'] ?? ''),
@@ -421,9 +421,17 @@ class SiteAppearanceService
             throw new RuntimeException('DOCUMENT_ROOT_NOT_FOUND');
         }
 
-        $directory = $documentRoot
-            . '/upload/'
-            . trim(self::UPLOAD_DIR, '/');
+        $uploadDir = class_exists('COption')
+            ? (string)COption::GetOptionString('main', 'upload_dir', 'upload')
+            : 'upload';
+
+        return $documentRoot . '/' . trim($uploadDir, '/');
+    }
+
+    protected static function ensureUploadDirectory(): void
+    {
+        $directory = self::getUploadRoot()
+            . '/' . trim(self::UPLOAD_DIR, '/');
 
         if (!is_dir($directory)) {
             $created = false;
@@ -472,27 +480,38 @@ class SiteAppearanceService
             return;
         }
 
-        $documentRoot = rtrim(
-            (string)($_SERVER['DOCUMENT_ROOT'] ?? ''),
-            '/'
-        );
-        $urlPath = parse_url($src, PHP_URL_PATH);
-
-        if (
-            $documentRoot === ''
-            || !is_string($urlPath)
-            || $urlPath === ''
-        ) {
-            throw new RuntimeException(
-                'FILE_PHYSICAL_SAVE_FAILED'
-            );
+        /*
+         * SRC — публичный URL: он может содержать URL-кодирование или
+         * изменяться обработчиком. Локальный путь строим из записи b_file.
+         * FILE_NAME нельзя декодировать: "%20" может быть частью имени.
+         */
+        $fileName = (string)($file['FILE_NAME'] ?? '');
+        if ($fileName === '') {
+            throw new RuntimeException('FILE_RECORD_NOT_FOUND');
         }
 
-        $absolutePath = $documentRoot
-            . '/'
-            . ltrim($urlPath, '/');
+        $subdir = trim((string)($file['SUBDIR'] ?? ''), '/');
+        $absolutePath = self::getUploadRoot()
+            . '/' . ($subdir !== '' ? $subdir . '/' : '')
+            . $fileName;
 
-        if (!is_file($absolutePath)) {
+        if (class_exists('CBXVirtualIo')) {
+            // Битрикс учитывает различие логического и физического имени.
+            $io = CBXVirtualIo::GetInstance();
+            $io->ClearCache();
+            $exists = $io->FileExists($absolutePath);
+        } else {
+            clearstatcache(true, $absolutePath);
+            $exists = is_file($absolutePath);
+        }
+
+        if (!$exists) {
+            error_log('SiteBuilder appearance file verification failed: ' . json_encode([
+                'fileId' => $fileId,
+                'src' => $src,
+                'path' => $absolutePath,
+                'handlerId' => $file['HANDLER_ID'] ?? null,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE));
             throw new RuntimeException(
                 'FILE_PHYSICAL_SAVE_FAILED'
             );

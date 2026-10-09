@@ -230,6 +230,11 @@ if (in_array($action, ['list', 'search', 'bootstrap'], true)) {
 
 try {
     switch ($action) {
+        case 'quota':
+        case 'checkUpload':
+            require __DIR__ . '/actions/quota.php';
+            break;
+
         case 'resolveRoot':
             require __DIR__ . '/actions/resolve_root.php';
             break;
@@ -310,6 +315,10 @@ try {
             require __DIR__ . '/actions/download.php';
             break;
 
+        case 'getInternalLink':
+            require __DIR__ . '/actions/get_internal_link.php';
+            break;
+
         case 'unpackArchive':
             require __DIR__ . '/actions/unpack_archive.php';
             break;
@@ -340,6 +349,35 @@ try {
 } catch (Throwable $e) {
     while (ob_get_level() > 0) {
         @ob_end_clean();
+    }
+
+    if ($e instanceof DiskQuotaExceededException) {
+        http_response_code(409);
+        DiskResponse::error('DISK_QUOTA_EXCEEDED', 'Недостаточно места на диске. Удалите ненужные файлы или увеличьте максимальный размер диска.', [
+            'limitBytes' => $e->limitBytes,
+            'usedBytes' => $e->usedBytes,
+            'incomingBytes' => $e->incomingBytes,
+        ]);
+    }
+
+    if ($e->getMessage() === 'DISK_QUOTA_BUSY') {
+        http_response_code(409);
+        DiskResponse::error('DISK_QUOTA_BUSY', 'На диске выполняется другая операция. Повторите попытку после её завершения.');
+    }
+
+    if ($e->getMessage() === 'INVALID_MAX_DISK_SIZE') {
+        http_response_code(422);
+        DiskResponse::error('INVALID_MAX_DISK_SIZE', 'Укажите неотрицательный максимальный размер диска. 0 — без ограничения.');
+    }
+
+    if ($e->getMessage() === 'INVALID_UPLOAD_METADATA') {
+        http_response_code(422);
+        DiskResponse::error('INVALID_UPLOAD_METADATA', 'Не удалось проверить выбранные файлы. Выберите их заново.');
+    }
+
+    if ($e->getMessage() === 'UNPACK_ROOT_FOLDER_CHANGED') {
+        http_response_code(409);
+        DiskResponse::error('UNPACK_ROOT_FOLDER_CHANGED', 'Корневая папка диска изменилась. Запустите распаковку заново.');
     }
 
     if ($e instanceof DiskRightsVersionConflictException) {
@@ -379,6 +417,78 @@ try {
         DiskResponse::error(
             'EXPECTED_VERSION_REQUIRED',
             'Не передана версия блока.'
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
+        && str_starts_with(
+            $e->getMessage(),
+            'DISK_RIGHTS_WRITE_VERIFICATION_FAILED'
+        )
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_RIGHTS_WRITE_VERIFICATION_FAILED',
+            'Битрикс24.Диск не подтвердил запись прямого права. Изменения отменены.',
+            ['diagnostic' => $e->getMessage()]
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
+        && $e->getMessage() === 'DISK_ACL_INTENT_STORAGE_UNAVAILABLE'
+    ) {
+        http_response_code(503);
+        DiskResponse::error(
+            'DISK_ACL_INTENT_STORAGE_UNAVAILABLE',
+            'Не применена миграция этапа 22 для контроллера прав. Изменения ACL отменены.'
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
+        && str_starts_with(
+            $e->getMessage(),
+            'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED'
+        )
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_RIGHTS_EFFECTIVE_VERIFICATION_FAILED',
+            'Битрикс24.Диск не смог подтвердить итоговый запрет чтения. Изменения отменены.',
+            ['diagnostic' => $e->getMessage()]
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
+        && str_starts_with($e->getMessage(), 'DISK_NATIVE_SHARING_')
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_NATIVE_SHARING_FAILED',
+            'Битрикс24.Диск не подтвердил право в штатном списке общего доступа. Изменения отменены.',
+            ['diagnostic' => $e->getMessage()]
+        );
+    }
+
+    if (
+        $e instanceof RuntimeException
+        && (
+            str_starts_with($e->getMessage(), 'DISK_RIGHTS_SET_FAILED')
+            || $e->getMessage() === 'DISK_RIGHTS_SET_API_UNAVAILABLE'
+            || str_starts_with($e->getMessage(), 'DISK_RIGHTS_APPEND_FAILED')
+            || $e->getMessage() === 'DISK_RIGHTS_APPEND_API_UNAVAILABLE'
+            || str_starts_with($e->getMessage(), 'DISK_RIGHTS_REVOKE_FAILED')
+            || $e->getMessage() === 'DISK_RIGHTS_REVOKE_API_UNAVAILABLE'
+        )
+    ) {
+        http_response_code(500);
+        DiskResponse::error(
+            'DISK_RIGHTS_SET_FAILED',
+            'Битрикс24.Диск не смог заменить или отозвать права папки. Исходные права восстановлены.',
+            ['diagnostic' => $e->getMessage()]
         );
     }
 

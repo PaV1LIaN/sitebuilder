@@ -7,6 +7,20 @@ require_once $_SERVER['DOCUMENT_ROOT']
 
 global $USER;
 
+if (!function_exists('sb_block_handler_enqueue_access_reconcile')) {
+    function sb_block_handler_enqueue_access_reconcile(
+        int $siteId,
+        int $userId
+    ): array {
+        return OutboxService::enqueueUnifiedAccessReconcile(
+            $siteId,
+            'repair',
+            $userId,
+            1
+        );
+    }
+}
+
 /*
  * Локальные функции обработчика блоков.
  */
@@ -280,10 +294,19 @@ if ($action === 'block.create') {
 
     sb_write_blocks([$block]);
 
+    $accessReconcileJob = null;
+    if ($type === 'disk') {
+        $accessReconcileJob = sb_block_handler_enqueue_access_reconcile(
+            (int)$pageContext['siteId'],
+            $currentUserId
+        );
+    }
+
     sb_json_ok([
         'block' => sb_normalize_block_record(
             $block
         ),
+        'accessReconcileJob' => $accessReconcileJob,
     ]);
 }
 
@@ -404,8 +427,20 @@ if ($action === 'block.update') {
         'content_update'
     );
 
+    $accessReconcileJob = null;
+    if (
+        (string)($block['type'] ?? '') === 'disk'
+        || (string)($saved['type'] ?? '') === 'disk'
+    ) {
+        $accessReconcileJob = sb_block_handler_enqueue_access_reconcile(
+            (int)$pageContext['siteId'],
+            $currentUserId
+        );
+    }
+
     sb_json_ok([
         'block' => sb_normalize_block_record($saved),
+        'accessReconcileJob' => $accessReconcileJob,
     ]);
 }
 
@@ -492,11 +527,20 @@ if ($action === 'block.delete') {
         sb_json_error('BLOCK_NOT_FOUND', 404);
     }
 
+    $accessReconcileJob = null;
+    if ((string)($lockedBlock['type'] ?? '') === 'disk') {
+        $accessReconcileJob = sb_block_handler_enqueue_access_reconcile(
+            (int)$pageContext['siteId'],
+            $currentUserId
+        );
+    }
+
     sb_json_ok([
         'deleted' => true,
         'id' => $id,
         'siteId' => (int)$pageContext['siteId'],
         'pageId' => $pageId,
+        'accessReconcileJob' => $accessReconcileJob,
     ]);
 }
 
@@ -597,8 +641,17 @@ if ($action === 'block.duplicate') {
     sb_write_blocks([$copy]);
     $savedCopy = RevisionService::getBlock((int)$copy['id'], false) ?? $copy;
 
+    $accessReconcileJob = null;
+    if ((string)($sourceBlock['type'] ?? '') === 'disk') {
+        $accessReconcileJob = sb_block_handler_enqueue_access_reconcile(
+            (int)$pageContext['siteId'],
+            $currentUserId
+        );
+    }
+
     sb_json_ok([
         'block' => sb_normalize_block_record($savedCopy),
+        'accessReconcileJob' => $accessReconcileJob,
     ]);
 }
 

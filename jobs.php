@@ -8,8 +8,8 @@ $basePath = rtrim(str_replace($_SERVER['DOCUMENT_ROOT'], '', __DIR__), '/');
 $siteId = (int)($_GET['siteId'] ?? 0);
 foreach ([__DIR__.'/lib/db.php',__DIR__.'/lib/json.php',__DIR__.'/lib/response.php',__DIR__.'/lib/helpers.php',__DIR__.'/lib/access.php'] as $file) require_once $file;
 if ($siteId <= 0) { http_response_code(422); die('Не передан siteId.'); }
-if (!$USER->IsAdmin()) sb_require_content_manager($siteId);
-$isBitrixAdmin = $USER->IsAdmin();
+if (!sitebuilder_is_admin()) sb_require_content_manager($siteId);
+$isBitrixAdmin = sitebuilder_is_admin();
 ?>
 <!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SiteBuilder / Фоновые задания</title><?php $APPLICATION->ShowHead(); ?>

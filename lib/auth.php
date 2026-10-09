@@ -30,6 +30,7 @@ function sitebuilder_auth_config(): array
 
     $config = array_merge(
         [
+            'admin_user_ids' => [],
             'guest_user_id' => 0,
             'default_after_login' => '/local/sitebuilder/index.php',
             'login_url' => '/local/sitebuilder/login.php',
@@ -40,6 +41,62 @@ function sitebuilder_auth_config(): array
     );
 
     return $config;
+}
+
+/**
+ * Дополнительные администраторы SiteBuilder из серверной конфигурации.
+ * Некорректные ID и технический гость не могут получить эти полномочия.
+ *
+ * @return int[]
+ */
+function sitebuilder_admin_user_ids(): array
+{
+    $config = sitebuilder_auth_config();
+    $configuredIds = $config['admin_user_ids'];
+    if (!is_array($configuredIds)) {
+        return [];
+    }
+
+    $guestUserId = (int)$config['guest_user_id'];
+    $ids = [];
+    foreach ($configuredIds as $value) {
+        if (!is_int($value) && !(is_string($value) && ctype_digit($value))) {
+            continue;
+        }
+        $id = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($id !== false && $id !== $guestUserId) {
+            $ids[$id] = $id;
+        }
+    }
+
+    return array_values($ids);
+}
+
+/**
+ * Полный доступ в SiteBuilder: администратор Битрикс или ID из admin_user_ids.
+ * Без аргумента проверяется только текущая авторизованная сессия.
+ * Явный ID используется при расчёте прав конкретного пользователя.
+ */
+function sitebuilder_is_admin(?int $userId = null): bool
+{
+    global $USER;
+
+    $currentUserId = is_object($USER)
+        && method_exists($USER, 'IsAuthorized')
+        && $USER->IsAuthorized()
+        ? (int)$USER->GetID()
+        : 0;
+    $userId = $userId ?? $currentUserId;
+
+    if ($userId <= 0 || $userId === (int)sitebuilder_auth_config()['guest_user_id']) {
+        return false;
+    }
+
+    if ($userId === $currentUserId && method_exists($USER, 'IsAdmin') && $USER->IsAdmin()) {
+        return true;
+    }
+
+    return in_array($userId, sitebuilder_admin_user_ids(), true);
 }
 
 /**

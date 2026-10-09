@@ -7,11 +7,11 @@ global $APPLICATION, $USER;
 $basePath = rtrim(str_replace($_SERVER['DOCUMENT_ROOT'], '', __DIR__), '/');
 $siteId = (int)($_GET['siteId'] ?? 0);
 foreach ([__DIR__.'/lib/db.php',__DIR__.'/lib/json.php',__DIR__.'/lib/response.php',__DIR__.'/lib/helpers.php',__DIR__.'/lib/access.php'] as $file) require_once $file;
-if (!$USER->IsAdmin()) {
+if (!sitebuilder_is_admin()) {
     if ($siteId <= 0) { http_response_code(422); die('Не передан siteId.'); }
     sb_require_content_manager($siteId);
 }
-$isBitrixAdmin = $USER->IsAdmin();
+$isBitrixAdmin = sitebuilder_is_admin();
 $returnUrl = $siteId > 0 ? $basePath . '/jobs.php?siteId=' . $siteId : $basePath . '/index.php';
 ?>
 <!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">

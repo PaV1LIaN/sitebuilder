@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/json.php';
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/public_routes.php';
 
 if (!function_exists('sb_public_h')) {
     function sb_public_h(string $s): string
@@ -1028,13 +1029,6 @@ if (!function_exists('sb_public_filter_menu_pages')) {
         ));
 
         return $menu;
-    }
-}
-
-if (!function_exists('sb_public_page_url')) {
-    function sb_public_page_url(string $basePath, int $siteId, int $pageId): string
-    {
-        return $basePath . '/public.php?siteId=' . $siteId . '&pageId=' . $pageId;
     }
 }
 
@@ -2747,20 +2741,16 @@ if (!function_exists('sb_public_build_view_model')) {
             }
         }
         
-        if (!$hasRequestedPage) {
-            $homePageId = (int)($site['homePageId'] ?? 0);
-        
-            if ($homePageId > 0) {
-                $currentPage = sb_public_find_page_for_site(
-                    $siteId,
-                    $homePageId
-                );
-            }
-        
-            if (!$currentPage && !empty($pages)) {
-                $currentPage = $pages[0];
-            }
+        if (!$hasRequestedPage && !empty($pages)) {
+            $currentPage = sb_public_select_home_page($site, $pages);
         }
+
+        // Домашняя страница использует обычные блоки и права страницы.
+        // Если она недоступна, выбирается первая доступная опубликованная.
+        if (!$currentPage) {
+            return null;
+        }
+
         $layout = sb_public_layout_for_site($siteId);
 
         $menu = sb_public_filter_menu_pages(

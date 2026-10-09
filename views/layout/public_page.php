@@ -555,14 +555,11 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
     <?php if ($pageSeoOgImage !== ''): ?><meta property="og:image" content="<?= sb_public_h($pageSeoOgImage) ?>"><?php endif; ?>
 
     <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/public.css?v=26">
+    <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/assets/public/lists.css?v=1">
 
     <?php if ($pageHasDiskBlock): ?>
-        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=14">
-        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/access.css?v=1">
-    <?php endif; ?>
-
-    <?php if ($pageHasDiskBlock && !$isLayoutPreview): ?>
-        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/settings-v2.css?v=13">
+        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/styles.css?v=16">
+        <link rel="stylesheet" href="<?= sb_public_h($basePath) ?>/components/disk/access.css?v=2">
     <?php endif; ?>
 
     <style>
@@ -700,9 +697,8 @@ if ($pageHasDiskBlock && !$isLayoutPreview) {
 
 
 <?php if ($pageHasDiskBlock && !$isLayoutPreview): ?>
-    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=14"></script>
-    <script src="<?= sb_public_h($basePath) ?>/components/disk/access.js?v=1"></script>
-    <script src="<?= sb_public_h($basePath) ?>/components/disk/settings-v2.js?v=13"></script>
+    <script src="<?= sb_public_h($basePath) ?>/components/disk/script.js?v=18"></script>
+    <script src="<?= sb_public_h($basePath) ?>/components/disk/access.js?v=4"></script>
 <?php endif; ?>
 
 <?php
@@ -710,9 +706,7 @@ global $USER;
 
 $isPublicEditMode = (
     (string)($_GET['edit'] ?? '') === 'Y'
-    && is_object($USER)
-    && $USER->IsAuthorized()
-    && $USER->IsAdmin()
+    && sitebuilder_is_admin()
 );
 ?>
 
@@ -735,6 +729,7 @@ $isPublicEditMode = (
 <?php if (!$isLayoutPreview): ?>
     <script src="<?= sb_public_h($basePath) ?>/assets/public/public-interactions.js?v=20"></script>
     <script src="<?= sb_public_h($basePath) ?>/assets/public/business-blocks.js?v=21"></script>
+    <script src="<?= sb_public_h($basePath) ?>/assets/public/lists.js?v=1"></script>
 <?php endif; ?>
 </body>
 </html>

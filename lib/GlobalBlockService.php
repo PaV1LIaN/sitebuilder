@@ -432,6 +432,9 @@ final class GlobalBlockService
 
     private static function snapshotBlock(array $block): array
     {
+        if (($block['type'] ?? '') === 'list') {
+            throw new RuntimeException('Для повторного использования добавьте блок «Список» и выберите существующий список.');
+        }
         $props = is_array($block['props'] ?? null) ? $block['props'] : [];
         unset($props['sectionId'], $props['column'], $props['_placement']);
 

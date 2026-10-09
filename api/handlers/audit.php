@@ -86,15 +86,15 @@ if ($action === 'audit.get') {
 }
 
 if ($action === 'maintenance.status') {
-    if (!$USER->IsAdmin()) {
-        sb_json_error('BITRIX_ADMIN_REQUIRED', 403);
+    if (!sitebuilder_is_admin()) {
+        sb_json_error('SITEBUILDER_ADMIN_REQUIRED', 403);
     }
     sb_json_ok(['maintenance' => MaintenanceService::status()]);
 }
 
 if ($action === 'maintenance.run') {
-    if (!$USER->IsAdmin()) {
-        sb_json_error('BITRIX_ADMIN_REQUIRED', 403);
+    if (!sitebuilder_is_admin()) {
+        sb_json_error('SITEBUILDER_ADMIN_REQUIRED', 403);
     }
 
     try {

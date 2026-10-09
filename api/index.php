@@ -18,6 +18,7 @@ $readOnlyActions = [
     'site.list',
     'site.get',
     'site.accessList',
+    'site.accessReconcileList',
     'site.appearanceGet',
     'file.list',
     'page.list',
@@ -75,6 +76,8 @@ if (
     $action === 'site.delete' ||
     $action === 'site.setHome' ||
     $action === 'site.syncAccess' ||
+    $action === 'site.reconcileAccess' ||
+    $action === 'site.accessReconcileList' ||
     $action === 'site.ensureGroup' ||
     $action === 'site.accessList' ||
     $action === 'site.accessSet' ||

@@ -34,6 +34,40 @@ if (!function_exists('sb_page_handler_find_index_by_id')) {
     }
 }
 
+if (!function_exists('sb_page_handler_unique_slug')) {
+    function sb_page_handler_unique_slug(
+        array $pages,
+        int $siteId,
+        int $parentId,
+        string $candidate,
+        int $excludePageId = 0
+    ): string {
+        $base = sb_slugify($candidate);
+        $slug = $base;
+        $suffix = 2;
+        $reserved = [];
+
+        foreach ($pages as $page) {
+            if (
+                (int)($page['siteId'] ?? 0) !== $siteId
+                || (int)($page['parentId'] ?? 0) !== $parentId
+                || (int)($page['id'] ?? 0) === $excludePageId
+            ) {
+                continue;
+            }
+
+            $reserved[mb_strtolower(trim((string)($page['slug'] ?? '')))] = true;
+        }
+
+        while (isset($reserved[mb_strtolower($slug)])) {
+            $slug = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $slug;
+    }
+}
+
 if (!function_exists('sb_page_handler_is_descendant')) {
     function sb_page_handler_is_descendant(
         array $pages,
@@ -104,14 +138,24 @@ if (!function_exists('sb_page_handler_current_user_id')) {
     }
 }
 
-if (!function_exists('sb_page_handler_is_bitrix_admin')) {
-    function sb_page_handler_is_bitrix_admin(): bool
-    {
-        global $USER;
+if (!function_exists('sb_page_handler_enqueue_access_reconcile')) {
+    function sb_page_handler_enqueue_access_reconcile(
+        int $siteId,
+        int $userId
+    ): array {
+        return OutboxService::enqueueUnifiedAccessReconcile(
+            $siteId,
+            'repair',
+            $userId,
+            1
+        );
+    }
+}
 
-        return is_object($USER)
-            && method_exists($USER, 'IsAdmin')
-            && $USER->IsAdmin();
+if (!function_exists('sb_page_handler_is_admin')) {
+    function sb_page_handler_is_admin(): bool
+    {
+        return sitebuilder_is_admin();
     }
 }
 
@@ -120,7 +164,7 @@ if (!function_exists('sb_page_handler_has_global_view')) {
         int $siteId,
         int $userId
     ): bool {
-        if (sb_page_handler_is_bitrix_admin()) {
+        if (sb_page_handler_is_admin()) {
             return true;
         }
 
@@ -137,7 +181,7 @@ if (!function_exists('sb_page_handler_has_global_edit')) {
         int $siteId,
         int $userId
     ): bool {
-        if (sb_page_handler_is_bitrix_admin()) {
+        if (sb_page_handler_is_admin()) {
             return true;
         }
 
@@ -559,9 +603,12 @@ if ($action === 'page.create') {
         sb_json_error('ROOT_PAGE_CREATE_ACCESS_DENIED', 403);
     }
 
-    if ($slug === '') {
-        $slug = sb_slugify($title);
-    }
+    $slug = sb_page_handler_unique_slug(
+        $pages,
+        $siteId,
+        $parentId,
+        $slug !== '' ? $slug : $title
+    );
 
     $id = RevisionService::nextEntityId(RevisionService::ENTITY_PAGE);
     $maxSort = 0;
@@ -661,10 +708,6 @@ if ($action === 'page.save') {
 
     $hasGlobalEdit = sb_page_handler_has_global_edit($siteId, $currentUserId);
 
-    if ($slug === '') {
-        $slug = sb_slugify($title);
-    }
-
     if ($parentId === $id) {
         sb_json_error('PAGE_CANNOT_BE_OWN_PARENT', 422);
     }
@@ -690,6 +733,14 @@ if ($action === 'page.save') {
         sb_json_error('MOVE_PAGE_TO_ROOT_ACCESS_DENIED', 403);
     }
 
+    $parentChanged = (int)($page['parentId'] ?? 0) !== $parentId;
+    $slug = sb_page_handler_unique_slug(
+        $pages,
+        $siteId,
+        $parentId,
+        $slug !== '' ? $slug : $title,
+        $id
+    );
     $page['title'] = $title;
     $page['slug'] = $slug;
     $page['parentId'] = $parentId;
@@ -714,12 +765,17 @@ if ($action === 'page.save') {
         'save'
     );
 
+    $accessReconcileJob = $parentChanged
+        ? sb_page_handler_enqueue_access_reconcile($siteId, $currentUserId)
+        : null;
+
     sb_json_ok([
         'page' => sb_page_handler_add_access_info(
             $saved,
             $siteId,
             $currentUserId
         ),
+        'accessReconcileJob' => $accessReconcileJob,
     ]);
 }
 
@@ -769,10 +825,7 @@ if ($action === 'page.updateMeta') {
         $currentUserId
     );
 
-    if ($slug === '') {
-        $slug = sb_slugify($title);
-    }
-
+    $parentChanged = false;
     if ($parentId !== null) {
         if ($parentId === $id) {
             sb_json_error('PAGE_CANNOT_BE_OWN_PARENT', 422);
@@ -824,9 +877,17 @@ if ($action === 'page.updateMeta') {
             );
         }
 
+        $parentChanged = (int)($page['parentId'] ?? 0) !== $parentId;
         $page['parentId'] = $parentId;
     }
 
+    $slug = sb_page_handler_unique_slug(
+        $pages,
+        $siteId,
+        (int)($page['parentId'] ?? 0),
+        $slug !== '' ? $slug : $title,
+        $id
+    );
     $page['title'] = $title;
     $page['slug'] = $slug;
 
@@ -846,8 +907,13 @@ if ($action === 'page.updateMeta') {
         $currentUserId
     );
 
+    $accessReconcileJob = $parentChanged
+        ? sb_page_handler_enqueue_access_reconcile($siteId, $currentUserId)
+        : null;
+
     sb_json_ok([
         'page' => $resultPage,
+        'accessReconcileJob' => $accessReconcileJob,
     ]);
 }
 
@@ -937,6 +1003,13 @@ if ($action === 'page.setParent') {
     }
 
     $page['parentId'] = $parentId;
+    $page['slug'] = sb_page_handler_unique_slug(
+        $pages,
+        $siteId,
+        $parentId,
+        (string)($page['slug'] ?? $page['title'] ?? 'page'),
+        $id
+    );
 
     $expectedVersion = RevisionService::requireExpectedVersion(
         $_POST['expectedVersion'] ?? null
@@ -954,8 +1027,14 @@ if ($action === 'page.setParent') {
         $currentUserId
     );
 
+    $accessReconcileJob = sb_page_handler_enqueue_access_reconcile(
+        $siteId,
+        $currentUserId
+    );
+
     sb_json_ok([
         'page' => $resultPage,
+        'accessReconcileJob' => $accessReconcileJob,
     ]);
 }
 
@@ -1316,6 +1395,13 @@ if ($action === 'page.reorderTree') {
 
     $movedSource = $source;
     $movedSource['parentId'] = $newParentId;
+    $movedSource['slug'] = sb_page_handler_unique_slug(
+        $pages,
+        $siteId,
+        $newParentId,
+        (string)($source['slug'] ?? $source['title'] ?? 'page'),
+        $id
+    );
     array_splice($destination, $insertAt, 0, [$movedSource]);
 
     $desiredById = [];
@@ -1394,6 +1480,10 @@ if ($action === 'page.reorderTree') {
         );
     }
 
+    $accessReconcileJob = $oldParentId !== $newParentId
+        ? sb_page_handler_enqueue_access_reconcile($siteId, $currentUserId)
+        : null;
+
     sb_json_ok([
         'moved' => true,
         'page' => sb_page_handler_add_access_info(
@@ -1402,6 +1492,7 @@ if ($action === 'page.reorderTree') {
             $currentUserId
         ),
         'pages' => $savedPages,
+        'accessReconcileJob' => $accessReconcileJob,
     ]);
 }
 
@@ -1705,6 +1796,17 @@ if ($action === 'page.delete') {
         throw new RuntimeException('PAGE_TREE_DELETE_COUNT_MISMATCH');
     }
 
+    $hadDiskBlocks = false;
+    foreach ($blocksToDelete as $blockToDelete) {
+        if ((string)($blockToDelete['type'] ?? '') === 'disk') {
+            $hadDiskBlocks = true;
+            break;
+        }
+    }
+    $accessReconcileJob = $hadDiskBlocks
+        ? sb_page_handler_enqueue_access_reconcile($siteId, $currentUserId)
+        : null;
+
     sb_json_ok([
         'deleted' => true,
         'id' => $id,
@@ -1717,6 +1819,7 @@ if ($action === 'page.delete') {
         'recycleBinId' => $recycleBinId,
         'deletedSectionCount' => $deletedSectionCount,
         'siteVersion' => (int)($siteBeforeDelete['version'] ?? 1),
+        'accessReconcileJob' => $accessReconcileJob,
     ]);
 }
 
@@ -1808,10 +1911,11 @@ if ($action === 'page.duplicate') {
         'siteId' => $siteId,
         'title' => (string)($source['title'] ?? '')
             . ' (копия)',
-        'slug' => sb_slugify(
-            (string)($source['slug'] ?? 'page')
-            . '-'
-            . $newId
+        'slug' => sb_page_handler_unique_slug(
+            $pages,
+            $siteId,
+            $sourceParentId,
+            (string)($source['slug'] ?? 'page') . '-copy'
         ),
         'parentId' => $sourceParentId,
         'sort' => $maxSort > 0
@@ -1892,8 +1996,20 @@ if ($action === 'page.duplicate') {
         $currentUserId
     );
 
+    $hasDiskBlock = false;
+    foreach ($sourceBlocks as $sourceBlock) {
+        if ((string)($sourceBlock['type'] ?? '') === 'disk') {
+            $hasDiskBlock = true;
+            break;
+        }
+    }
+    $accessReconcileJob = $hasDiskBlock
+        ? sb_page_handler_enqueue_access_reconcile($siteId, $currentUserId)
+        : null;
+
     sb_json_ok([
         'page' => $copy,
+        'accessReconcileJob' => $accessReconcileJob,
     ]);
 }
 

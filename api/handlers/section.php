@@ -6,8 +6,8 @@ function sb_section_require_admin(): void
 {
     global $USER;
 
-    if (!$USER || !$USER->IsAdmin()) {
-        sb_json_error('BITRIX_ADMIN_REQUIRED', 403);
+    if (!$USER || !sitebuilder_is_admin()) {
+        sb_json_error('SITEBUILDER_ADMIN_REQUIRED', 403);
     }
 }
 

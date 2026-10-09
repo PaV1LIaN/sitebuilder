@@ -13,11 +13,11 @@ if ($siteId <= 0) {
     http_response_code(422);
     die('Не передан siteId.');
 }
-if (!$USER->IsAdmin()) {
+if (!sitebuilder_is_admin()) {
     sb_require_content_manager($siteId);
 }
-$role = $USER->IsAdmin() ? 'OWNER' : (string)sb_get_role($siteId, 'U' . (int)$USER->GetID());
-$canOwner = $USER->IsAdmin() || sb_role_rank($role) >= 4;
+$role = sitebuilder_is_admin() ? 'OWNER' : (string)sb_get_role($siteId, 'U' . (int)$USER->GetID());
+$canOwner = sitebuilder_is_admin() || sb_role_rank($role) >= 4;
 $returnUrl = $basePath . '/settings.php?siteId=' . $siteId;
 ?>
 <!doctype html>

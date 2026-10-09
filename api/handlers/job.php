@@ -10,7 +10,7 @@ if (!function_exists('sb_job_require_site_manager')) {
     function sb_job_require_site_manager(int $siteId): void
     {
         global $USER;
-        if ($USER && $USER->IsAdmin()) {
+        if ($USER && sitebuilder_is_admin()) {
             return;
         }
         if ($siteId <= 0) {
@@ -24,7 +24,7 @@ if (!function_exists('sb_job_require_access')) {
     function sb_job_require_access(array $job): void
     {
         global $USER;
-        if ($USER && $USER->IsAdmin()) {
+        if ($USER && sitebuilder_is_admin()) {
             return;
         }
         sb_job_require_site_manager((int)($job['siteId'] ?? 0));
@@ -33,7 +33,7 @@ if (!function_exists('sb_job_require_access')) {
 
 if ($action === 'job.health') {
     $siteId = (int)($_POST['siteId'] ?? 0);
-    if (!$USER->IsAdmin()) {
+    if (!sitebuilder_is_admin()) {
         sb_job_require_site_manager($siteId);
     }
     sb_json_ok(['health' => QueueMonitorService::health($siteId)]);
@@ -41,7 +41,7 @@ if ($action === 'job.health') {
 
 if ($action === 'job.list') {
     $siteId = (int)($_POST['siteId'] ?? 0);
-    if (!$USER->IsAdmin() && $siteId <= 0) {
+    if (!sitebuilder_is_admin() && $siteId <= 0) {
         sb_json_error('SITE_ID_REQUIRED', 422);
     }
     if ($siteId > 0) {
@@ -115,8 +115,8 @@ if ($action === 'job.cancel') {
 }
 
 if ($action === 'job.run') {
-    if (!$USER->IsAdmin()) {
-        sb_json_error('BITRIX_ADMIN_REQUIRED', 403);
+    if (!sitebuilder_is_admin()) {
+        sb_json_error('SITEBUILDER_ADMIN_REQUIRED', 403);
     }
     $limit = (int)($_POST['limit'] ?? 20);
     sb_json_ok(['result' => ExternalJobWorker::runBatch($limit)]);

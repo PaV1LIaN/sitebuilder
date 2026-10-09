@@ -407,6 +407,8 @@ final class BackupService
                     'sections' => count($sections),
                     'menus' => count($menus),
                     'globalBlocks' => count($globalBlocks),
+                    'lists' => count($payload['lists'] ?? []),
+                    'listItems' => array_sum(array_map(static fn($list) => count($list['items'] ?? []), $payload['lists'] ?? [])),
                 ],
                 'includeAccess' => $includeAccess,
                 'diskFilesIncluded' => false,

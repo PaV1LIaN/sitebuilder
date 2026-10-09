@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/PageAccessRepository.php';
 
@@ -9,7 +10,7 @@ class PageAccessService
      * Проверка просмотра страницы.
      *
      * Доступ дают:
-     * - администратор Битрикс;
+     * - администратор SiteBuilder;
      * - глобальная роль VIEWER и выше;
      * - точечное право can_view/can_edit.
      */
@@ -26,7 +27,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (sitebuilder_is_admin($userId)) {
             return true;
         }
 
@@ -55,7 +56,7 @@ class PageAccessService
      * Проверка редактирования страницы и её обычных блоков.
      *
      * Доступ дают:
-     * - администратор Битрикс;
+     * - администратор SiteBuilder;
      * - глобальная роль ADMIN и выше;
      * - точечное право can_edit.
      */
@@ -72,7 +73,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (sitebuilder_is_admin($userId)) {
             return true;
         }
 
@@ -101,7 +102,7 @@ class PageAccessService
      * Проверка просмотра Диска на конкретной странице.
      *
      * Доступ дают:
-     * - администратор Битрикс;
+     * - администратор SiteBuilder;
      * - глобальная роль VIEWER и выше;
      * - точечное право can_disk_view/can_disk_edit.
      */
@@ -118,7 +119,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (sitebuilder_is_admin($userId)) {
             return true;
         }
 
@@ -147,7 +148,7 @@ class PageAccessService
      * Проверка изменения Диска на конкретной странице.
      *
      * Доступ дают:
-     * - администратор Битрикс;
+     * - администратор SiteBuilder;
      * - глобальная роль EDITOR и выше;
      * - точечное право can_disk_edit.
      */
@@ -164,7 +165,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (sitebuilder_is_admin($userId)) {
             return true;
         }
 
@@ -205,7 +206,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (sitebuilder_is_admin($userId)) {
             return true;
         }
 
@@ -319,7 +320,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (sitebuilder_is_admin($userId)) {
             return true;
         }
 
@@ -474,12 +475,4 @@ class PageAccessService
         return $map[$roleString] ?? 0;
     }
 
-    private static function isBitrixAdmin(): bool
-    {
-        global $USER;
-
-        return is_object($USER)
-            && method_exists($USER, 'IsAdmin')
-            && $USER->IsAdmin();
-    }
 }

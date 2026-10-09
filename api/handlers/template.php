@@ -75,7 +75,7 @@ if ($action === 'template.get') {
 }
 
 if ($action === 'template.createFromSite') {
-    sb_require_bitrix_admin();
+    sb_require_sitebuilder_admin();
 
     $siteId = (int)($_POST['siteId'] ?? 0);
     $name = trim((string)($_POST['name'] ?? ''));
@@ -108,7 +108,7 @@ if ($action === 'template.createFromSite') {
 }
 
 if ($action === 'template.update') {
-    sb_require_bitrix_admin();
+    sb_require_sitebuilder_admin();
 
     $templateId = (int)($_POST['templateId'] ?? $_POST['id'] ?? 0);
     $name = trim((string)($_POST['name'] ?? ''));
@@ -136,7 +136,7 @@ if ($action === 'template.update') {
 }
 
 if ($action === 'template.delete') {
-    sb_require_bitrix_admin();
+    sb_require_sitebuilder_admin();
 
     $templateId = (int)($_POST['templateId'] ?? $_POST['id'] ?? 0);
 
@@ -158,7 +158,7 @@ if ($action === 'template.delete') {
 }
 
 if ($action === 'template.createSite') {
-    sb_require_bitrix_admin();
+    sb_require_sitebuilder_admin();
 
     $templateId = (int)($_POST['templateId'] ?? 0);
     $name = trim((string)($_POST['name'] ?? ''));

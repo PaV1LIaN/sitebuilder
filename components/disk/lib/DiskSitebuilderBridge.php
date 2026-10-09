@@ -204,11 +204,11 @@ class DiskSitebuilderBridge
         return [
             'title' => trim((string)($props['title'] ?? 'Файлы')),
             'rootMode' => in_array((string)($props['rootMode'] ?? 'site'), ['site', 'block'], true)
-                ? (string)$props['rootMode']
+                ? (string)($props['rootMode'] ?? 'site')
                 : 'site',
             'rootFolderId' => !empty($props['rootFolderId']) ? (int)$props['rootFolderId'] : null,
             'viewMode' => in_array((string)($props['viewMode'] ?? 'table'), ['table', 'grid'], true)
-                ? (string)$props['viewMode']
+                ? (string)($props['viewMode'] ?? 'table')
                 : 'table',
             'allowUpload' => !array_key_exists('allowUpload', $props) || !empty($props['allowUpload']),
             'allowCreateFolder' => !array_key_exists('allowCreateFolder', $props) || !empty($props['allowCreateFolder']),
@@ -221,8 +221,9 @@ class DiskSitebuilderBridge
             'defaultSortDirection' => strtolower((string)($props['defaultSortDirection'] ?? 'desc')) === 'asc' ? 'asc' : 'desc',
             'allowedExtensions' => is_array($props['allowedExtensions'] ?? null) ? array_values($props['allowedExtensions']) : [],
             'maxFileSize' => max(0, (int)($props['maxFileSize'] ?? 52428800)),
+            'maxDiskSize' => max(0, (int)($props['maxDiskSize'] ?? 0)),
             'permissionMode' => in_array((string)($props['permissionMode'] ?? 'inherit_site'), ['inherit_site', 'custom', 'bitrix_disk'], true)
-                ? (string)$props['permissionMode']
+                ? (string)($props['permissionMode'] ?? 'inherit_site')
                 : 'inherit_site',
             'useSiteRootFallback' => !array_key_exists('useSiteRootFallback', $props) || !empty($props['useSiteRootFallback']),
         ];

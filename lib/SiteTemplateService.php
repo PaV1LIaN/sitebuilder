@@ -3,6 +3,7 @@
 require_once __DIR__ . '/OutboxService.php';
 require_once __DIR__ . '/RevisionService.php';
 require_once __DIR__ . '/GlobalBlockService.php';
+require_once __DIR__ . '/DataListService.php';
 
 class SiteTemplateService
 {
@@ -126,6 +127,7 @@ class SiteTemplateService
             'pages' => array_map([self::class, 'preparePageForSnapshot'], $pages),
             'sections' => array_map([self::class, 'prepareSectionForSnapshot'], $sections),
             'blocks' => $blocks,
+            'lists' => DataListService::exportForSite($siteId),
             'globalBlocks' => GlobalBlockService::exportForSite($siteId),
             'layout' => self::prepareLayoutForSnapshot($layout),
             'menus' => array_map([self::class, 'prepareMenuForSnapshot'], $menus),
@@ -286,8 +288,9 @@ class SiteTemplateService
             });
         }
         $pageIdMap = self::copyPages($siteId, $payload, $userId);
+        $listIdMap = DataListService::importForSite($siteId, $pageIdMap, $payload['lists'] ?? [], $userId);
         $sectionIdMap = self::copySections($siteId, $pageIdMap, $payload, $userId);
-        self::copyBlocks($pageIdMap, $payload, $userId, $sectionIdMap, $globalBlockIdMap);
+        self::copyBlocks($pageIdMap, $payload, $userId, $sectionIdMap, $globalBlockIdMap, $listIdMap);
 
         $homeOldId = (int)($snapshotSite['homePageId'] ?? 0);
         if ($homeOldId > 0 && isset($pageIdMap[$homeOldId])) {
@@ -685,7 +688,8 @@ class SiteTemplateService
         array $payload,
         int $userId,
         array $sectionIdMap = [],
-        array $globalBlockIdMap = []
+        array $globalBlockIdMap = [],
+        array $listIdMap = []
     ): void
     {
         $templateBlocks = is_array($payload['blocks'] ?? null)
@@ -765,6 +769,10 @@ class SiteTemplateService
                 if ($content['globalBlockId'] <= 0) {
                     $content['missingGlobalBlockId'] = $oldGlobalBlockId;
                 }
+            }
+
+            if ($blockType === 'list') {
+                $content['listId'] = (int)($listIdMap[(int)($content['listId'] ?? 0)] ?? 0);
             }
 
             $newBlock = [

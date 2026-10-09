@@ -94,6 +94,7 @@
     this.saving = false;
     this.filter = '';
     this.selections = {};
+    this.dirtyUserIds = {};
 
     if (!this.panel) {
       return;
@@ -149,11 +150,31 @@
 
     this.panel.addEventListener('change', function (event) {
       if (event.target.matches('[data-user-right]')) {
-        self.selections[Number(event.target.getAttribute('data-user-right') || 0)] = String(event.target.value || 'inherit');
-        event.target.setAttribute('data-dirty', '1');
-        self.setStatus('Есть несохранённые изменения.', 'pending');
+        var userId = Number(event.target.getAttribute('data-user-right') || 0);
+        var selectedTaskName = String(event.target.value || 'inherit');
+        self.selections[userId] = selectedTaskName;
+        if (userId > 0) {
+          var matrixUser = (Array.isArray(self.matrix && self.matrix.users) ? self.matrix.users : []).find(function (user) {
+            return Number(user.userId || 0) === userId;
+          });
+          if (matrixUser && String(matrixUser.directTaskName || 'inherit') === selectedTaskName) {
+            delete self.dirtyUserIds[userId];
+          } else {
+            self.dirtyUserIds[userId] = true;
+          }
+        }
+        event.target.setAttribute('data-dirty', self.dirtyUserIds[userId] ? '1' : '0');
+        self.renderUsers();
+        self.setStatus(
+          self.hasPendingChanges() ? 'Есть несохранённые изменения.' : 'Матрица прав актуальна.',
+          self.hasPendingChanges() ? 'pending' : 'success'
+        );
       }
     });
+  };
+
+  AccessController.prototype.hasPendingChanges = function () {
+    return Object.keys(this.dirtyUserIds || {}).length > 0;
   };
 
   AccessController.prototype.payload = function () {
@@ -196,16 +217,24 @@
 
   AccessController.prototype.save = async function () {
     if (this.saving || !this.matrix) {
-      return;
+      return false;
+    }
+
+    if (!this.hasPendingChanges()) {
+      return true;
     }
 
     var self = this;
-    var rights = (Array.isArray(this.matrix.users) ? this.matrix.users : []).map(function (user) {
-      return {
-        userId: Number(user.userId || 0),
-        taskName: String(self.selections[Number(user.userId || 0)] || user.directTaskName || 'inherit')
-      };
-    });
+    var rights = (Array.isArray(this.matrix.users) ? this.matrix.users : [])
+      .filter(function (user) {
+        return !user.isAclProtected;
+      })
+      .map(function (user) {
+        return {
+          userId: Number(user.userId || 0),
+          taskName: String(self.selections[Number(user.userId || 0)] || user.directTaskName || 'inherit')
+        };
+      });
 
     this.saving = true;
     this.setStatus('Сохранение прав в Битрикс24.Диск…', 'loading');
@@ -228,13 +257,26 @@
       this.syncSelectionsFromMatrix();
       this.renderRootWarning();
       this.renderUsers();
-      this.setStatus('Права сохранены и применены.', 'success');
+
+      var blockedUsers = this.findEffectiveConflicts(rights);
+      if (blockedUsers.length) {
+        this.setStatus(
+          'Прямые права сохранены, но итоговый доступ для ' + blockedUsers.length
+            + ' польз. ограничен наследуемыми правилами Битрикс24.Диска.',
+          'error'
+        );
+        return false;
+      }
+
+      this.setStatus('Права сохранены и применены в Битрикс24.Диске.', 'success');
+      return true;
     } catch (error) {
       console.error(error);
       this.setStatus(error.message || 'Не удалось сохранить права.', 'error');
       if (String(error.message || '').indexOf('другой вкладке') !== -1) {
         await this.load();
       }
+      return false;
     } finally {
       this.saving = false;
       this.toggleButtons();
@@ -276,7 +318,9 @@
       return '<option value="' + escapeHtml(task.name) + '">' + escapeHtml(task.label) + '</option>';
     }).join('');
 
+    var controller = this;
     var rows = filtered.map(function (user) {
+      var userId = Number(user.userId || 0);
       var pageAccess = user.pageAccess || {};
       var details = [];
       if (user.login) {
@@ -301,9 +345,25 @@
         badges.push('<span class="sb-disk-access__badge sb-disk-access__badge--accent">Вы</span>');
       }
 
-      var adminNote = user.isBitrixAdmin
-        ? '<div class="sb-disk-access__admin-note">Администратор Битрикс24 сохраняет полный доступ независимо от ACL.</div>'
+      var adminNote = user.isAclProtected
+        ? '<div class="sb-disk-access__admin-note">Администратор или владелец сохраняет полный доступ независимо от ACL папки.</div>'
         : '';
+
+      var isPending = !!controller.dirtyUserIds[userId];
+      var pendingTaskName = String(controller.selections[userId] || user.directTaskName || 'inherit');
+      var effectiveTaskName = String(user.effectiveTaskName || 'none');
+      var effectiveLabel = TASK_LABELS[effectiveTaskName] || effectiveTaskName || 'Нет доступа';
+      var effectiveClass = effectiveTaskName;
+      var rightSourceLabel = user.rightSource === 'system_admin'
+        ? 'Системный полный доступ'
+        : (user.rightSource === 'managed_none'
+          ? 'Запрет контроллера; лишнюю ACL-строку Bitrix не хранит'
+          : (user.rightSource === 'direct' ? 'Прямое правило' : 'Прямого правила нет'));
+
+      if (isPending) {
+        effectiveLabel = 'После сохранения: ' + (TASK_LABELS[pendingTaskName] || pendingTaskName);
+        effectiveClass = 'pending';
+      }
 
       return [
         '<tr data-access-user-row data-search="' + escapeHtml(details.join(' ')) + '">',
@@ -321,13 +381,13 @@
         '    </div>',
         '  </td>',
         '  <td>',
-        '    <select class="sb-disk-form__select sb-disk-access__select" data-user-right="' + Number(user.userId) + '"' + (user.isBitrixAdmin ? ' disabled' : '') + '>',
+        '    <select class="sb-disk-form__select sb-disk-access__select" data-user-right="' + userId + '"' + (user.isAclProtected ? ' disabled' : '') + '>',
         taskOptions,
         '    </select>',
-        '    <div class="sb-disk-access__source">' + (user.rightSource === 'direct' ? 'Прямое правило' : 'Прямого правила нет') + '</div>',
+        '    <div class="sb-disk-access__source">' + escapeHtml(rightSourceLabel) + '</div>',
         '  </td>',
         '  <td>',
-        '    <span class="sb-disk-access__effective sb-disk-access__effective--' + escapeHtml(user.effectiveTaskName || 'none') + '">' + escapeHtml(TASK_LABELS[user.effectiveTaskName] || user.effectiveTaskName || 'Нет доступа') + '</span>',
+        '    <span class="sb-disk-access__effective sb-disk-access__effective--' + escapeHtml(effectiveClass) + '">' + escapeHtml(effectiveLabel) + '</span>',
         '  </td>',
         '</tr>'
       ].join('');
@@ -354,6 +414,33 @@
       selections[Number(user.userId || 0)] = String(user.directTaskName || 'inherit');
     });
     this.selections = selections;
+    this.dirtyUserIds = {};
+  };
+
+  AccessController.prototype.findEffectiveConflicts = function (requestedRights) {
+    var rank = {
+      inherit: 0,
+      none: 0,
+      disk_access_read: 1,
+      disk_access_add: 2,
+      disk_access_edit: 3,
+      disk_access_full: 4
+    };
+    var requestedByUser = {};
+    (Array.isArray(requestedRights) ? requestedRights : []).forEach(function (right) {
+      requestedByUser[Number(right.userId || 0)] = String(right.taskName || 'inherit');
+    });
+
+    return (Array.isArray(this.matrix && this.matrix.users) ? this.matrix.users : []).filter(function (user) {
+      if (user.isAclProtected) {
+        return false;
+      }
+      var requested = requestedByUser[Number(user.userId || 0)] || 'inherit';
+      if (requested === 'inherit' || requested === 'none') {
+        return false;
+      }
+      return Number(rank[user.effectiveTaskName] || 0) < Number(rank[requested] || 0);
+    });
   };
 
   AccessController.prototype.renderRootWarning = function () {

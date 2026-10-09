@@ -1,0 +1,31 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: #f8fafc; color: #172033; font: 15px/1.5 Arial, sans-serif; }
+a { color: #245bcc; text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible { outline: 3px solid #2563eb; outline-offset: 4px; border-radius: 3px; }
+.sb-shared-folder { max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; }
+.sb-shared-folder__breadcrumbs ol { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 28px; padding: 0; list-style: none; }
+.sb-shared-folder__breadcrumbs li { overflow-wrap: anywhere; }
+.sb-shared-folder__breadcrumbs li + li::before { content: '/'; margin-right: 8px; color: #64748b; }
+.sb-shared-folder__header { margin-bottom: 24px; }
+.sb-shared-folder__label { color: #64748b; margin: 0 0 6px; }
+.sb-shared-folder h1 { margin: 0; font-size: clamp(24px, 4vw, 32px); line-height: 1.2; overflow-wrap: anywhere; }
+.sb-shared-folder__header > p:last-child { color: #64748b; }
+.sb-shared-folder__list { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 12px; background: white; }
+.sb-shared-folder table { width: 100%; border-collapse: collapse; text-align: left; }
+.sb-shared-folder th { background: #f1f5f9; color: #475569; font-size: 13px; font-weight: 600; }
+.sb-shared-folder td, .sb-shared-folder th { padding: 14px 18px; }
+.sb-shared-folder tbody tr + tr { border-top: 1px solid #edf1f5; }
+.sb-shared-folder tbody tr:hover { background: #f8fafc; }
+.sb-shared-folder__item { display: flex; align-items: center; gap: 12px; min-height: 28px; color: #172033; overflow-wrap: anywhere; }
+.sb-shared-folder__icon { flex: 0 0 auto; font-size: 23px; }
+.sb-shared-folder__size, .sb-shared-folder__date { width: 1%; white-space: nowrap; color: #64748b; font-size: 13px; }
+.sb-shared-folder__empty { border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; background: white; color: #475569; }
+.sb-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 640px) {
+    .sb-shared-folder { padding: 20px 12px 40px; }
+    .sb-shared-folder td, .sb-shared-folder th { padding: 12px; }
+    .sb-shared-folder__date { display: none; }
+    .sb-shared-folder__item { gap: 8px; }
+    .sb-shared-folder__empty { padding: 24px; }
+}

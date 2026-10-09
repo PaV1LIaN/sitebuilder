@@ -4,6 +4,16 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteAppearanceS
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessRepository.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/PageAccessService.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/SiteDeletionService.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/sitebuilder/lib/public_routes.php';
+
+if (in_array($action, [
+    'site.syncAccess',
+    'site.reconcileAccess',
+    'site.accessReconcileList',
+], true)) {
+    require_once $_SERVER['DOCUMENT_ROOT']
+        . '/local/sitebuilder/lib/UnifiedAccessReconciliationService.php';
+}
 
 global $USER;
 
@@ -22,12 +32,26 @@ if (file_exists($siteAccessManagementServicePath)) {
     require_once $siteAccessManagementServicePath;
 }
 
+if (!function_exists('sb_site_handler_attach_public_url')) {
+    function sb_site_handler_attach_public_url(array $site): array
+    {
+        $documentRoot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+        $projectRoot = dirname(__DIR__, 2);
+        $basePath = $documentRoot !== '' && str_starts_with($projectRoot, $documentRoot)
+            ? substr($projectRoot, strlen($documentRoot))
+            : '/local/sitebuilder';
+        $site['publicUrl'] = sb_public_site_url($basePath, $site);
+
+        return $site;
+    }
+}
+
 if (!function_exists('sb_site_handler_require_role')) {
     function sb_site_handler_require_role(int $siteId, int $minRank): void
     {
         global $USER;
 
-        if ($USER && $USER->IsAdmin()) {
+        if ($USER && sitebuilder_is_admin()) {
             return;
         }
 
@@ -160,7 +184,7 @@ if (!function_exists('sb_site_handler_get_access_context')) {
 
         $userId = (int)$USER->GetID();
 
-        if ($USER->IsAdmin()) {
+        if (sitebuilder_is_admin()) {
             return [
                 'allowed' => true,
                 'userId' => $userId,
@@ -461,6 +485,8 @@ if ($action === 'site.list') {
         $site['currentUserHasPageAccess'] =
             $accessContext['hasPageAccess'];
 
+        $site = sb_site_handler_attach_public_url($site);
+
         $allowedSites[] = $site;
     }
 
@@ -532,6 +558,8 @@ if ($action === 'site.get') {
     $site['currentUserHasPageAccess'] =
         $accessContext['hasPageAccess'];
 
+    $site = sb_site_handler_attach_public_url($site);
+
     sb_json_ok([
         'site' => $site,
         'access' => [
@@ -549,8 +577,8 @@ if ($action === 'site.get') {
 }
 
 if ($action === 'site.create') {
-    if (!$USER->IsAdmin()) {
-        sb_json_error('BITRIX_ADMIN_REQUIRED', 403);
+    if (!sitebuilder_is_admin()) {
+        sb_json_error('SITEBUILDER_ADMIN_REQUIRED', 403);
     }
 
     $name = trim((string)($_POST['name'] ?? ''));
@@ -734,7 +762,7 @@ if ($action === 'site.update') {
     );
 
     sb_json_ok([
-        'site' => $updated,
+        'site' => sb_site_handler_attach_public_url($updated),
         'handler' => 'site',
     ]);
 }
@@ -793,16 +821,24 @@ if ($action === 'site.setHome') {
     $siteId = (int)($_POST['siteId'] ?? 0);
     $pageId = (int)($_POST['pageId'] ?? 0);
 
-    if ($siteId <= 0 || $pageId <= 0) {
+    if ($siteId <= 0 || !array_key_exists('pageId', $_POST) || $pageId < 0) {
         sb_json_error('SITE_PAGE_REQUIRED', 422);
     }
 
     sb_site_handler_require_editor($siteId);
     $expectedVersion = RevisionService::requireExpectedVersion($_POST['expectedVersion'] ?? null);
 
-    $page = sb_find_page($pageId);
-    if (!$page || (int)($page['siteId'] ?? 0) !== $siteId) {
-        sb_json_error('PAGE_NOT_IN_SITE', 422);
+    if ($pageId > 0) {
+        $page = sb_find_page($pageId);
+        if (!$page || (int)($page['siteId'] ?? 0) !== $siteId) {
+            sb_json_error('PAGE_NOT_IN_SITE', 422);
+        }
+        $publishedIds = array_map(static function (array $item): int {
+            return (int)$item['id'];
+        }, sb_public_published_pages_for_site($siteId));
+        if (!in_array($pageId, $publishedIds, true)) {
+            sb_json_error('HOME_PAGE_NOT_PUBLISHED', 422);
+        }
     }
 
     $site = RevisionService::getSite($siteId, false);
@@ -818,7 +854,7 @@ if ($action === 'site.setHome') {
     );
 
     sb_json_ok([
-        'site' => $savedSite,
+        'site' => sb_site_handler_attach_public_url($savedSite),
         'handler' => 'site',
     ]);
 }
@@ -839,9 +875,18 @@ if ($action === 'site.syncAccess') {
     $jobs = [];
     if ((int)($site['bitrixGroupId'] ?? 0) <= 0) {
         $jobs['group'] = OutboxService::enqueueGroupEnsure($siteId, $currentUserId);
-        $jobs['sync'] = OutboxService::enqueueAccessSync($siteId, $currentUserId, 5);
+        $jobs['sync'] = OutboxService::enqueueUnifiedAccessReconcile(
+            $siteId,
+            UnifiedAccessReconciliationService::MODE_REPAIR,
+            $currentUserId,
+            5
+        );
     } else {
-        $jobs['sync'] = OutboxService::enqueueAccessSync($siteId, $currentUserId);
+        $jobs['sync'] = OutboxService::enqueueUnifiedAccessReconcile(
+            $siteId,
+            UnifiedAccessReconciliationService::MODE_REPAIR,
+            $currentUserId
+        );
     }
 
     sb_json_ok([
@@ -850,6 +895,73 @@ if ($action === 'site.syncAccess') {
         'handler' => 'site',
         'action' => 'site.syncAccess',
     ]);
+}
+
+if ($action === 'site.reconcileAccess') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    $mode = strtolower(trim((string)($_POST['mode'] ?? 'audit')));
+    if ($siteId <= 0) {
+        sb_json_error('SITE_ID_REQUIRED', 422);
+    }
+    if (!in_array($mode, [
+        UnifiedAccessReconciliationService::MODE_AUDIT,
+        UnifiedAccessReconciliationService::MODE_REPAIR,
+    ], true)) {
+        sb_json_error('INVALID_ACCESS_RECONCILE_MODE', 422);
+    }
+
+    sb_site_handler_require_owner($siteId);
+    $site = RevisionService::getSite($siteId, false);
+    if (!$site) {
+        sb_json_error('SITE_NOT_FOUND', 404);
+    }
+
+    $currentUserId = (int)$USER->GetID();
+    $jobs = [];
+    if ((int)($site['bitrixGroupId'] ?? 0) <= 0) {
+        if ($mode === UnifiedAccessReconciliationService::MODE_AUDIT) {
+            sb_json_error('BITRIX_GROUP_NOT_READY', 409);
+        }
+        $jobs['group'] = OutboxService::enqueueGroupEnsure(
+            $siteId,
+            $currentUserId
+        );
+    }
+    $jobs['reconcile'] = OutboxService::enqueueUnifiedAccessReconcile(
+        $siteId,
+        $mode,
+        $currentUserId,
+        isset($jobs['group']) ? 5 : 0
+    );
+
+    sb_json_ok([
+        'queued' => true,
+        'mode' => $mode,
+        'jobs' => $jobs,
+        'handler' => 'site',
+        'action' => 'site.reconcileAccess',
+    ]);
+}
+
+if ($action === 'site.accessReconcileList') {
+    $siteId = (int)($_POST['siteId'] ?? 0);
+    if ($siteId <= 0) {
+        sb_json_error('SITE_ID_REQUIRED', 422);
+    }
+    sb_site_handler_require_owner($siteId);
+
+    try {
+        sb_json_ok([
+            'items' => UnifiedAccessReconciliationService::listRuns(
+                $siteId,
+                (int)($_POST['limit'] ?? 25)
+            ),
+            'handler' => 'site',
+            'action' => 'site.accessReconcileList',
+        ]);
+    } catch (Throwable $e) {
+        sb_site_handler_handle_exception($e, 'site.accessReconcileList');
+    }
 }
 
 if ($action === 'site.ensureGroup') {

@@ -19,6 +19,7 @@ $libFiles = [
     __DIR__ . '/lib/storage_db.php',
     __DIR__ . '/lib/response.php',
     __DIR__ . '/lib/helpers.php',
+    __DIR__ . '/lib/public_routes.php',
     __DIR__ . '/lib/access.php',
 ];
 
@@ -54,9 +55,10 @@ if ($siteId <= 0) {
     exit;
 }
 
-if (!$USER->IsAdmin()) {
+if (!sitebuilder_is_admin()) {
     sb_require_content_manager($siteId);
 }
+$publicSiteUrl = sb_public_entry_url($basePath, $siteId);
 ?>
 <!doctype html>
 <html lang="ru">
@@ -87,7 +89,7 @@ if (!$USER->IsAdmin()) {
             <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/alerts.php?siteId=<?= (int)$siteId ?>">Оповещения</a>
             <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/external_resources.php?siteId=<?= (int)$siteId ?>">Внешние ресурсы</a>
             <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/backups.php?siteId=<?= (int)$siteId ?>">Резервные копии</a>
-            <a class="sb-btn sb-btn-light" href="<?= htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>/public.php?siteId=<?= (int)$siteId ?>" target="_blank">
+            <a class="sb-btn sb-btn-light" id="openPublicSiteLink" href="<?= htmlspecialchars($publicSiteUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" target="_blank">
                 Открыть публичную
             </a>
             <button class="sb-btn sb-btn-light" type="button" id="reloadBtn">Обновить</button>
@@ -130,6 +132,25 @@ if (!$USER->IsAdmin()) {
 
                 <div class="sb-settings-actions">
                     <button class="sb-btn sb-btn-primary" type="button" id="saveBasicBtn">Сохранить основные настройки</button>
+                </div>
+            </section>
+
+            <section class="sb-panel">
+                <div class="sb-settings-panel-head">
+                    <div>
+                        <h2 class="sb-panel-title">Домашняя страница</h2>
+                        <p class="sb-settings-note">Эта страница открывается по основному адресу сайта. Выберите опубликованную страницу или оставьте автоматический выбор.</p>
+                    </div>
+                </div>
+                <div class="sb-field">
+                    <label for="homePageInput">Страница</label>
+                    <select class="sb-select" id="homePageInput" disabled>
+                        <option value="0">Автоматически — первая доступная страница</option>
+                    </select>
+                    <p class="sb-settings-note">Если выбранная страница недоступна посетителю, откроется первая доступная опубликованная страница.</p>
+                </div>
+                <div class="sb-settings-actions">
+                    <button class="sb-btn sb-btn-primary" type="button" id="saveHomePageBtn" disabled>Сохранить домашнюю страницу</button>
                 </div>
             </section>
 
@@ -198,6 +219,7 @@ if (!$USER->IsAdmin()) {
 
                         <div class="sb-settings-actions">
                             <button class="sb-btn sb-btn-primary" type="button" id="uploadLogoBtn">Загрузить логотип</button>
+                            <button class="sb-btn sb-btn-light" type="button" id="saveLogoSettingsBtn">Сохранить настройки логотипа</button>
                             <button class="sb-btn sb-btn-light" type="button" id="removeLogoBtn">Удалить логотип</button>
                         </div>
                     </div>
@@ -313,6 +335,7 @@ if (!$USER->IsAdmin()) {
 
     var state = {
         site: null,
+        pages: [],
         appearance: null
     };
 
@@ -452,18 +475,67 @@ if (!$USER->IsAdmin()) {
         return 'cover';
     }
 
-    function renderBasic() {
+    function renderSiteMetadata() {
         var site = state.site || {};
         var versionNode = document.getElementById('siteVersionBadge');
+        var publicLink = document.getElementById('openPublicSiteLink');
         if (versionNode) {
             versionNode.textContent = String(Number(site.version || 1));
         }
+        if (publicLink && site.slug) {
+            publicLink.href = String(site.publicUrl || '')
+                || (BASE_PATH + '/s/' + encodeURIComponent(String(site.slug)) + '/');
+        }
+    }
+
+    function renderBasic() {
+        var site = state.site || {};
+        renderSiteMetadata();
         var settings = site.settings || {};
 
         setValue('siteNameInput', site.name || '');
         setValue('siteSlugInput', site.slug || '');
         setValue('containerWidthInput', settings.containerWidth || 1100);
         setValue('accentInput', settings.accent || '#2563eb');
+    }
+
+    function renderHomeSettings() {
+        var select = document.getElementById('homePageInput');
+        var pagesById = {};
+        state.pages.forEach(function (page) {
+            if (Number(page.siteId) === siteId) pagesById[Number(page.id)] = page;
+        });
+
+        select.textContent = '';
+        select.add(new Option('Автоматически — первая доступная страница', '0'));
+        state.pages.forEach(function (page) {
+            var cursor = page;
+            var visited = {};
+            var titles = [];
+            while (cursor) {
+                var id = Number(cursor.id);
+                if (!id || visited[id] || Number(cursor.siteId) !== siteId
+                    || String(cursor.status || 'draft').trim().toLowerCase() !== 'published') return;
+                visited[id] = true;
+                titles.unshift(String(cursor.title || cursor.slug || id));
+                var parentId = Number(cursor.parentId || 0);
+                if (parentId <= 0) break;
+                cursor = pagesById[parentId];
+                if (!cursor) return;
+            }
+            select.add(new Option(titles.join(' / '), String(page.id)));
+        });
+
+        var selectedId = Number((state.site && state.site.homePageId) || 0);
+        select.value = String(selectedId);
+        if (select.value !== String(selectedId)) {
+            var unavailable = new Option('Выбранная страница недоступна — сейчас действует автоматический выбор', String(selectedId));
+            unavailable.disabled = true;
+            select.add(unavailable);
+            select.value = String(selectedId);
+        }
+        select.disabled = false;
+        document.getElementById('saveHomePageBtn').disabled = false;
     }
 
     function renderAppearance() {
@@ -602,7 +674,11 @@ if (!$USER->IsAdmin()) {
 
         state.appearance = appearanceRes.appearance || {};
 
+        var pagesRes = await api('page.list', {siteId: siteId});
+        state.pages = pagesRes.pages || [];
+
         renderBasic();
+        renderHomeSettings();
         renderAppearance();
 
         setMessage('Настройки загружены', 'success');
@@ -636,8 +712,70 @@ if (!$USER->IsAdmin()) {
         setMessage('Основные настройки сохранены', 'success');
     }
 
+    async function saveHomePage() {
+        var button = document.getElementById('saveHomePageBtn');
+        if (button.disabled || !state.site) return;
+        button.disabled = true;
+        setMessage('Сохраняю домашнюю страницу...', '');
+        try {
+            var res = await api('site.setHome', {
+                siteId: siteId,
+                expectedVersion: Number(state.site.version || 1),
+                pageId: Number(getValue('homePageInput') || 0)
+            });
+            state.site = res.site || state.site;
+            renderSiteMetadata();
+            renderHomeSettings();
+            setMessage('Домашняя страница сохранена', 'success');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    function applyAppearanceUpdate(appearance) {
+        state.appearance = appearance || state.appearance;
+        if (state.site && state.appearance && state.appearance.siteVersion) {
+            state.site.version = Number(state.appearance.siteVersion);
+        }
+
+        var versionNode = document.getElementById('siteVersionBadge');
+        if (versionNode && state.appearance && state.appearance.siteVersion) {
+            versionNode.textContent = String(Number(state.appearance.siteVersion));
+        }
+    }
+
+    async function saveLogoSettings() {
+        var button = document.getElementById('saveLogoSettingsBtn');
+        var sizeInput = document.getElementById('logoSizeInput');
+        if (button.disabled || (sizeInput && !sizeInput.reportValidity())) {
+            return;
+        }
+
+        button.disabled = true;
+        setMessage('Сохраняю настройки логотипа...', '');
+
+        try {
+            var res = await api('site.appearanceUpdate', {
+                siteId: siteId,
+                expectedVersion: Number((state.site && state.site.version) || 1),
+                headerLogoMode: getValue('headerLogoModeInput') || 'image',
+                logoSize: getValue('logoSizeInput') || '42'
+            });
+
+            applyAppearanceUpdate(res.appearance);
+            setValue('headerLogoModeInput', state.appearance.headerLogoMode || 'image');
+            setValue('logoSizeInput', state.appearance.logoSize || 42);
+            renderLogoPreview();
+            renderMainPreview();
+
+            setMessage('Настройки логотипа сохранены', 'success');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
     async function saveAppearance() {
-        setMessage('Сохраняю оформление...', '');
+        setMessage('Сохраняю настройки фона...', '');
 
         var res = await api('site.appearanceUpdate', {
             siteId: siteId,
@@ -645,20 +783,18 @@ if (!$USER->IsAdmin()) {
             backgroundColor: getValue('backgroundColorInput') || '#f8fafc',
             backgroundMode: getValue('backgroundModeInput') || 'cover',
             backgroundPosition: getValue('backgroundPositionInput') || 'center center',
-            backgroundRepeat: getValue('backgroundRepeatInput') || 'no-repeat',
-            headerLogoMode: getValue('headerLogoModeInput') || 'image',
-            logoSize: getValue('logoSizeInput') || '42'
+            backgroundRepeat: getValue('backgroundRepeatInput') || 'no-repeat'
         });
 
-        state.appearance = res.appearance || state.appearance;
-        if (state.site && state.appearance && state.appearance.siteVersion) {
-            state.site.version = Number(state.appearance.siteVersion);
-        }
+        applyAppearanceUpdate(res.appearance);
+        setValue('backgroundColorInput', state.appearance.backgroundColor || '#f8fafc');
+        setValue('backgroundModeInput', state.appearance.backgroundMode || 'cover');
+        setValue('backgroundPositionInput', state.appearance.backgroundPosition || 'center center');
+        setValue('backgroundRepeatInput', state.appearance.backgroundRepeat || 'no-repeat');
+        renderBackgroundPreview();
+        renderMainPreview();
 
-        renderBasic();
-        renderAppearance();
-
-        setMessage('Оформление сохранено', 'success');
+        setMessage('Настройки фона сохранены', 'success');
     }
 
     async function saveDesignSystem() {
@@ -798,10 +934,26 @@ if (!$USER->IsAdmin()) {
         });
     });
 
+    document.getElementById('saveHomePageBtn').addEventListener('click', function () {
+        saveHomePage().catch(function (e) {
+            print(e);
+            var reason = (e && (e.error || e.message)) || 'UNKNOWN_ERROR';
+            if (reason === 'HOME_PAGE_NOT_PUBLISHED') reason = 'Опубликуйте страницу и все её родительские страницы.';
+            setMessage('Ошибка сохранения домашней страницы: ' + reason, 'error');
+        });
+    });
+
+    document.getElementById('saveLogoSettingsBtn').addEventListener('click', function () {
+        saveLogoSettings().catch(function (e) {
+            print(e);
+            setMessage('Ошибка сохранения настроек логотипа: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
+        });
+    });
+
     document.getElementById('saveAppearanceBtn').addEventListener('click', function () {
         saveAppearance().catch(function (e) {
             print(e);
-            setMessage('Ошибка сохранения оформления: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
+            setMessage('Ошибка сохранения настроек фона: ' + ((e && (e.error || e.message)) || 'UNKNOWN_ERROR'), 'error');
         });
     });
 

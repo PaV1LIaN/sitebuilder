@@ -103,6 +103,7 @@ $folderCache = [
 ];
 
 try {
+    DiskQuotaService::assertAdditional($context, (int)$targetFolder->getId(), DiskQuotaService::archiveSize($zip));
     for ($i = 0; $i < $zip->numFiles; $i++) {
         $stat = $zip->statIndex($i);
 
@@ -224,16 +225,19 @@ try {
             'size' => filesize($tmpFile) ?: 0,
         ];
 
-        $createdFile = $destinationFolder->uploadFile(
-            $uploadFile,
-            [
-                'NAME' => $safeFileName,
-                'CREATED_BY' => $context->currentUserId,
-            ],
-            []
-        );
-
-        @unlink($tmpFile);
+        try {
+            $createdFile = DiskQuotaService::write(
+                $context,
+                (int)$destinationFolder->getId(),
+                static fn(int $rootId): int => DiskQuotaService::uploadSize([$uploadFile]),
+                static fn() => $destinationFolder->uploadFile($uploadFile, [
+                    'NAME' => $safeFileName,
+                    'CREATED_BY' => $context->currentUserId,
+                ], [])
+            );
+        } finally {
+            @unlink($tmpFile);
+        }
 
         if (!$createdFile instanceof File) {
             throw new RuntimeException('DISK_UPLOAD_EXTRACTED_FILE_ERROR: ' . $safeFileName);

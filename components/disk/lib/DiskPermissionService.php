@@ -16,6 +16,8 @@ class DiskPermissionService
 
         if (
             $permissionMode === 'bitrix_disk'
+            && $rolePermissions['role'] !== 'bitrix_admin'
+            && $rolePermissions['role'] !== 'site_admin'
             && $folderId !== null
             && $folderId > 0
         ) {
@@ -81,9 +83,10 @@ class DiskPermissionService
     protected static function resolveRolePermissions(DiskContext $context): array
     {
         if (DiskCurrentUser::isAdmin()) {
+            $isBitrixAdmin = DiskCurrentUser::isBitrixAdmin();
             return self::withAccessSource(
-                self::permissionsForRole('bitrix_admin'),
-                'bitrix_admin'
+                self::permissionsForRole($isBitrixAdmin ? 'bitrix_admin' : 'site_admin'),
+                $isBitrixAdmin ? 'bitrix_admin' : 'sitebuilder_admin'
             );
         }
 

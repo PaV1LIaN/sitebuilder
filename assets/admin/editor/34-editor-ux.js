@@ -479,7 +479,7 @@
         closePageContextMenu();
 
         if (action === 'open') {
-            window.open(BASE_PATH + '/public.php?siteId=' + siteId + '&pageId=' + pageId, '_blank', 'noopener');
+            window.open(buildPublicPageUrl(pageId), '_blank', 'noopener');
             return;
         }
 

@@ -32,11 +32,7 @@ if (empty($columns)) {
 
 $isEditMode = (
     (string)($_GET['edit'] ?? '') === 'Y'
-    && is_object($USER)
-    && method_exists($USER, 'IsAuthorized')
-    && $USER->IsAuthorized()
-    && method_exists($USER, 'IsAdmin')
-    && $USER->IsAdmin()
+    && sitebuilder_is_admin()
 );
 
 $normalizeAlign = static function ($align): string {

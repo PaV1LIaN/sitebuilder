@@ -31,10 +31,12 @@ if (
 
 $pagePath = implode('/', $parts);
 
-$_GET['sbSiteSlug'] = $siteSlug;
-$_GET['sbPagePath'] = $pagePath;
-$_REQUEST['sbSiteSlug'] = $siteSlug;
-$_REQUEST['sbPagePath'] = $pagePath;
+// Совместимость с правилом ЧПУ из ранней версии. Новая установка направляет
+// запрос сразу в public.php, но старое правило продолжит работать до обновления.
+$_GET['siteSlug'] = $siteSlug;
+$_GET['pagePath'] = $pagePath;
+$_REQUEST['siteSlug'] = $siteSlug;
+$_REQUEST['pagePath'] = $pagePath;
 $GLOBALS['SB_PRETTY_PUBLIC_ROUTE'] = true;
 
 require __DIR__ . '/public.php';

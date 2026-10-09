@@ -975,6 +975,10 @@
         if (type === 'stats') return vbStatsHtml(block);
         if (type === 'divider') return vbDividerHtml(block);
         if (type === 'spacer') return vbSpacerHtml(block);
+        if (type === 'list') {
+            var list = block.content || {};
+            return '<div class="sb-vb-table"><strong>' + escapeHtml(list.title || 'Список') + '</strong><br>' + (list.listId ? 'Список #' + Number(list.listId) + ' · записи доступны на странице сайта' : 'Создайте или выберите список в настройках блока') + '</div>';
+        }
         if (type === 'table') {
             var table = block.content || {};
             return '<div class="sb-vb-table"><strong>' + escapeHtml(table.title || 'Таблица') + '</strong><br>Столбцов: ' + (Array.isArray(table.columns) ? table.columns.length : 0) + ' · строк: ' + (Array.isArray(table.rows) ? table.rows.length : 0) + '</div>';

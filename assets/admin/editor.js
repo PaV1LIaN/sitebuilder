@@ -1952,7 +1952,7 @@
 
     function openTemplateModal() {
         if (!IS_BITRIX_ADMIN) {
-            alert('Создавать шаблоны может только администратор Битрикса');
+            alert('Создавать шаблоны может только администратор SiteBuilder');
             return;
         }
 
@@ -2006,7 +2006,7 @@
 
     async function createTemplateFromSite() {
         if (!IS_BITRIX_ADMIN) {
-            alert('Создавать шаблоны может только администратор Битрикса');
+            alert('Создавать шаблоны может только администратор SiteBuilder');
             return;
         }
 

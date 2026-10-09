@@ -7,6 +7,7 @@ final class OutboxService
 {
     public const JOB_GROUP_ENSURE = 'bitrix.group.ensure';
     public const JOB_ACCESS_SYNC = 'bitrix.access.sync';
+    public const JOB_UNIFIED_ACCESS_RECONCILE = 'access.unified.reconcile';
     public const JOB_GROUP_MEMBER_RECONCILE = 'bitrix.group.member.reconcile';
     public const JOB_DISK_FOLDER_ENSURE = 'disk.site_folder.ensure';
     public const JOB_GROUP_DELETE = 'bitrix.group.delete';
@@ -95,6 +96,53 @@ final class OutboxService
             $actorUserId,
             80,
             8,
+            $availableAt
+        );
+    }
+
+    /**
+     * Ставит надёжную одностороннюю сверку прав SiteBuilder -> портал/Диск.
+     *
+     * Ключ намеренно уникален для каждого события. Если новое изменение
+     * произойдёт, пока предыдущая сверка уже выполняется, оно не должно
+     * дедуплицироваться в running-задачу и потеряться. Advisory lock воркера
+     * всё равно последовательно выполняет задания одного сайта.
+     */
+    public static function enqueueUnifiedAccessReconcile(
+        int $siteId,
+        string $mode,
+        int $actorUserId,
+        int $delaySeconds = 0
+    ): array {
+        if ($siteId <= 0 || $actorUserId <= 0) {
+            throw new InvalidArgumentException('INVALID_ACCESS_RECONCILE_CONTEXT');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['audit', 'repair'], true)) {
+            throw new InvalidArgumentException('INVALID_ACCESS_RECONCILE_MODE');
+        }
+
+        $availableAt = (new DateTimeImmutable())->modify(
+            '+' . max(0, $delaySeconds) . ' seconds'
+        );
+
+        return self::enqueue(
+            self::JOB_UNIFIED_ACCESS_RECONCILE,
+            $siteId,
+            [
+                'mode' => $mode,
+                'actorUserId' => $actorUserId,
+            ],
+            sprintf(
+                'site:%d:access:%s:%s',
+                $siteId,
+                $mode,
+                bin2hex(random_bytes(12))
+            ),
+            $actorUserId,
+            80,
+            10,
             $availableAt
         );
     }
@@ -553,6 +601,7 @@ final class OutboxService
         $allowed = [
             self::JOB_GROUP_ENSURE,
             self::JOB_ACCESS_SYNC,
+            self::JOB_UNIFIED_ACCESS_RECONCILE,
             self::JOB_GROUP_MEMBER_RECONCILE,
             self::JOB_DISK_FOLDER_ENSURE,
             self::JOB_GROUP_DELETE,

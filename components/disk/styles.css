@@ -55,6 +55,55 @@
     display: none !important;
 }
 
+.sb-disk__capacity {
+    --capacity-color: var(--disk-accent);
+    width: 100%;
+    min-width: 0;
+    padding: 12px 16px;
+    border-top: 1px solid var(--disk-border);
+    color: var(--disk-text);
+}
+.sb-disk__capacity-summary {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px 18px;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.sb-disk__capacity-summary span { color: var(--disk-muted); }
+.sb-disk__capacity-progress {
+    display: block;
+    width: 100%;
+    height: 6px;
+    margin-top: 9px;
+    border: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--disk-soft-2);
+    accent-color: var(--capacity-color);
+    appearance: none;
+}
+.sb-disk__capacity-progress::-webkit-progress-bar { background: var(--disk-soft-2); }
+.sb-disk__capacity-progress::-webkit-progress-value { background: var(--capacity-color); }
+.sb-disk__capacity-progress::-moz-progress-bar { background: var(--capacity-color); }
+.sb-disk__capacity.is-warning { --capacity-color: #b45309; }
+.sb-disk__capacity.is-full { --capacity-color: var(--disk-danger); }
+.sb-disk__capacity.is-full .sb-disk__capacity-summary span { color: var(--disk-danger); }
+.sb-disk__upload-notice {
+    margin: 0 16px 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--disk-accent-soft);
+    color: var(--disk-text);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.sb-disk__upload-notice.is-error { background: #fff1f2; color: #9f1239; }
+
 /* =========================================================
    HIDE DUPLICATES / COMPACT TOP
    ========================================================= */
@@ -3284,3 +3333,95 @@ body.sb-disk-settings-modal-open {
     }
 }
 /* END DISK NATIVE SETTINGS REDESIGN */
+
+/* Native dialog stays above portal headers without another z-index layer. */
+.sb-disk-share {
+    box-sizing: border-box;
+    width: min(520px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    margin: auto;
+    padding: 24px;
+    overflow: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+    color: #172033;
+    box-shadow: 0 24px 64px rgba(15, 23, 42, .2);
+    font: 14px/1.5 Arial, sans-serif;
+}
+
+.sb-disk-share::backdrop {
+    background: rgba(15, 23, 42, .5);
+}
+
+.sb-disk-share h2 {
+    margin: 0 0 8px;
+    font-size: 22px;
+}
+
+.sb-disk-share__name {
+    margin: 0 0 20px;
+    overflow-wrap: anywhere;
+    color: #64748b;
+}
+
+.sb-disk-share label {
+    display: block;
+    font-weight: 600;
+}
+
+.sb-disk-share input {
+    box-sizing: border-box;
+    width: 100%;
+    margin-top: 8px;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #172033;
+    font: inherit;
+}
+
+.sb-disk-share__status {
+    margin: 12px 0 8px;
+    overflow-wrap: anywhere;
+}
+
+.sb-disk-share__hint {
+    margin: 0 0 24px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.sb-disk-share__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.sb-disk-share button {
+    padding: 9px 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    color: #334155;
+    font: inherit;
+    cursor: pointer;
+}
+
+.sb-disk-share [data-share-copy] {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #fff;
+}
+
+.sb-disk-share button:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+.sb-disk-share :focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 3px;
+}
