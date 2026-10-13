@@ -40,6 +40,7 @@ jobs:
           php tests/disk_permission_admin_test.php
           php tests/bitrix_disk_gate_test.php
           php tests/disk_delete_action_test.php
+          php tests/disk_download_action_test.php
           php tests/disk_user_search_test.php
 
       - name: Assemble ready-to-upload folder
