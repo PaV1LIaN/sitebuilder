@@ -129,6 +129,7 @@ try {
     }
 
     $reason = $e->getMessage();
+    $notAuthorized = $reason === 'NOT_AUTHORIZED';
     $accessDenied = in_array($reason, [
         'ACCESS_DENIED', 'FOLDER_OUT_OF_SCOPE', 'ROOT_FOLDER_OPERATION_FORBIDDEN',
     ], true);
@@ -137,11 +138,13 @@ try {
         'DISK_FOLDER_NOT_FOUND',
     ], true);
     $invalid = $reason === 'INVALID_FILE_ID';
-    $message = $accessDenied
-        ? 'Нет прав на скачивание файла.'
+    $message = $notAuthorized
+        ? 'Требуется авторизация для скачивания файла.'
+        : ($accessDenied
+            ? 'Нет прав на скачивание файла.'
         : ($notFound ? 'Файл не найден или недоступен для скачивания.'
             : ($invalid ? 'Не указан корректный ID файла.'
-                : 'Не удалось скачать файл из Диска Битрикс24.'));
+                : 'Не удалось скачать файл из Диска Битрикс24.')));
     $message .= ' Пользователь ID ' . $currentUserId
         . ', файл ID ' . $fileId
         . '. Код диагностики: ' . $diagnosticId . '.';
@@ -158,10 +161,10 @@ try {
         $details['technicalError'] = $reason;
     }
 
-    http_response_code($accessDenied ? 403 : ($notFound ? 404 : ($invalid ? 422 : 500)));
+    http_response_code($notAuthorized ? 401 : ($accessDenied ? 403 : ($notFound ? 404 : ($invalid ? 422 : 500))));
     DiskResponse::error(
-        $accessDenied ? 'ACCESS_DENIED' : ($notFound ? 'DISK_FILE_NOT_FOUND'
-            : ($invalid ? 'INVALID_FILE_ID' : 'DISK_DOWNLOAD_FAILED')),
+        $notAuthorized ? 'AUTH_REQUIRED' : ($accessDenied ? 'ACCESS_DENIED' : ($notFound ? 'DISK_FILE_NOT_FOUND'
+            : ($invalid ? 'INVALID_FILE_ID' : 'DISK_DOWNLOAD_FAILED'))),
         $message,
         $details
     );
