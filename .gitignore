@@ -1,0 +1,2 @@
+# Server-specific SiteBuilder configuration: never commit production admin IDs
+/config/auth.local.php
