@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/json.php';
 require_once __DIR__ . '/response.php';
+require_once __DIR__ . '/auth.php';
 
 if (!function_exists('sb_user_access_code')) {
     function sb_user_access_code(): string
@@ -33,6 +34,15 @@ if (!function_exists('sb_get_role')) {
 
         if ($siteId <= 0 || $accessCode === '') {
             return null;
+        }
+
+        // Portal-specific global admins are defined in config/auth.local.php
+        // or in the existing config/auth.php. Never elevate the guest account.
+        if (
+            preg_match('/^U([1-9][0-9]*)$/', $accessCode, $matches)
+            && sitebuilder_is_site_admin_user_id((int)$matches[1])
+        ) {
+            return 'ADMIN';
         }
 
         $directRole = sb_get_role_from_access_table($siteId, $accessCode);
