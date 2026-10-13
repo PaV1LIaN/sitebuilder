@@ -382,17 +382,6 @@ try {
         );
     }
 
-    if ($action === 'delete') {
-        DiskDeleteErrorResponder::respond($e, [
-            'stage' => $diskDeleteStage ?? 'unknown',
-            'userId' => $currentUserId ?? null,
-            'context' => $context ?? null,
-            'settings' => $settings ?? null,
-            'rootFolderId' => $rootFolderId ?? null,
-            'data' => $data ?? null,
-        ]);
-    }
-
     error_log(sprintf(
         'SiteBuilder Disk API error: %s in %s:%d',
         $e->getMessage(),
