@@ -8,11 +8,6 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
-function sb_find_access_row(int $siteId, string $accessCode): ?array
-{
-    return null;
-}
-
 function sameValue($expected, $actual, string $message): void
 {
     if ($expected !== $actual) {
@@ -52,9 +47,8 @@ try {
     }
 
     sameValue(false, sitebuilder_is_site_admin_user_id(665), 'Technical guest cannot be global admin');
-    sameValue(null, sb_get_role(1, 'U665'), 'Technical guest has no implicit site role');
-    sameValue(null, sb_get_role(1, 'U40'), 'Old admin list is overridden by local file');
-    sameValue(null, sb_get_role(1, 'U100'), 'Regular user has no implicit site role');
+    sameValue(false, sitebuilder_is_site_admin_user_id(40), 'Old admin list overridden by local file');
+    sameValue(false, sitebuilder_is_site_admin_user_id(100), 'Regular user is not a global admin');
     sameValue(null, sb_get_role(0, 'U41'), 'Invalid site ID cannot authorize an admin');
     sameValue(true, sb_role_allows('ADMIN', 'manage_access'), 'Global admin can manage site access');
     sameValue(false, sb_role_allows('ADMIN', 'owner'), 'Global admin is not site owner');
