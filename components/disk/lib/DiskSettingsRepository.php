@@ -44,23 +44,16 @@ class DiskSettingsRepository
 
     public static function ensureExistsForBlock(int $blockId, int $siteId, int $pageId, ?int $createdBy = null): array
     {
-        $block = DiskSitebuilderBridge::getBlockById($blockId);
-        if (!$block) {
-            throw new RuntimeException('BLOCK_NOT_FOUND');
-        }
-
-        $props = $block['props'] ?? [];
-        $normalized = DiskSitebuilderBridge::normalizeDiskProps($props);
-
-        if (($block['props'] ?? []) !== $normalized) {
-            DiskSitebuilderBridge::saveBlockProps(
-                $blockId,
-                $normalized,
-                (int)($block['version'] ?? 1),
-                (int)($createdBy ?? 0)
-            );
-        }
-
-        return $normalized;
+        /*
+         * A Disk bootstrap/list/view/delete request must never rewrite the
+         * block's props or advance its revision just to fill defaults.
+         * The previous implementation could invoke RevisionService::saveBlock()
+         * on page view for a non-administrator. When that write failed,
+         * class.php caught it and rendered canView=false even for a real
+         * Bitrix admin. Return the normalized settings read-only instead.
+         *
+         * Persist actual settings only through save() and createDefault().
+         */
+        return self::getByBlockId($blockId);
     }
 }
