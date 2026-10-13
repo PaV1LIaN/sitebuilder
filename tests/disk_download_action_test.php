@@ -57,7 +57,7 @@ namespace {
             'outside' => 'FOLDER_OUT_OF_SCOPE',
             'readerError' => 'DISK_DOWNLOAD_FAILED',
             'readerErrorAdmin' => 'DISK_DOWNLOAD_FAILED',
-            'notAuthorized' => 'DISK_DOWNLOAD_FAILED',
+            'notAuthorized' => 'AUTH_REQUIRED',
         ];
 
         $checks = 0;
@@ -96,8 +96,8 @@ namespace {
             check(($json['ok'] ?? null) === false, 'Failed download is not success: ' . $scenario);
             $expectedError = $expected === 'FOLDER_OUT_OF_SCOPE' ? 'ACCESS_DENIED' : $expected;
             check(($json['error'] ?? null) === $expectedError, 'Expected error ' . $expectedError . ' in ' . $scenario);
-            check(($json['details']['userId'] ?? null) === 42, 'Error identifies current user in ' . $scenario);
-            check(($json['details']['fileId'] ?? -1) === ($scenario === 'invalidId' ? 0 : 61), 'Error identifies file in ' . $scenario);
+            check(($json['details']['userId'] ?? null) === ($scenario === 'notAuthorized' ? 0 : 42), 'Error identifies current user in ' . $scenario);
+            check(($json['details']['fileId'] ?? -1) === (in_array($scenario, ['invalidId', 'notAuthorized'], true) ? 0 : 61), 'Error identifies file in ' . $scenario);
             check(strpos($json['message'] ?? '', 'Код диагностики: SD-DL-') !== false, 'Human-readable support token in ' . $scenario);
             $checks += 5;
 
@@ -130,7 +130,12 @@ namespace {
 
     class DiskCurrentUser
     {
-        public static function requireId(): int { return 42; }
+        public static function requireId(): int {
+            if ($GLOBALS['testScenario'] === 'notAuthorized') {
+                throw new \RuntimeException('NOT_AUTHORIZED');
+            }
+            return 42;
+        }
         public static function getGroupIds(): array { return [1, 20]; }
         public static function isAdmin(): bool { return $GLOBALS['testScenario'] === 'readerErrorAdmin'; }
     }
