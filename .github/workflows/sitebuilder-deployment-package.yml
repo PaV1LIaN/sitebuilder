@@ -1,0 +1,75 @@
+name: SiteBuilder ready-to-upload archive
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Validate and package SiteBuilder
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, ctype, pgsql, pdo_pgsql
+          coverage: none
+
+      - name: PHP syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n 1 php -l > /tmp/sitebuilder-lint.log
+          echo "PHP files checked: $(wc -l < /tmp/sitebuilder-lint.log)"
+
+      - name: Regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/sitebuilder_admin_config_test.php
+          php tests/sitebuilder_deploy_readonly_test.php
+          php tests/disk_permission_admin_test.php
+          php tests/bitrix_disk_gate_test.php
+          php tests/disk_delete_action_test.php
+          php tests/disk_user_search_test.php
+
+      - name: Assemble ready-to-upload folder
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p package/sitebuilder
+          git ls-files -z | tar --null -T - -cf - | tar -xf - -C package/sitebuilder
+
+          # Override any stale auth.local.php from a previous upload with the
+          # portal's explicitly configured admin list. This file is deliberately
+          # not committed; it is included only in the deploy-ready artifact.
+          php -r '$cfg = require "config/auth.php"; $ids = array_map("intval", $cfg["admin_user_ids"] ?? []); $guest = (int)($cfg["guest_user_id"] ?? 0); if ($ids !== [40,41,96,97,98,99] || $guest !== 665) { fwrite(STDERR, "Incorrect deployment auth configuration\n"); exit(1); } $payload = ["admin_user_ids" => $ids, "guest_user_id" => $guest]; file_put_contents("package/sitebuilder/config/auth.local.php", "<?php\n\n// Portal-local settings bundled for this one-click deployment.\nreturn " . var_export($payload, true) . ";\n");'
+
+          test -s package/sitebuilder/config/auth.php
+          test -s package/sitebuilder/config/auth.local.php
+          test -s package/sitebuilder/components/disk/lib/DiskPermissionService.php
+          test -s package/sitebuilder/components/disk/lib/DiskSettingsRepository.php
+          test -s package/sitebuilder/components/disk/actions/delete.php
+          test -s package/sitebuilder/components/disk/api.php
+          test -s package/sitebuilder/index.php
+          test -s package/sitebuilder/deployment.php
+          test -s package/sitebuilder/lib/auth.php
+
+          php -r '$c = require "package/sitebuilder/config/auth.local.php"; if (($c["admin_user_ids"] ?? []) !== [40,41,96,97,98,99] || ($c["guest_user_id"] ?? null) !== 665) { exit(1); }'
+          echo "Ready-to-upload file count: $(find package/sitebuilder -type f | wc -l)"
+
+      - name: Downloadable SiteBuilder project
+        uses: actions/upload-artifact@v4
+        with:
+          name: sitebuilder-ready-to-upload
+          path: package/sitebuilder/
+          include-hidden-files: true
+          retention-days: 90
+          if-no-files-found: error
