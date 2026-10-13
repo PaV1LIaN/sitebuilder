@@ -1,0 +1,35 @@
+name: Disk delete isolated action
+on:
+  push:
+    paths:
+      - 'components/disk/**'
+      - 'tests/disk_delete_action_test.php'
+      - '.github/workflows/disk-delete-action.yml'
+  pull_request:
+    paths:
+      - 'components/disk/**'
+      - 'tests/disk_delete_action_test.php'
+      - '.github/workflows/disk-delete-action.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, ctype
+          coverage: none
+      - run: php -l components/disk/actions/delete.php
+      - run: php -l tests/disk_delete_action_test.php
+      - run: php tests/disk_delete_action_test.php
+      - run: php tests/sitebuilder_admin_config_test.php
+      - run: php tests/disk_user_search_test.php
