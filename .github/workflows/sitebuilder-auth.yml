@@ -1,0 +1,37 @@
+name: SiteBuilder local auth regression
+on:
+  push:
+    paths:
+      - 'lib/auth.php'
+      - 'lib/access.php'
+      - 'config/auth.local.example.php'
+      - 'tests/sitebuilder_admin_config_test.php'
+      - '.github/workflows/sitebuilder-auth.yml'
+  pull_request:
+    paths:
+      - 'lib/auth.php'
+      - 'lib/access.php'
+      - 'config/auth.local.example.php'
+      - 'tests/sitebuilder_admin_config_test.php'
+      - '.github/workflows/sitebuilder-auth.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring
+          coverage: none
+      - run: php -l lib/auth.php
+      - run: php -l lib/access.php
+      - run: php -l config/auth.local.example.php
+      - run: php tests/sitebuilder_admin_config_test.php
