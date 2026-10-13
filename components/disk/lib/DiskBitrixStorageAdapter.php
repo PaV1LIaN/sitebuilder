@@ -3,45 +3,6 @@
 use Bitrix\Disk\File;
 use Bitrix\Disk\Folder;
 
-/**
- * Context of a failed Disk deletion. A bulk request may have already moved
- * earlier items to the trash, so the caller needs the partial-success list.
- */
-final class DiskDeleteException extends RuntimeException
-{
-    private string $entityType;
-    private int $entityId;
-    private array $deletedItems;
-
-    public function __construct(string $entityType, int $entityId, array $deletedItems, Throwable $previous)
-    {
-        $this->entityType = $entityType;
-        $this->entityId = $entityId;
-        $this->deletedItems = $deletedItems;
-
-        parent::__construct(
-            sprintf('DISK_DELETE_FAILED %s #%d: %s', $entityType, $entityId, $previous->getMessage()),
-            0,
-            $previous
-        );
-    }
-
-    public function getEntityType(): string
-    {
-        return $this->entityType;
-    }
-
-    public function getEntityId(): int
-    {
-        return $this->entityId;
-    }
-
-    public function getDeletedItems(): array
-    {
-        return $this->deletedItems;
-    }
-}
-
 class DiskBitrixStorageAdapter
 {
     protected int $currentUserId;
@@ -228,38 +189,18 @@ class DiskBitrixStorageAdapter
             $entityType = (string)($item['entityType'] ?? '');
             $id = (int)($item['id'] ?? 0);
 
-            try {
-                if ($id <= 0 || !in_array($entityType, ['file', 'folder'], true)) {
-                    throw new InvalidArgumentException('INVALID_DISK_DELETE_ITEM');
-                }
+            if ($id <= 0) {
+                continue;
+            }
 
-                $object = $entityType === 'folder'
-                    ? $this->getFolderById($id)
-                    : $this->getFileById($id);
-
-                // Bitrix returns bool from markDeleted(). Previously a false
-                // result was reported as a successful deletion.
-                if ($object->markDeleted($context->currentUserId) !== true) {
-                    $errors = [];
-                    if (method_exists($object, 'getErrors')) {
-                        foreach ((array)$object->getErrors() as $error) {
-                            if (is_object($error) && method_exists($error, 'getMessage')) {
-                                $errors[] = (string)$error->getMessage();
-                            } elseif (is_scalar($error)) {
-                                $errors[] = (string)$error;
-                            }
-                        }
-                    }
-
-                    throw new RuntimeException(
-                        'BITRIX_MARK_DELETED_FAILED'
-                        . ($errors ? ': ' . implode(' | ', $errors) : '')
-                    );
-                }
-
-                $deleted[] = ['entityType' => $entityType, 'id' => $id];
-            } catch (Throwable $e) {
-                throw new DiskDeleteException($entityType, $id, $deleted, $e);
+            if ($entityType === 'folder') {
+                $folder = $this->getFolderById($id);
+                $folder->markDeleted($context->currentUserId);
+                $deleted[] = ['entityType' => 'folder', 'id' => $id];
+            } elseif ($entityType === 'file') {
+                $file = $this->getFileById($id);
+                $file->markDeleted($context->currentUserId);
+                $deleted[] = ['entityType' => 'file', 'id' => $id];
             }
         }
 

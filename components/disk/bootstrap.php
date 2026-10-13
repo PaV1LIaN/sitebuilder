@@ -46,7 +46,6 @@ if (!defined('SITEBUILDER_DISK_BOOTSTRAP')) {
     require_once __DIR__ . '/lib/BlockDiskInitializer.php';
     require_once __DIR__ . '/lib/DiskStorageAdapterInterface.php';
     require_once __DIR__ . '/lib/DiskBitrixStorageAdapter.php';
-    require_once __DIR__ . '/lib/DiskDeleteErrorResponder.php';
     require_once __DIR__ . '/lib/DiskSitebuilderBridge.php';
 }
 

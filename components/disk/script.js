@@ -2457,9 +2457,6 @@
         var deleteRes = await self.api('delete', deletePayload);
         if (!deleteRes || !deleteRes.ok) {
           window.alert((deleteRes && (deleteRes.message || deleteRes.error)) || 'Ошибка удаления');
-          // The Bitrix event handler can fail after an earlier item was deleted.
-          // Reload to reflect possible partial success instead of showing stale rows.
-          await self.loadFolder(self.state.currentFolderId);
           return;
         }
 
@@ -2490,9 +2487,6 @@
         var bulkDeleteRes = await self.api('delete', bulkDeletePayload);
         if (!bulkDeleteRes || !bulkDeleteRes.ok) {
           window.alert((bulkDeleteRes && (bulkDeleteRes.message || bulkDeleteRes.error)) || 'Ошибка удаления');
-          // The Bitrix event handler can fail after an earlier item was deleted.
-          // Reload to reflect possible partial success instead of showing stale rows.
-          await self.loadFolder(self.state.currentFolderId);
           return;
         }
 
