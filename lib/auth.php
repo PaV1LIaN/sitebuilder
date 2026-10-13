@@ -28,18 +28,75 @@ function sitebuilder_auth_config(): array
         );
     }
 
+    /*
+     * Настройки конкретного портала не должны попадать в репозиторий
+     * и заменяться во время обновления кода.
+     *
+     * auth.local.php загружается поверх стандартных настроек и не
+     * поставляется в Git. Его нужно сохранить при первом обновлении.
+     */
+    $localConfig = [];
+    $localConfigFile = dirname($configFile) . '/auth.local.php';
+
+    if (is_file($localConfigFile)) {
+        $localConfig = require $localConfigFile;
+
+        if (!is_array($localConfig)) {
+            throw new RuntimeException(
+                'Локальный файл конфигурации SiteBuilder должен возвращать массив.'
+            );
+        }
+    }
+
     $config = array_merge(
         [
+            'admin_user_ids' => [],
             'guest_user_id' => 0,
             'default_after_login' => '/local/sitebuilder/index.php',
             'login_url' => '/local/sitebuilder/login.php',
             'logout_url' => '/local/sitebuilder/logout.php',
             'allowed_return_prefix' => '/local/sitebuilder/',
         ],
-        $loadedConfig
+        $loadedConfig,
+        $localConfig
     );
 
     return $config;
+}
+
+/**
+ * Глобальный администратор сайтов SiteBuilder, указанный в конфигурации.
+ * Это НЕ роль администратора портала Битрикс24.
+ *
+ * Техническому гостю доступ не выдаётся, даже если он ошибочно
+ * попал в admin_user_ids.
+ */
+function sitebuilder_is_site_admin_user_id(int $userId): bool
+{
+    if ($userId <= 0) {
+        return false;
+    }
+
+    $config = sitebuilder_auth_config();
+    $guestUserId = (int)($config['guest_user_id'] ?? 0);
+
+    if ($guestUserId > 0 && $userId === $guestUserId) {
+        return false;
+    }
+
+    $adminIds = $config['admin_user_ids'] ?? [];
+
+    if (!is_array($adminIds)) {
+        return false;
+    }
+
+    foreach ($adminIds as $adminId) {
+        if ((int)$adminId === $userId) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
