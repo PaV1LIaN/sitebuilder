@@ -212,7 +212,7 @@ class BitrixDiskRightsService
 
         if (
             $folderId <= 0
-            || !PageAccessService::canViewPage(
+            || !PageAccessService::canViewDisk(
                 $context->siteId,
                 $context->pageId,
                 $context->currentUserId

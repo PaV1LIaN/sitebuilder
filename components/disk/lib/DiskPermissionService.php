@@ -18,7 +18,23 @@ class DiskPermissionService
             $permissionMode === 'bitrix_disk'
             && $folderId !== null
             && $folderId > 0
+            && !in_array(
+                (string)($rolePermissions['role'] ?? ''),
+                ['bitrix_admin', 'site_admin'],
+                true
+            )
         ) {
+            /*
+             * Folder ACL applies to ordinary users only. Replacing the role
+             * of a Bitrix portal administrator or SiteBuilder administrator
+             * with a DiskSecurityContext result could unexpectedly revoke
+             * even canView (including when the portal admin is missing from
+             * the physical folder ACL). This safeguard is consistent with
+             * the existing custom/inherit_site permission modes.
+             *
+             * Do not fall back to site roles for ordinary users here:
+             * explicit negative Bitrix Disk ACL must continue to work.
+             */
             $rolePermissions = BitrixDiskRightsService::resolvePermissions(
                 $context,
                 (int)$folderId,
