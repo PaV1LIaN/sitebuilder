@@ -1,0 +1,55 @@
+.sba-body { margin:0; background:#f3f5f8; color:#172335; font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+.sba-app { max-width:1680px; margin:0 auto; padding:28px; }
+.sba-app * { box-sizing:border-box; }
+.sba-app [hidden] { display:none; }
+.sba-app a { color:#255db9; text-decoration:none; }
+.sba-app a:hover { text-decoration:underline; }
+.sba-app h1 { font-size:28px; margin:8px 0 2px; }
+.sba-app h2 { font-size:19px; margin:0 0 12px; overflow-wrap:anywhere; }
+.sba-app p { margin:6px 0; color:#536378; }
+.sba-header { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:24px; }
+.sba-app button,.sba-app select,.sba-app input,.sba-app textarea { font:inherit; border:1px solid #cbd3df; border-radius:7px; padding:8px 11px; background:#fff; color:inherit; }
+.sba-app button { cursor:pointer; }
+.sba-app button:hover { background:#eef3fa; }
+.sba-app button:disabled { opacity:.5; cursor:default; }
+.sba-app :focus-visible { outline:3px solid #91b8ee; outline-offset:2px; }
+.sba-app input,.sba-app textarea { width:100%; margin-top:5px; }
+.sba-app input[type=checkbox] { width:17px; height:17px; margin:0; }
+.sba-layout { display:grid; grid-template-columns:290px minmax(0,1fr); gap:20px; align-items:start; }
+.sba-sidebar,.sba-content { background:#fff; border:1px solid #e1e6ee; border-radius:12px; padding:20px; min-width:0; }
+.sba-sidebar { position:sticky; top:20px; max-height:calc(100vh - 40px); overflow:auto; }
+.sba-sidebar ul { list-style:none; padding:0; margin:5px 0; }
+.sba-sidebar ul ul { padding-left:15px; border-left:1px solid #e4e9f1; margin-left:10px; }
+.sba-tree-row { display:flex; align-items:flex-start; gap:3px; margin:3px 0; }
+.sba-tree-row button { border:0; text-align:left; background:transparent; padding:6px; }
+.sba-tree-row .sba-node { flex:1; min-width:0; overflow-wrap:anywhere; }
+.sba-tree-row .sba-selected { background:#e9f0fc; color:#174c9f; font-weight:600; }
+.sba-expand { flex:0 0 25px; }
+.sba-kind { display:block; font-size:11px; color:#718097; }
+.sba-links { display:flex; gap:20px; margin:12px 0 20px; }
+.sba-app details { border:1px solid #e1e6ee; border-radius:8px; padding:12px; margin:18px 0; }
+.sba-app summary { cursor:pointer; font-weight:600; }
+.sba-add-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:12px; }
+.sba-add-grid label { display:block; min-width:0; }
+.sba-hint { display:block; font-size:12px; color:#63758b; }
+.sba-search-item { display:block; width:100%; text-align:left; margin-top:4px; }
+.sba-toolbar { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; margin:18px 0; }
+.sba-toolbar label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:#536378; }
+.sba-table-wrap { overflow:auto; margin:20px -2px 0; }
+.sba-app table { width:100%; border-collapse:collapse; }
+.sba-app th { padding:10px 9px; font-size:12px; text-align:left; color:#5c6d81; background:#f6f8fb; }
+.sba-app td { padding:13px 9px; vertical-align:top; border-bottom:1px solid #e7ebf1; }
+.sba-app td select { max-width:210px; }
+.sba-user-name { font-weight:600; }
+.sba-meta { display:block; color:#67788d; font-size:12px; max-width:350px; overflow-wrap:anywhere; }
+.sba-dirty { background:#fffcf0; }
+.sba-warning { color:#976416; font-size:12px; }
+.sba-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:20px; flex-wrap:wrap; }
+.sba-app .sba-primary { background:#245dba; border-color:#245dba; color:#fff; }
+.sba-app .sba-primary:hover { background:#184b9c; }
+#sba-message { padding:13px 16px; margin:14px 0; border:1px solid #b9cfea; border-radius:8px; background:#eef5ff; white-space:pre-wrap; overflow-wrap:anywhere; }
+#sba-message.sba-error { background:#fff2f0; border-color:#edb9b4; color:#922d25; }
+#sba-unresolved { max-height:280px; overflow:auto; }
+.sba-resolution { display:flex; flex-wrap:wrap; gap:8px; padding:7px 0; border-bottom:1px solid #e7ebf1; }
+@media(max-width:1000px) { .sba-layout { grid-template-columns:220px minmax(0,1fr); } .sba-add-grid { grid-template-columns:1fr; } }
+@media(max-width:720px) { .sba-app { padding:14px; } .sba-layout { grid-template-columns:1fr; } .sba-sidebar { position:static; max-height:320px; } .sba-header { align-items:flex-start; flex-direction:column; } .sba-content { padding:14px; } }

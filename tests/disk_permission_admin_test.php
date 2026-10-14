@@ -18,6 +18,11 @@ class DiskCurrentUser
         return self::$admin;
     }
 }
+$USER = new class {
+    public function GetID(): int { return 99; }
+    public function IsAdmin(): bool { return DiskCurrentUser::$admin; }
+};
+
 class SiteAccessRepository
 {
     public static ?string $role = null;

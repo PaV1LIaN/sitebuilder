@@ -1,5 +1,7 @@
 <?php
 
+require_once dirname(__DIR__, 3) . '/lib/AccessUserIdentity.php';
+
 class DiskPermissionService
 {
     public static function resolve(
@@ -96,7 +98,7 @@ class DiskPermissionService
 
     protected static function resolveRolePermissions(DiskContext $context): array
     {
-        if (DiskCurrentUser::isAdmin()) {
+        if (AccessUserIdentity::isPortalAdmin($context->currentUserId)) {
             return self::withAccessSource(
                 self::permissionsForRole('bitrix_admin'),
                 'bitrix_admin'

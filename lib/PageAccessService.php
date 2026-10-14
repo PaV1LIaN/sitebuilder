@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/AccessUserIdentity.php';
+
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/PageAccessRepository.php';
 
@@ -26,7 +28,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
         }
 
@@ -72,7 +74,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
         }
 
@@ -118,7 +120,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
         }
 
@@ -164,7 +166,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
         }
 
@@ -205,7 +207,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
         }
 
@@ -319,7 +321,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
         }
 
@@ -474,12 +476,8 @@ class PageAccessService
         return $map[$roleString] ?? 0;
     }
 
-    private static function isBitrixAdmin(): bool
+    private static function isBitrixAdmin(int $userId): bool
     {
-        global $USER;
-
-        return is_object($USER)
-            && method_exists($USER, 'IsAdmin')
-            && $USER->IsAdmin();
+        return AccessUserIdentity::isPortalAdmin($userId);
     }
 }
