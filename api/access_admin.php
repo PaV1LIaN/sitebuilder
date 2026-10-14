@@ -72,6 +72,7 @@ try {
         $status = 409; $code = 'ACCESS_BUSY';
     } elseif (preg_match('/^[A-Z][A-Z0-9_]{2,80}$/', $error->getMessage())) {
         $code = $error->getMessage();
+        if ($code === 'DISK_RIGHTS_BUSY') { $status = 409; }
     }
     $incident = bin2hex(random_bytes(8));
     error_log('SiteBuilder accessAdmin [' . $incident . '] ' . $error->getMessage());

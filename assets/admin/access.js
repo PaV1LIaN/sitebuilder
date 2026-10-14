@@ -4,7 +4,7 @@
     const $ = id => document.getElementById(`sba-${id}`);
     const labels = { INHERIT: 'Наследовать', VIEWER: 'Чтение', EDITOR: 'Редактирование',
         ADMIN: 'Администратор сайта', OWNER: 'Владелец', DENY: 'Нет доступа', NONE: 'Нет доступа',
-        PORTAL_ADMIN: 'Администратор Битрикс', UNKNOWN: 'В настройках Диска' };
+        PORTAL_ADMIN: 'Администратор Битрикс', ADD: 'Добавление', FULL: 'Полный доступ', CUSTOM: 'Нестандартное правило', UNKNOWN: 'В настройках Диска' };
     const errors = {
         ACCESS_DENIED: 'Нет прав на управление доступом.', BAD_SESSID: 'Сессия истекла. Обновите страницу.',
         ACCESS_VERSION_CONFLICT: 'Права изменены другим запросом. Пакет не сохранён. Перечитайте права кнопкой «Обновить / отменить изменения».',
@@ -18,6 +18,11 @@
         LINKED_FOLDER_NOT_SUPPORTED: 'Это ссылка на другую папку. Откройте исходную папку в её диске.',
         ACCESS_BUSY: 'Объект занят другим изменением. Повторите сохранение.',
         ACCESS_ADMIN_SERVER_ERROR: 'Ошибка сервера. Текущий пакет не подтверждён; повторное сохранение использует тот же идентификатор.',
+        DISK_RIGHTS_BUSY: 'Права этой папки меняются другим запросом. Повторите сохранение.',
+        NATIVE_PORTAL_ADMIN_REQUIRED: 'Штатные права Диска изменяет только администратор Битрикс.',
+        NATIVE_PACKET_FAILED: 'Пакет Битрикс.Диска не подтверждён. Ниже указаны этап и все затронутые сотрудники, а не предполагаемый виновник. Повтор использует тот же идентификатор.',
+        NATIVE_RECONCILIATION_REQUIRED: 'Состояние прав отличается и от исходного, и от ожидаемого. Автоматическая перезапись остановлена. Перечитайте права перед новым назначением.',
+        PAGE_HIERARCHY_INVALID: 'Обнаружен цикл или слишком большая глубина страниц. Доступ не выдан.',
         REQUEST_ID_REUSED: 'Этот идентификатор операции уже использован для другого запроса.',
     };
     const state = { target: null, revision: '', rows: new Map(), offset: 0, total: 0, hasMore: false,
@@ -36,9 +41,9 @@
     };
     function errorText(error) {
         const detail = error.details || {};
-        const users = (detail.users || []).map(u => `${u.name || ''} (ID ${u.userId}): ${u.error}`);
+        const users = (detail.users || []).map(u => `${u.name || ''} (ID ${u.userId}): ${u.error}${u.groups?.length ? '; группы Битрикс: ' + u.groups.join(', ') : ''}`);
         if (detail.userId) users.push(`Пользователь ID ${detail.userId}, строка пакета ${detail.row || '—'}`);
-        return [errors[error.code] || error.message, ...users, error.incident ? `Код диагностики: ${error.incident}` : ''].filter(Boolean).join('\n');
+        return [errors[error.code] || error.message, detail.folderId ? `Папка ID ${detail.folderId}` : '', detail.phase ? `Этап: ${detail.phase}` : '', ...users, error.incident ? `Код диагностики: ${error.incident}` : ''].filter(Boolean).join('\n');
     }
     async function api(action, payload = {}) {
         let response;
@@ -59,9 +64,11 @@
         }
         return result.data;
     }
-    function roleOptions(kind) {
-        return kind === 'site' ? ['INHERIT', 'VIEWER', 'EDITOR', 'ADMIN', 'OWNER']
-            : kind === 'page' ? ['INHERIT', 'VIEWER', 'EDITOR'] : ['INHERIT', 'DENY', 'VIEWER', 'EDITOR'];
+    function roleOptions(kind, diskColumn = false) {
+        if (kind === 'site') return ['INHERIT', 'VIEWER', 'EDITOR', 'ADMIN', 'OWNER'];
+        if (kind === 'page') return ['INHERIT', 'VIEWER', 'EDITOR', ...(!diskColumn && state.target?.pageDenyAvailable ? ['DENY'] : [])];
+        return state.target?.mode === 'bitrix_disk'
+            ? ['INHERIT', 'DENY', 'VIEWER', 'ADD', 'EDITOR', 'FULL'] : ['INHERIT', 'DENY', 'VIEWER', 'EDITOR'];
     }
     function fillOptions(select, options, value, prompt = false) {
         select.replaceChildren();
@@ -69,6 +76,9 @@
         for (const role of options) {
             const o = node('option', state.target?.kind === 'site' && role === 'EDITOR' ? 'Работа с файлами' : labels[role] || role);
             o.value = role; select.append(o);
+        }
+        if (value === 'CUSTOM' && !options.includes(value)) {
+            const custom = node('option', labels.CUSTOM); custom.value = value; custom.disabled = true; select.append(custom);
         }
         select.value = value;
     }
@@ -104,10 +114,12 @@
             tr.append(person);
             const rights = node('td');
             if (state.target.editable) rights.append(makeSelect(row, 'role', roleOptions(state.target.kind)));
-            else rights.append(node('span', state.target.mode === 'bitrix_disk' ? labels.UNKNOWN : 'Наследование'));
+            else rights.append(node('span', labels[row.assignment.role] || row.assignment.role || 'Наследование'));
             tr.append(rights);
             if (page) {
-                const disk = node('td'); disk.append(makeSelect(row, 'diskRole', roleOptions('page'))); tr.append(disk);
+                const disk = node('td'); disk.append(makeSelect(row, 'diskRole', roleOptions('page', true)));
+                if (row.assignment.role === 'DENY') disk.append(node('span', 'Право Диска сохраняется, но не действует, пока страница запрещена', 'sba-warning'));
+                tr.append(disk);
                 const children = node('td'), childCheck = node('input'); childCheck.type = 'checkbox';
                 childCheck.checked = row.assignment.includeChildren; childCheck.disabled = row.protected || !!state.pending;
                 childCheck.setAttribute('aria-label', `Применять к дочерним страницам: ${row.user.name}`);
@@ -154,7 +166,7 @@
             $('paste').value = ''; $('search').value = ''; $('search-results').replaceChildren();
             $('resolve-status').textContent = ''; $('unresolved').replaceChildren();
             fillOptions($('bulk-role'), roleOptions(data.target.kind), '', true);
-            fillOptions($('bulk-disk'), roleOptions('page'), '', true);
+            fillOptions($('bulk-disk'), roleOptions('page', true), '', true);
             $('bulk-disk-wrap').hidden = data.target.kind !== 'page';
             document.querySelectorAll('.sba-selected').forEach(el => el.classList.remove('sba-selected'));
             if (button) button.classList.add('sba-selected');

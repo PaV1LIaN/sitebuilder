@@ -28,12 +28,15 @@ namespace {
     file_put_contents($root . '/local/php_interface/lib/pg_master.php', '<?php');
     $_SERVER['DOCUMENT_ROOT'] = $root;
     function getPDO(): \PDO { return $GLOBALS['pdo']; }
+    class CUser { public static function GetUserGroup(int $id): array { return $id === 99 ? [1] : [2]; } }
+    function sitebuilder_is_site_admin_user_id(int $id): bool { return false; }
     function sitebuilder_auth_config(): array { return ['guest_user_id' => 665, 'admin_user_ids' => []]; }
     require __DIR__ . '/../lib/db.php';
     require __DIR__ . '/../lib/storage_db_extra.php';
     require __DIR__ . '/../lib/RequestLockService.php';
     require __DIR__ . '/../lib/AccessUserResolver.php';
     require __DIR__ . '/../lib/AccessAdminService.php';
+    require __DIR__ . '/../lib/PageAccessService.php';
     $pdo->exec('DROP SCHEMA IF EXISTS sitebuilder CASCADE; CREATE SCHEMA sitebuilder');
     $pdo->exec("CREATE TABLE sitebuilder.site(id bigint PRIMARY KEY,name text NOT NULL,bitrix_group_id bigint);
         CREATE TABLE sitebuilder.page(id bigint PRIMARY KEY,site_id bigint NOT NULL REFERENCES sitebuilder.site(id),title text NOT NULL,parent_id bigint);
@@ -99,6 +102,50 @@ namespace {
         AccessAdminService::apply(request($page, [['userId' => 2, 'role' => 'INHERIT', 'diskRole' => 'INHERIT']]), 99);
         eq(0, (int)$pdo->query('SELECT count(*) FROM sitebuilder.page_access')->fetchColumn(), 'Empty page rule deleted');
         raises(fn() => AccessAdminService::target(['kind' => 'page', 'siteId' => 2, 'pageId' => 10], 99), 'PAGE_NOT_IN_SITE');
+        // Legacy schema already tested above. The new migration is additive and idempotent.
+        eq(false, PageAccessPolicy::available(), 'Deny disabled before migration');
+        raises(fn() => AccessAdminService::apply(request($page, [['userId' => 12, 'role' => 'DENY']]), 99), 'INVALID_CHANGE_ROLE');
+        $sql = file_get_contents(__DIR__ . '/../migrations/20261014_011_page_access_deny.sql');
+        $pdo->exec($sql); $pdo->exec($sql); PageAccessPolicy::resetCache();
+        eq(true, PageAccessPolicy::available(), 'Deny migration applied twice safely');
+        $pdo->exec("INSERT INTO sitebuilder.page VALUES(11,1,'Child',10)");
+        $child = ['kind' => 'page', 'siteId' => 1, 'pageId' => 11];
+        $grant = [['userId' => 12, 'role' => 'DENY', 'diskRole' => 'EDITOR', 'includeChildren' => true]];
+        AccessAdminService::apply(request($page, $grant), 99);
+        $denyRow = $pdo->query("SELECT * FROM sitebuilder.page_access WHERE access_code='U12' AND page_id=10")->fetch(\PDO::FETCH_ASSOC);
+        eq(true, $denyRow['deny_view'], 'Explicit deny persisted');
+        eq(true, $denyRow['can_disk_edit'], 'Stored disk grant is preserved, but blocked');
+        foreach (['canViewPage','canEditPage','canViewDisk','canEditDisk'] as $method) {
+            eq(false, PageAccessService::$method(1,10,12), $method . ' respects direct deny over site VIEWER');
+            eq(false, PageAccessService::$method(1,11,12), $method . ' respects inherited deny');
+        }
+        eq([], PageAccessService::filterVisiblePages([['id'=>10],['id'=>11]],1,12), 'Denied titles removed from page list');
+        AccessAdminService::apply(request($child, [['userId'=>12,'role'=>'INHERIT','diskRole'=>'EDITOR']]),99);
+        eq(false, PageAccessService::canViewDisk(1,11,12), 'Disk-only child grant cannot cancel page denial');
+        AccessAdminService::apply(request($child, [['userId'=>12,'role'=>'VIEWER']]),99);
+        eq(true, PageAccessService::canViewPage(1,11,12), 'Nearest explicit page grant makes exception');
+        eq(true, PageAccessService::canEditDisk(1,11,12), 'Disk grant works again in explicit exception');
+        eq(false, PageAccessService::canViewPage(1,10,12), 'Parent stays denied');
+        PageAccessRepository::save(1,10,'U12',true,true,true,99);
+        PageAccessPolicy::resetCache();
+        eq(false, PageAccessService::canViewPage(1,10,12), 'Legacy editor cannot silently overwrite explicit deny');
+        // Historical empty records are supported on read; the current editor correctly
+        // rejects creating an empty grant, so insert this legacy fixture explicitly.
+        $pdo->exec("INSERT INTO sitebuilder.page_access(site_id,page_id,access_code,can_view,can_edit,can_disk_view,can_disk_edit,include_children,created_by,created_at,updated_at)
+            VALUES(1,10,'U13',false,false,false,false,false,99,now(),now())");
+        PageAccessPolicy::resetCache();
+        eq(true, PageAccessService::canViewPage(1,10,13), 'Empty legacy flags remain additive, not a prohibition');
+        AccessAdminService::apply(request($site,[['userId'=>15,'role'=>'ADMIN']]),99);
+        foreach ([1,15,99] as $admin) {
+            // Simulate a historical forbidden rule to check authorization, not the admin UI.
+            $pdo->exec("INSERT INTO sitebuilder.page_access(site_id,page_id,access_code,can_view,can_edit,can_disk_view,can_disk_edit,include_children,deny_view,created_at,updated_at)
+                VALUES(1,10,'U$admin',false,false,false,false,false,true,now(),now())");
+            PageAccessPolicy::resetCache();
+            eq(true, PageAccessService::canEditPage(1,10,$admin), 'Protected owner/site admin/portal admin keeps access');
+            eq(true, PageAccessService::canEditDisk(1,10,$admin), 'Protected administrator keeps disk access');
+        }
+        AccessAdminService::apply(request($page,[['userId'=>12,'role'=>'INHERIT']]),99);
+        eq(true, PageAccessService::canViewPage(1,10,12), 'Removing explicit denial returns existing site access');
         // Audit failure must roll back ACL, rather than announce false success.
         $pdo->exec("ALTER TABLE sitebuilder.audit_log ADD CONSTRAINT reject_new_audit CHECK(action <> 'accessAdmin.apply') NOT VALID");
         try { AccessAdminService::apply(request($site, [['userId' => 2, 'role' => 'EDITOR']]), 99); throw new \RuntimeException('Audit failure not propagated'); }

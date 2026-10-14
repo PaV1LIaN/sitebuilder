@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/PageAccessPolicy.php';
+require_once __DIR__ . '/AccessNativeDiskService.php';
+
 final class AccessAdminException extends RuntimeException
 {
     public function __construct(string $code, public array $details = [], public int $httpStatus = 422)
@@ -10,7 +13,7 @@ final class AccessAdminException extends RuntimeException
     }
 }
 
-/** Stage 1: local ACL writes only; Bitrix native ACL remains read-only here. */
+/** Direct administration of local ACL and native Bitrix Disk permissions. */
 final class AccessAdminService
 {
     public const BATCH_SIZE = 100;
@@ -46,6 +49,7 @@ final class AccessAdminService
             throw new AccessAdminException('PAGE_NOT_IN_SITE', [], 404);
         }
         $target['pageId'] = $pageId;
+        $target['pageDenyAvailable'] = PageAccessPolicy::available();
         $target['title'] .= ' / ' . $page['title'];
         if ($kind === 'page') {
             return $target;
@@ -74,7 +78,8 @@ final class AccessAdminService
         return array_merge($target, [
             'blockId' => $blockId, 'folderId' => $folderId, 'rootFolderId' => $root,
             'mode' => (string)($settings['permissionMode'] ?? 'inherit_site'),
-            'editable' => ($settings['permissionMode'] ?? '') === 'custom',
+            'editable' => ($settings['permissionMode'] ?? '') === 'custom'
+                || (($settings['permissionMode'] ?? '') === 'bitrix_disk' && AccessUserIdentity::isPortalAdmin($actor)),
             'title' => $target['title'] . ' / ' . (string)$folder->getName(), 'settings' => $settings,
         ]);
     }
@@ -132,6 +137,9 @@ final class AccessAdminService
             $sql = 'SELECT * FROM sitebuilder.page_access WHERE site_id=:site AND page_id=:page';
             $params[':page'] = $target['pageId'];
         } elseif (in_array($target['kind'], ['disk', 'folder'], true)) {
+            if ($target['mode'] === 'bitrix_disk') {
+                return AccessNativeDiskService::direct(BitrixDiskRightsService::getDirectSnapshot($target['folderId']));
+            }
             if ($target['mode'] !== 'custom') {
                 return [];
             }
@@ -163,7 +171,8 @@ final class AccessAdminService
             return ['role' => (string)($row['role'] ?? 'INHERIT')];
         }
         return [
-            'role' => self::bool($row['can_edit'] ?? false) ? 'EDITOR' : (self::bool($row['can_view'] ?? false) ? 'VIEWER' : 'INHERIT'),
+            'role' => self::bool($row['deny_view'] ?? false) ? 'DENY'
+                : (self::bool($row['can_edit'] ?? false) ? 'EDITOR' : (self::bool($row['can_view'] ?? false) ? 'VIEWER' : 'INHERIT')),
             'diskRole' => self::bool($row['can_disk_edit'] ?? false) ? 'EDITOR' : (self::bool($row['can_disk_view'] ?? false) ? 'VIEWER' : 'INHERIT'),
             'includeChildren' => self::bool($row['include_children'] ?? false),
         ];
@@ -209,6 +218,18 @@ final class AccessAdminService
                 if (isset($path[(int)$row['folder_id']])) { $add($row['access_code']); }
             }
         }
+        if (in_array($target['kind'], ['disk', 'folder'], true) && $target['mode'] === 'bitrix_disk') {
+            // Parent ACL can be above the block root. Do not miss inherited personal assignments.
+            $id = $target['folderId']; $seen = [];
+            for ($depth = 0; $id > 0 && !isset($seen[$id]) && $depth < 200; ++$depth) {
+                $seen[$id] = true;
+                $folder = \Bitrix\Disk\Folder::loadById($id);
+                $id = $folder ? (int)$folder->getParentId() : 0;
+                if ($id > 0 && !isset($seen[$id])) {
+                    foreach (array_keys(BitrixDiskRightsService::getDirectSnapshot($id)['byAccessCode']) as $code) { $add($code); }
+                }
+            }
+        }
         if ($target['workgroupId'] > 0 && \Bitrix\Main\Loader::includeModule('socialnetwork') && class_exists('CSocNetUserToGroup')) {
             $result = \CSocNetUserToGroup::GetList(['ID' => 'ASC'], ['GROUP_ID' => $target['workgroupId']], false, false, ['USER_ID', 'ROLE']);
             while ($row = $result->Fetch()) {
@@ -240,16 +261,21 @@ final class AccessAdminService
         if ($target['kind'] === 'page') {
             return ['role' => $page['canEdit'] ? 'EDITOR' : ($page['canView'] ? 'VIEWER' : 'NONE'),
                 'diskRole' => $page['canDiskEdit'] ? 'EDITOR' : ($page['canDiskView'] ? 'VIEWER' : 'NONE'),
-                'source' => $source . '; также учитываются правила страницы и её родителей'];
+                'source' => PageAccessService::isPageDenied($target['siteId'], $target['pageId'], $userId)
+                    ? 'Явный запрет страницы или её родителя (включая Диск)'
+                    : $source . '; также учитываются правила страницы и её родителей'];
         }
         $context = new DiskContext($target['siteId'], $target['pageId'], $target['blockId'], $userId);
         $permissions = DiskPermissionService::resolve($context, $target['settings'], $target['folderId'], $target['rootFolderId']);
-        return ['role' => !$permissions['canView'] ? 'NONE' : ($permissions['canDelete'] || $permissions['canUpload'] ? 'EDITOR' : 'VIEWER'),
+        $nativeRoles = ['disk_access_full' => 'FULL', 'disk_access_edit' => 'EDITOR', 'disk_access_add' => 'ADD', 'disk_access_read' => 'VIEWER'];
+        $effectiveRole = $nativeRoles[$permissions['effectiveTaskName'] ?? ''] ?? ($permissions['canDelete'] || $permissions['canUpload'] ? 'EDITOR' : 'VIEWER');
+        return ['role' => !$permissions['canView'] ? 'NONE' : $effectiveRole,
             'source' => !empty($permissions['folderRuleId'])
                 ? 'Правило папки #' . $permissions['folderRuleId']
                 : (($permissions['accessSource'] ?? '') === 'bitrix_disk_acl' ? 'Штатный ACL Битрикс.Диска' : $source),
             'permissions' => $permissions,
-            'warning' => !$page['canView'] ? 'Не может открыть страницу с диском. Выдайте просмотр страницы отдельно.' : ''];
+            'warning' => !$page['canView'] ? 'Не может открыть страницу с диском. Проверьте запрет и право просмотра страницы.'
+                : (!$page['canDiskView'] ? 'Нет права на Диск страницы: одного назначения папки недостаточно.' : '')];
     }
 
     public static function view(array $input, int $actor): array
@@ -273,11 +299,13 @@ final class AccessAdminService
         }
         $note = 'Снятие прямого назначения возвращает наследование. Членство в группах Битрикса не изменяется.';
         if ($target['kind'] === 'page') {
-            $note .= ' Разрешения страницы добавляются к роли сайта; «Наследовать» не является запретом. Флаг «Дочерние» относится и к странице, и к её диску.';
+            $note .= ' Разрешения добавляются к роли сайта. «Нет доступа» закрывает страницу и её Диск; администраторы сохраняют доступ. Ближайшее явное правило страницы определяет запрет. Флаг «Дочерние» относится и к странице, и к её диску.';
+            if (empty($target['pageDenyAvailable'])) { $note .= ' Для нового запрета примените миграцию 20261014_011_page_access_deny.sql. Остальные права работают без неё.'; }
         } elseif ($target['mode'] === 'inherit_site') {
             $note = 'Диск наследует доступ. Меняйте роль сайта или «Диск страницы» в правах страницы. Индивидуальный режим включается в настройках блока; здесь режим не переключается.';
         } elseif ($target['mode'] === 'bitrix_disk') {
-            $note = 'Точные права Битрикс.Диска: в этом этапе здесь только просмотр итогового доступа. Запись штатного ACL остаётся в существующих настройках блока.';
+            $note = 'Штатные права Битрикс.Диска. Меняются только выбранные пользователи; группы и остальные назначения сохраняются. Изменение физической папки действует во всех местах её использования, в том числе вне Sitebuilder. Для проверки сотрудника с доступом через группу добавьте его поиском.';
+            if (!$target['editable']) { $note .= ' Изменять штатные права здесь может только администратор Битрикс.'; }
         } elseif ($target['mode'] === 'custom') {
             $note .= ' Правило действует на вложенные папки до более близкого правила. Администраторы сайта сохраняют доступ. Сначала нужен доступ к диску страницы.';
         }
@@ -290,7 +318,8 @@ final class AccessAdminService
         if (!$changes || count($changes) > self::BATCH_SIZE) { throw new AccessAdminException('CHANGE_BATCH_LIMIT'); }
         $result = [];
         $allowed = $target['kind'] === 'site' ? ['INHERIT', 'VIEWER', 'EDITOR', 'ADMIN', 'OWNER']
-            : ($target['kind'] === 'page' ? ['INHERIT', 'VIEWER', 'EDITOR'] : ['INHERIT', 'DENY', 'VIEWER', 'EDITOR']);
+            : ($target['kind'] === 'page' ? ['INHERIT', 'VIEWER', 'EDITOR', ...(empty($target['pageDenyAvailable']) ? [] : ['DENY'])]
+                : (($target['mode'] ?? '') === 'bitrix_disk' ? ['INHERIT', 'DENY', 'VIEWER', 'ADD', 'EDITOR', 'FULL'] : ['INHERIT', 'DENY', 'VIEWER', 'EDITOR']));
         foreach ($changes as $index => $change) {
             if (!is_array($change)) { throw new AccessAdminException('INVALID_CHANGE_USER', ['row' => $index + 1]); }
             $id = $change['userId'] ?? 0;
@@ -310,7 +339,7 @@ final class AccessAdminService
                 if (!in_array($diskRole, ['INHERIT', 'VIEWER', 'EDITOR'], true) || !is_bool($children)) {
                     throw new AccessAdminException('INVALID_PAGE_CHANGE', $error);
                 }
-                $record += ['can_view' => $role !== 'INHERIT', 'can_edit' => $role === 'EDITOR',
+                $record += ['deny_view' => $role === 'DENY', 'can_view' => in_array($role, ['VIEWER', 'EDITOR'], true), 'can_edit' => $role === 'EDITOR',
                     'can_disk_view' => $diskRole !== 'INHERIT', 'can_disk_edit' => $diskRole === 'EDITOR',
                     'include_children' => $children];
             }
@@ -326,7 +355,7 @@ final class AccessAdminService
             ':rows' => json_encode(array_values($changes), JSON_THROW_ON_ERROR)];
         $input = 'WITH input AS (SELECT * FROM jsonb_to_recordset(CAST(:rows AS jsonb)) AS x(
             id integer,access_code text,role text,remove boolean,can_view boolean,can_edit boolean,
-            can_disk_view boolean,can_disk_edit boolean,include_children boolean)) ';
+            can_disk_view boolean,can_disk_edit boolean,include_children boolean,deny_view boolean)) ';
         if ($target['kind'] === 'site') {
             $table = 'sitebuilder.access'; $where = 't.site_id=:site';
             $sql = "INSERT INTO $table AS t (site_id,access_code,role,created_by,updated_by,created_at,updated_at)
@@ -336,12 +365,17 @@ final class AccessAdminService
         } elseif ($target['kind'] === 'page') {
             $table = 'sitebuilder.page_access'; $where = 't.site_id=:site AND t.page_id=:page';
             $params[':page'] = $target['pageId'];
-            $sql = "INSERT INTO $table AS t (site_id,page_id,access_code,can_view,can_edit,can_disk_view,can_disk_edit,include_children,created_by,created_at,updated_at)
-                SELECT :site,:page,access_code,can_view,can_edit,can_disk_view,can_disk_edit,include_children,:actor,NOW(),NOW() FROM input WHERE NOT remove
+            $deny = !empty($target['pageDenyAvailable']);
+            $denyColumn = $deny ? ',deny_view' : '';
+            $denyUpdate = $deny ? ',deny_view=EXCLUDED.deny_view' : '';
+            $denyOld = $deny ? ',t.deny_view' : '';
+            $denyNew = $deny ? ',EXCLUDED.deny_view' : '';
+            $sql = "INSERT INTO $table AS t (site_id,page_id,access_code,can_view,can_edit,can_disk_view,can_disk_edit,include_children$denyColumn,created_by,created_at,updated_at)
+                SELECT :site,:page,access_code,can_view,can_edit,can_disk_view,can_disk_edit,include_children$denyColumn,:actor,NOW(),NOW() FROM input WHERE NOT remove
                 ON CONFLICT (site_id,page_id,access_code) DO UPDATE SET can_view=EXCLUDED.can_view,can_edit=EXCLUDED.can_edit,
-                can_disk_view=EXCLUDED.can_disk_view,can_disk_edit=EXCLUDED.can_disk_edit,include_children=EXCLUDED.include_children,updated_at=NOW()
-                WHERE (t.can_view,t.can_edit,t.can_disk_view,t.can_disk_edit,t.include_children) IS DISTINCT FROM
-                (EXCLUDED.can_view,EXCLUDED.can_edit,EXCLUDED.can_disk_view,EXCLUDED.can_disk_edit,EXCLUDED.include_children)";
+                can_disk_view=EXCLUDED.can_disk_view,can_disk_edit=EXCLUDED.can_disk_edit,include_children=EXCLUDED.include_children$denyUpdate,updated_at=NOW()
+                WHERE (t.can_view,t.can_edit,t.can_disk_view,t.can_disk_edit,t.include_children$denyOld) IS DISTINCT FROM
+                (EXCLUDED.can_view,EXCLUDED.can_edit,EXCLUDED.can_disk_view,EXCLUDED.can_disk_edit,EXCLUDED.include_children$denyNew)";
         } else {
             $table = 'sitebuilder.disk_folder_access'; $where = 't.site_id=:site AND t.block_id=:block AND t.folder_id=:folder';
             $params[':block'] = $target['blockId']; $params[':folder'] = $target['folderId'];
@@ -366,6 +400,7 @@ final class AccessAdminService
         }
         $target = self::target($input, $actor);
         if (!$target['editable']) { throw new AccessAdminException('MODE_READ_ONLY'); }
+        if ($target['mode'] === 'bitrix_disk') { return AccessNativeDiskService::apply($input, $actor, $target); }
         $hash = hash('sha256', json_encode([$actor, $input], JSON_THROW_ON_ERROR));
         $pdo = sb_db();
         $started = sb_db_transaction_scope_begin();
@@ -409,6 +444,7 @@ final class AccessAdminService
                 if ($hadOwner && !$owners) { throw new AccessAdminException('LAST_OWNER_PROTECTED'); }
             }
             self::writeRows($target, $changes, $actor);
+            PageAccessPolicy::resetCache();
             $newDirect = self::direct($target);
             $receipt = ['saved' => count($changes), 'userIds' => array_keys($changes),
                 'revision' => self::revision($target, $newDirect), 'requestId' => $requestId];

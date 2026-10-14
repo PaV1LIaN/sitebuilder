@@ -4,6 +4,7 @@ require_once __DIR__ . '/AccessUserIdentity.php';
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/PageAccessRepository.php';
+require_once __DIR__ . '/PageAccessPolicy.php';
 
 class PageAccessService
 {
@@ -30,6 +31,10 @@ class PageAccessService
 
         if (self::isBitrixAdmin($userId)) {
             return true;
+        }
+
+        if (self::isPageDenied($siteId, $pageId, $userId)) {
+            return false;
         }
 
         if (
@@ -78,6 +83,10 @@ class PageAccessService
             return true;
         }
 
+        if (self::isPageDenied($siteId, $pageId, $userId)) {
+            return false;
+        }
+
         if (
             self::hasGlobalSiteAccess(
                 $siteId,
@@ -124,6 +133,10 @@ class PageAccessService
             return true;
         }
 
+        if (self::isPageDenied($siteId, $pageId, $userId)) {
+            return false;
+        }
+
         if (
             self::hasGlobalSiteAccess(
                 $siteId,
@@ -168,6 +181,10 @@ class PageAccessService
 
         if (self::isBitrixAdmin($userId)) {
             return true;
+        }
+
+        if (self::isPageDenied($siteId, $pageId, $userId)) {
+            return false;
         }
 
         if (
@@ -451,6 +468,16 @@ class PageAccessService
             );
 
         return $cache[$key];
+    }
+
+    /** A page denial never removes a protected administrative role. */
+    public static function isPageDenied(int $siteId, int $pageId, int $userId): bool
+    {
+        if ($siteId <= 0 || $pageId <= 0 || $userId <= 0
+            || self::isBitrixAdmin($userId) || self::getGlobalSiteRole($siteId, $userId) >= 3) {
+            return false;
+        }
+        return !empty(PageAccessPolicy::restriction($siteId, $pageId, $userId)['denied']);
     }
 
     private static function normalizeRoleRank(

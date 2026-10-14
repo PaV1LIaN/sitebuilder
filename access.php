@@ -65,6 +65,6 @@ $esc = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_SUB
 <script id="sba-config" type="application/json"><?= json_encode([
     'basePath' => $basePath, 'sessid' => bitrix_sessid(), 'siteId' => (int)($_GET['siteId'] ?? 0),
 ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>
-<script src="<?= $esc($basePath) ?>/assets/admin/access.js?v=1" defer></script>
+<script src="<?= $esc($basePath) ?>/assets/admin/access.js?v=2" defer></script>
 </body>
 </html>
