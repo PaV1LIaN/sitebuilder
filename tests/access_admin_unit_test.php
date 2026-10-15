@@ -26,6 +26,7 @@ namespace {
     function sitebuilder_auth_config(): array { return ['guest_user_id' => 665, 'admin_user_ids' => [40]]; }
     require __DIR__ . '/../lib/AccessUserResolver.php';
     require __DIR__ . '/../lib/AccessAdminService.php';
+    require_once __DIR__ . '/../lib/MigrationService.php';
     $checks = 0;
     function eq($expected, $actual, string $label): void {
         global $checks; ++$checks;
@@ -79,5 +80,17 @@ namespace {
     eq(AccessAdminService::revision($page, $a), AccessAdminService::revision($page, $b), 'Stable revision independent of row order');
     $b['U12']['role'] = 'EDITOR';
     eq(false, AccessAdminService::revision($page, $a) === AccessAdminService::revision($page, $b), 'Revision catches changes');
+    // A copied production schema may already use stage 22 for a legacy unified-access migration.
+    // Our additional page denial must not reuse that unique stage number.
+    $manifest = MigrationService::manifest();
+    $stages = array_column($manifest, 'stage');
+    eq(count($stages), count(array_unique($stages)), 'Migration stages remain unique in the manifest');
+    $denyMigrations = array_values(array_filter(
+        $manifest,
+        static fn(array $entry): bool => $entry['key'] === '20261014_011_page_access_deny'
+    ));
+    eq(1, count($denyMigrations), 'Deny migration registered once');
+    eq(23, $denyMigrations[0]['stage'], 'Deny migration avoids legacy stage 22');
+
     echo "Access admin unit checks passed ($checks checks)\n";
 }
