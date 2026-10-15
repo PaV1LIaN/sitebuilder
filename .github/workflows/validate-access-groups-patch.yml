@@ -1,0 +1,92 @@
+name: Validate access groups patch in isolated PostgreSQL
+on:
+  push:
+    branches: [feature/access-groups-stage3]
+    paths: ['.github/staging/access-groups/**', '.github/workflows/validate-access-groups-patch.yml']
+permissions:
+  contents: write
+jobs:
+  validate:
+    if: github.repository == 'PaV1LIaN/sitebuilder' && github.ref == 'refs/heads/feature/access-groups-stage3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: sitebuilder_access_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      SB_TEST_PG_DSN: 'pgsql:host=127.0.0.1;port=5432;dbname=sitebuilder_access_test'
+      SB_TEST_PG_USER: postgres
+      SB_TEST_PG_PASSWORD: postgres
+      SB_ACCESS_TEST_ALLOW_RESET: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_pgsql
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply reviewed patch to the unchanged baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code 974717a1da1abe30c47010e599f654ebdff848f1 HEAD -- . ':!.github/staging/access-groups/**' ':!.github/workflows/validate-access-groups-patch.yml'
+          cat .github/staging/access-groups/patch.b64.1 .github/staging/access-groups/patch.b64.2 .github/staging/access-groups/patch.b64.3 | base64 --decode | xz --decompress > /tmp/access-groups.patch
+          echo 'dd2f425e7b261eba85b6a4bfa84785257e4ee25161929c597f2bc7649fdc3358  /tmp/access-groups.patch' | sha256sum --check
+          git apply --check /tmp/access-groups.patch
+          git apply /tmp/access-groups.patch
+          shopt -s nullglob
+          for patch in .github/staging/access-groups/*.fix.patch; do git apply --check "$patch"; git apply "$patch"; done
+          git diff --check
+          git diff --exit-code -- config/auth.php config/auth.local.php lib/db.php router.php public.php
+      - name: Syntax and regression including real PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l > /tmp/access-groups-lint.log
+          node --check assets/admin/groups.js
+          node --check assets/admin/access.js
+          node --check components/disk/script.js
+          result=0
+          for test in access_admin_unit access_subject_identity page_access_policy access_native_disk bitrix_disk_gate disk_delete_action disk_download_action disk_permission_admin sitebuilder_admin_config sitebuilder_deploy_readonly disk_user_search access_admin_pg access_native_journal_pg access_migration_registry_pg access_groups_pg; do
+            echo "=== $test ===" | tee -a /tmp/access-groups-tests.log
+            php "tests/${test}_test.php" 2>&1 | tee -a /tmp/access-groups-tests.log || result=1
+          done
+          exit "$result"
+      - name: Commit validated implementation on feature branch only
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          current=$(git ls-remote --heads origin refs/heads/feature/access-groups-stage3 | cut -f1)
+          test "$current" = "$EXPECTED_SHA"
+          rm -rf .github/staging/access-groups
+          rm .github/workflows/validate-access-groups-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Implement local access groups, scoped page and Disk capabilities and AdminLTE-inspired group administration'
+          git push origin HEAD:refs/heads/feature/access-groups-stage3
+          git rev-parse HEAD | tee -a /tmp/access-groups-tests.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: access-groups-validation
+          path: |
+            /tmp/access-groups-lint.log
+            /tmp/access-groups-tests.log
+          if-no-files-found: warn
+          retention-days: 30
