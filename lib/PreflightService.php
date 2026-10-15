@@ -203,6 +203,30 @@ final class PreflightService
             $drift = (int)($status['driftCount'] ?? 0);
             $invalid = (int)($status['invalidCount'] ?? 0);
             $pending = (int)($status['pendingCount'] ?? 0);
+            $conflicts = (int)($status['conflictCount'] ?? 0);
+            $unrecognized = (array)($status['unrecognizedApplied'] ?? []);
+
+            if ($conflicts > 0) {
+                self::add(
+                    $checks,
+                    'database.migrations.stage_conflicts',
+                    'error',
+                    'Конфликт номеров миграций',
+                    'Номера новых миграций уже заняты в реестре: ' . $conflicts . '. Обновите манифест, не удаляя старые записи.',
+                    ['conflictCount' => $conflicts]
+                );
+            }
+
+            if ($unrecognized !== []) {
+                self::add(
+                    $checks,
+                    'database.migrations.unrecognized',
+                    'warning',
+                    'Исторические миграции вне этой сборки',
+                    'В базе есть зарегистрированные миграции, отсутствующие в манифесте кода: ' . count($unrecognized) . '. Проверьте сохранность их функций перед полной заменой файлов.',
+                    ['migrations' => $unrecognized]
+                );
+            }
 
             self::add(
                 $checks,

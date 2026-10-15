@@ -61,7 +61,7 @@ function sbDeploymentEscape(string $value): string
 
 function sbDeploymentStateClass(string $state): string
 {
-    return in_array($state, ['applied', 'pending', 'drift', 'missing'], true) ? $state : 'pending';
+    return in_array($state, ['applied', 'pending', 'drift', 'missing', 'conflict'], true) ? $state : 'pending';
 }
 ?>
 <!doctype html>
@@ -73,7 +73,7 @@ function sbDeploymentStateClass(string $state): string
     <?php $APPLICATION->ShowHead(); ?>
     <link rel="stylesheet" href="<?= sbDeploymentEscape($basePath) ?>/assets/admin/admin.css">
     <style>
-        .deploy-summary{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:18px}.deploy-card{padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}.deploy-value{font-size:28px;font-weight:800;margin-top:6px}.deploy-table{width:100%;border-collapse:collapse}.deploy-table th,.deploy-table td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top}.state{display:inline-flex;padding:4px 9px;border-radius:999px;font-weight:800;font-size:12px}.state.applied,.state.succeeded{background:#dcfce7;color:#166534}.state.pending,.state.partial,.state.running{background:#fef3c7;color:#92400e}.state.drift,.state.missing,.state.failed{background:#fee2e2;color:#991b1b}.deploy-message{padding:13px 15px;border-radius:10px;margin-bottom:14px}.deploy-message.ok{background:#f0fdf4;color:#166534}.deploy-message.error{background:#fef2f2;color:#991b1b}.deploy-actions{display:flex;gap:10px;flex-wrap:wrap}.checksum{font-family:monospace;font-size:11px;word-break:break-all;color:#6b7280}@media(max-width:800px){.deploy-summary{grid-template-columns:repeat(2,1fr)}}
+        .deploy-summary{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:18px}.deploy-card{padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}.deploy-value{font-size:28px;font-weight:800;margin-top:6px}.deploy-table{width:100%;border-collapse:collapse}.deploy-table th,.deploy-table td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top}.state{display:inline-flex;padding:4px 9px;border-radius:999px;font-weight:800;font-size:12px}.state.applied,.state.succeeded{background:#dcfce7;color:#166534}.state.pending,.state.partial,.state.running{background:#fef3c7;color:#92400e}.state.drift,.state.missing,.state.failed,.state.conflict{background:#fee2e2;color:#991b1b}.deploy-message{padding:13px 15px;border-radius:10px;margin-bottom:14px}.deploy-message.ok{background:#f0fdf4;color:#166534}.deploy-message.error{background:#fef2f2;color:#991b1b}.deploy-actions{display:flex;gap:10px;flex-wrap:wrap}.checksum{font-family:monospace;font-size:11px;word-break:break-all;color:#6b7280}@media(max-width:800px){.deploy-summary{grid-template-columns:repeat(2,1fr)}}
     </style>
 </head>
 <body class="sb-admin-body">
@@ -95,15 +95,25 @@ function sbDeploymentStateClass(string $state): string
     <section class="deploy-summary">
         <div class="deploy-card">Реестр<div class="deploy-value"><?= !empty($migrationStatus['registryReady']) ? 'OK' : '—' ?></div></div>
         <div class="deploy-card">Ожидают<div class="deploy-value"><?= (int)($migrationStatus['pendingCount'] ?? 0) ?></div></div>
-        <div class="deploy-card">Drift / файлы<div class="deploy-value"><?= (int)($migrationStatus['driftCount'] ?? 0) + (int)($migrationStatus['invalidCount'] ?? 0) ?></div></div>
+        <div class="deploy-card">Drift / файлы<div class="deploy-value"><?= (int)($migrationStatus['driftCount'] ?? 0) + (int)($migrationStatus['invalidCount'] ?? 0) + (int)($migrationStatus['conflictCount'] ?? 0) ?></div></div>
         <div class="deploy-card">Схема<div class="deploy-value"><?= !empty($migrationStatus['ready']) ? 'Готова' : 'Не готова' ?></div></div>
     </section>
+
+    <?php if (!empty($migrationStatus['unrecognizedApplied'])): ?>
+        <section class="sb-panel">
+            <h2 class="sb-panel-title">Исторические миграции вне текущей сборки</h2>
+            <p class="sb-subtitle">Они сохранены в PostgreSQL, но их нет в манифесте этого кода. Это не повод удалять таблицы. Перед полной заменой файлов проверьте, что функции старой версии (например, списки) присутствуют в новой.</p>
+            <?php foreach ((array)$migrationStatus['unrecognizedApplied'] as $legacy): ?>
+                <p class="sb-subtitle">№<?= (int)$legacy['stage'] ?>: <?= sbDeploymentEscape((string)$legacy['filename']) ?></p>
+            <?php endforeach; ?>
+        </section>
+    <?php endif; ?>
 
     <section class="sb-panel">
         <h2 class="sb-panel-title">Действия</h2>
         <div class="deploy-actions">
             <form method="post"><?= bitrix_sessid_post() ?><input type="hidden" name="action" value="bootstrap"><button class="sb-btn sb-btn-light" type="submit">Синхронизировать реестр</button></form>
-            <form method="post"><?= bitrix_sessid_post() ?><input type="hidden" name="action" value="migrate"><button class="sb-btn sb-btn-primary" type="submit" <?= empty($migrationStatus['registryReady']) ? 'disabled' : '' ?>>Применить ожидающие миграции</button></form>
+            <form method="post"><?= bitrix_sessid_post() ?><input type="hidden" name="action" value="migrate"><button class="sb-btn sb-btn-primary" type="submit" <?= empty($migrationStatus['registryReady']) || !empty($migrationStatus['conflictCount']) ? 'disabled' : '' ?>>Применить ожидающие миграции</button></form>
             <form method="post"><?= bitrix_sessid_post() ?><input type="hidden" name="action" value="preflight"><button class="sb-btn sb-btn-light" type="submit">Запустить preflight</button></form>
         </div>
         <?php if (is_array($operationResult)): ?>
@@ -122,7 +132,7 @@ function sbDeploymentStateClass(string $state): string
                     <tr>
                         <td><?= (int)$item['stage'] ?></td>
                         <td><strong><?= sbDeploymentEscape((string)$item['title']) ?></strong><br><span class="sb-subtitle"><?= sbDeploymentEscape((string)$item['filename']) ?></span></td>
-                        <td><span class="state <?= sbDeploymentStateClass((string)$item['state']) ?>"><?= sbDeploymentEscape((string)$item['state']) ?></span></td>
+                        <td><span class="state <?= sbDeploymentStateClass((string)$item['state']) ?>"><?= sbDeploymentEscape((string)$item['state']) ?></span><?php if (!empty($item['conflictWithKey'])): ?><div class="sb-subtitle">Занят: <?= sbDeploymentEscape((string)$item['conflictWithKey']) ?></div><?php endif; ?></td>
                         <td><?= sbDeploymentEscape((string)($applied['source'] ?? '—')) ?><br><span class="sb-subtitle"><?= sbDeploymentEscape((string)($applied['applied_at'] ?? '')) ?></span></td>
                         <td><div class="checksum"><?= sbDeploymentEscape((string)$item['checksum']) ?></div></td>
                     </tr>

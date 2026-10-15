@@ -47,4 +47,6 @@ jobs:
           SB_TEST_PG_USER: postgres
           SB_TEST_PG_PASSWORD: postgres
           SB_ACCESS_TEST_ALLOW_RESET: '1'
-        run: php tests/access_admin_pg_test.php
+        run: |
+          php tests/access_admin_pg_test.php
+          php tests/access_migration_registry_pg_test.php

@@ -184,7 +184,7 @@ final class MigrationService
             ],
             [
                 'key' => '20261014_011_page_access_deny',
-                'stage' => 23,
+                'stage' => 24,
                 'title' => 'Явный запрет страницы и её Диска',
                 'file' => $root . '/migrations/20261014_011_page_access_deny.sql',
                 'fingerprint' => ['columns' => ['sitebuilder.page_access.deny_view']],
@@ -220,8 +220,15 @@ final class MigrationService
         $pending = 0;
         $drift = 0;
         $invalid = 0;
+        $conflicts = 0;
+        $manifestKeys = [];
+        $stageOwners = [];
+        foreach ($applied as $existingKey => $existingRow) {
+            $stageOwners[(int)$existingRow['stage_number']] = (string)$existingKey;
+        }
 
         foreach (self::manifest() as $entry) {
+            $manifestKeys[(string)$entry['key']] = true;
             $checksum = '';
             $fileError = '';
             try {
@@ -239,7 +246,15 @@ final class MigrationService
                 $state = hash_equals((string)$row['checksum'], $checksum) ? 'applied' : 'drift';
             }
 
-            if ($state === 'pending') {
+            $conflictWith = '';
+            if ($state === 'pending' && isset($stageOwners[(int)$entry['stage']])
+                && $stageOwners[(int)$entry['stage']] !== (string)$entry['key']) {
+                $conflictWith = $stageOwners[(int)$entry['stage']];
+                $state = 'conflict';
+                $conflicts++;
+            }
+
+            if ($state === 'pending' || $state === 'conflict') {
                 $pending++;
             } elseif ($state === 'drift') {
                 $drift++;
@@ -256,7 +271,22 @@ final class MigrationService
                 'state' => $state,
                 'fileError' => $fileError,
                 'fingerprintPassed' => self::fingerprintPassed($entry),
+                'conflictWithKey' => $conflictWith,
                 'applied' => $row,
+            ];
+        }
+
+        // Applied migrations absent from this code release are historical data.
+        // Never silently delete or reinterpret their registry records.
+        $unrecognized = [];
+        foreach ($applied as $existingKey => $existingRow) {
+            if (isset($manifestKeys[$existingKey])) {
+                continue;
+            }
+            $unrecognized[] = [
+                'stage' => (int)$existingRow['stage_number'],
+                'key' => (string)$existingKey,
+                'filename' => (string)$existingRow['filename'],
             ];
         }
 
@@ -265,7 +295,10 @@ final class MigrationService
             'pendingCount' => $pending,
             'driftCount' => $drift,
             'invalidCount' => $invalid,
-            'ready' => $registryReady && $pending === 0 && $drift === 0 && $invalid === 0,
+            'conflictCount' => $conflicts,
+            'unrecognizedApplied' => $unrecognized,
+            'unrecognizedCount' => count($unrecognized),
+            'ready' => $registryReady && $pending === 0 && $drift === 0 && $invalid === 0 && $conflicts === 0,
             'items' => $items,
         ];
     }
@@ -477,6 +510,21 @@ final class MigrationService
         if ($existing) {
             self::assertChecksum($entry, $existing);
             return ['executionMs' => 0, 'skipped' => true];
+        }
+
+        // Detect collisions BEFORE changing the target schema. Imported databases may
+        // have valid historical migrations not present in this release's manifest.
+        $occupant = sb_db_fetch_one(
+            'SELECT migration_key FROM sitebuilder.schema_migration
+             WHERE stage_number=:stage AND migration_key<>:key LIMIT 1',
+            [':stage' => (int)$entry['stage'], ':key' => (string)$entry['key']]
+        );
+        if ($occupant !== null) {
+            throw new SiteBuilderMigrationException('MIGRATION_STAGE_CONFLICT', [
+                'migrationKey' => (string)$entry['key'],
+                'stageNumber' => (int)$entry['stage'],
+                'existingMigrationKey' => (string)$occupant['migration_key'],
+            ]);
         }
 
         $sql = self::readMigrationSql($entry);
