@@ -7,6 +7,16 @@ use Bitrix\Disk\Folder;
 use Bitrix\Disk\Security\DiskSecurityContext;
 use Bitrix\Main\Application;
 
+require_once __DIR__ . '/DiskRightsLock.php';
+
+class DiskRightsBatchException extends RuntimeException
+{
+    public function __construct(public string $phase, public array $userIds, Throwable $previous)
+    {
+        parent::__construct('DISK_RIGHTS_BATCH_FAILED', 0, $previous);
+    }
+}
+
 class DiskRightsVersionConflictException extends RuntimeException
 {
     private string $currentRevision;
@@ -191,6 +201,108 @@ class BitrixDiskRightsService
             }
 
             return self::getAccessMatrix($context, $folderId);
+        } finally {
+            self::releaseLock($lock);
+        }
+    }
+
+    /** Exact direct ACL, including non-user/group/custom records in the revision. */
+    public static function getDirectSnapshot(int $folderId): array
+    {
+        $folder = self::loadFolder($folderId);
+        if ((int)$folder->getId() !== $folderId) {
+            throw new RuntimeException('LINKED_FOLDER_NOT_SUPPORTED');
+        }
+        $manager = Driver::getInstance()->getRightsManager();
+        $rights = self::specificRights($manager, $folder);
+        return [
+            'folderId' => $folderId,
+            'specificRights' => $rights,
+            'byAccessCode' => self::groupRightsByAccessCode($rights),
+            'taskDefinitions' => self::taskDefinitions($manager),
+            'rightsRevision' => self::revision($folderId, [], $rights),
+        ];
+    }
+
+    /** Pure patch planner. It never replaces the ACL of unselected users or groups. */
+    public static function planSelectedRights(array $requested, array $snapshot): array
+    {
+        if (!$requested || count($requested) > self::MAX_USERS) {
+            throw new RuntimeException('TOO_MANY_DISK_RIGHTS');
+        }
+        $tasks = $snapshot['taskDefinitions'];
+        $byCode = $snapshot['byAccessCode'];
+        $selected = []; $changed = []; $append = [];
+        foreach ($requested as $index => $row) {
+            $id = is_array($row) ? ($row['userId'] ?? null) : null;
+            $task = is_array($row) ? ($row['taskName'] ?? null) : null;
+            if (!is_int($id) || $id <= 0 || $id > 2147483647 || isset($selected[$id])
+                || !is_string($task) || !in_array($task, [self::INHERIT, self::NONE], true) && !isset($tasks[$task])) {
+                throw new InvalidArgumentException('INVALID_DISK_RIGHT_ROW');
+            }
+            $selected[$id] = true;
+            $code = 'U' . $id;
+            $right = self::rightForTask($code, $task, $tasks);
+            $desired = $right === null ? [] : [$right];
+            if (($byCode[$code] ?? []) === $desired) { continue; }
+            $changed[] = $code;
+            unset($byCode[$code]);
+            if ($right !== null) { $byCode[$code] = [$right]; $append[] = $right; }
+        }
+        $after = [];
+        foreach ($byCode as $rows) { array_push($after, ...$rows); }
+        usort($after, static fn(array $a, array $b): int =>
+            [$a['ACCESS_CODE'], $a['TASK_ID'], (int)$a['NEGATIVE']] <=> [$b['ACCESS_CODE'], $b['TASK_ID'], (int)$b['NEGATIVE']]
+        );
+        return ['changedCodes' => $changed, 'append' => $append, 'afterRights' => $after,
+            'afterRevision' => self::revision((int)$snapshot['folderId'], [], $after)];
+    }
+
+    /** Native transaction is mandatory. Cross-database audit/recovery is handled by AccessNativeDiskService. */
+    public static function saveSelectedRights(int $folderId, array $requested, string $expectedRevision): array
+    {
+        $lock = self::acquireLock($folderId);
+        $connection = null; $started = false; $phase = 'prepare';
+        try {
+            $snapshot = self::getDirectSnapshot($folderId);
+            if (!hash_equals($snapshot['rightsRevision'], $expectedRevision)) {
+                throw new DiskRightsVersionConflictException($snapshot['rightsRevision']);
+            }
+            $plan = self::planSelectedRights($requested, $snapshot);
+            if (!$plan['changedCodes']) { return $snapshot; }
+            $folder = self::loadFolder($folderId);
+            $manager = Driver::getInstance()->getRightsManager();
+            $connection = Application::getConnection();
+            foreach (['startTransaction', 'commitTransaction', 'rollbackTransaction'] as $method) {
+                if (!is_callable([$connection, $method])) { throw new RuntimeException('DISK_TRANSACTION_UNAVAILABLE'); }
+            }
+            $connection->startTransaction(); $started = true;
+            // Recheck after starting the native transaction, before touching any assignment.
+            if (!hash_equals(self::getDirectSnapshot($folderId)['rightsRevision'], $expectedRevision)) {
+                throw new DiskRightsVersionConflictException(self::getDirectSnapshot($folderId)['rightsRevision']);
+            }
+            $phase = 'revoke';
+            self::assertManagerResult($manager->revokeByAccessCodes($folder, $plan['changedCodes']), 'DISK_RIGHTS_REVOKE_FAILED');
+            $phase = 'append';
+            if ($plan['append']) {
+                self::assertManagerResult($manager->append($folder, $plan['append']), 'DISK_RIGHTS_APPEND_FAILED');
+            }
+            $phase = 'verify';
+            $after = self::getDirectSnapshot($folderId);
+            if (!hash_equals($plan['afterRevision'], $after['rightsRevision'])) {
+                throw new RuntimeException('DISK_RIGHTS_VERIFY_FAILED');
+            }
+            $phase = 'commit';
+            $connection->commitTransaction(); $started = false;
+            return $after;
+        } catch (Throwable $error) {
+            if ($started && $connection !== null) {
+                try { $connection->rollbackTransaction(); }
+                catch (Throwable $rollback) { error_log('Sitebuilder native ACL rollback: ' . $rollback->getMessage()); }
+            }
+            if ($error instanceof DiskRightsVersionConflictException) { throw $error; }
+            // A lost commit acknowledgement is not reported as a guaranteed rollback.
+            throw new DiskRightsBatchException($phase, array_column($requested, 'userId'), $error);
         } finally {
             self::releaseLock($lock);
         }
@@ -636,33 +748,14 @@ class BitrixDiskRightsService
         }
     }
 
-    private static function acquireLock(int $folderId)
+    private static function acquireLock(int $folderId): array
     {
-        $path = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
-            . DIRECTORY_SEPARATOR
-            . 'sitebuilder_disk_rights_'
-            . $folderId
-            . '.lock';
-        $handle = @fopen($path, 'c');
-
-        if (!is_resource($handle) || !flock($handle, LOCK_EX)) {
-            if (is_resource($handle)) {
-                fclose($handle);
-            }
-            throw new RuntimeException('DISK_RIGHTS_LOCK_FAILED');
-        }
-
-        return $handle;
+        return DiskRightsLock::acquire($folderId);
     }
 
-    private static function releaseLock($handle): void
+    private static function releaseLock(array $handle): void
     {
-        if (!is_resource($handle)) {
-            return;
-        }
-
-        @flock($handle, LOCK_UN);
-        @fclose($handle);
+        DiskRightsLock::release($handle);
     }
 
     private static function boolValue($value): bool

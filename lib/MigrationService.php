@@ -182,6 +182,13 @@ final class MigrationService
                     ],
                 ],
             ],
+            [
+                'key' => '20261014_011_page_access_deny',
+                'stage' => 22,
+                'title' => 'Явный запрет страницы и её Диска',
+                'file' => $root . '/migrations/20261014_011_page_access_deny.sql',
+                'fingerprint' => ['columns' => ['sitebuilder.page_access.deny_view']],
+            ],
         ];
     }
 

@@ -224,6 +224,10 @@ if (!function_exists('sb_page_handler_filter_visible_pages')) {
         int $siteId,
         int $userId
     ): array {
+        $pages = array_values(array_filter($pages, static function (array $page) use ($siteId, $userId): bool {
+            return !PageAccessService::isPageDenied($siteId, (int)($page['id'] ?? 0), $userId);
+        }));
+
         $hasGlobalView = sb_page_handler_has_global_view(
             $siteId,
             $userId

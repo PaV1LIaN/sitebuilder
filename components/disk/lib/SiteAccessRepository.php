@@ -1,5 +1,7 @@
 <?php
 
+require_once dirname(__DIR__, 3) . '/lib/AccessUserIdentity.php';
+
 class SiteAccessRepository
 {
     public static function getUserRole(int $siteId, int $userId): ?string
@@ -121,12 +123,12 @@ class SiteAccessRepository
     {
         $codes = ['U' . $userId];
 
-        if (DiskCurrentUser::isAdmin()) {
+        if (AccessUserIdentity::isPortalAdmin($userId)) {
             $codes[] = 'AU';
             $codes[] = 'ADMIN';
         }
 
-        foreach (DiskCurrentUser::getGroupIds() as $groupId) {
+        foreach (AccessUserIdentity::groups($userId) as $groupId) {
             if ($groupId > 0) {
                 $codes[] = 'G' . (int)$groupId;
             }

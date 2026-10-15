@@ -1,7 +1,10 @@
 <?php
 
+require_once __DIR__ . '/AccessUserIdentity.php';
+
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/PageAccessRepository.php';
+require_once __DIR__ . '/PageAccessPolicy.php';
 
 class PageAccessService
 {
@@ -26,8 +29,12 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
+        }
+
+        if (self::isPageDenied($siteId, $pageId, $userId)) {
+            return false;
         }
 
         if (
@@ -72,8 +79,12 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
+        }
+
+        if (self::isPageDenied($siteId, $pageId, $userId)) {
+            return false;
         }
 
         if (
@@ -118,8 +129,12 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
+        }
+
+        if (self::isPageDenied($siteId, $pageId, $userId)) {
+            return false;
         }
 
         if (
@@ -164,8 +179,12 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
+        }
+
+        if (self::isPageDenied($siteId, $pageId, $userId)) {
+            return false;
         }
 
         if (
@@ -205,7 +224,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
         }
 
@@ -319,7 +338,7 @@ class PageAccessService
             return false;
         }
 
-        if (self::isBitrixAdmin()) {
+        if (self::isBitrixAdmin($userId)) {
             return true;
         }
 
@@ -451,6 +470,16 @@ class PageAccessService
         return $cache[$key];
     }
 
+    /** A page denial never removes a protected administrative role. */
+    public static function isPageDenied(int $siteId, int $pageId, int $userId): bool
+    {
+        if ($siteId <= 0 || $pageId <= 0 || $userId <= 0
+            || self::isBitrixAdmin($userId) || self::getGlobalSiteRole($siteId, $userId) >= 3) {
+            return false;
+        }
+        return !empty(PageAccessPolicy::restriction($siteId, $pageId, $userId)['denied']);
+    }
+
     private static function normalizeRoleRank(
         $role
     ): int {
@@ -474,12 +503,8 @@ class PageAccessService
         return $map[$roleString] ?? 0;
     }
 
-    private static function isBitrixAdmin(): bool
+    private static function isBitrixAdmin(int $userId): bool
     {
-        global $USER;
-
-        return is_object($USER)
-            && method_exists($USER, 'IsAdmin')
-            && $USER->IsAdmin();
+        return AccessUserIdentity::isPortalAdmin($userId);
     }
 }
