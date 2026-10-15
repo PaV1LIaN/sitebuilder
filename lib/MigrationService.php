@@ -189,6 +189,13 @@ final class MigrationService
                 'file' => $root . '/migrations/20261014_011_page_access_deny.sql',
                 'fingerprint' => ['columns' => ['sitebuilder.page_access.deny_view']],
             ],
+            [
+                'key' => '20261015_013_access_groups',
+                'stage' => 25,
+                'title' => 'Группы Sitebuilder и независимые права операций Диска',
+                'file' => $root . '/migrations/20261015_013_access_groups.sql',
+                'fingerprint' => ['relations' => ['sitebuilder.access_group', 'sitebuilder.access_group_member', 'sitebuilder.access_group_rule']],
+            ],
         ];
     }
 
@@ -312,7 +319,10 @@ final class MigrationService
     {
         return self::withGlobalLock(function () use ($actorUserId): array {
             $manifest = self::manifest();
-            $registryEntry = end($manifest);
+            $registryEntries = array_values(array_filter($manifest,
+                static fn(array $entry): bool => $entry['key'] === '20260730_008_migration_registry_and_deployment_runs'));
+            if (count($registryEntries) !== 1) throw new SiteBuilderMigrationException('MIGRATION_REGISTRY_MANIFEST_INVALID');
+            $registryEntry = $registryEntries[0];
 
             if (!self::registryReady()) {
                 self::executeSqlFileWithoutRegistry($registryEntry);

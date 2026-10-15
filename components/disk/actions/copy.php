@@ -46,6 +46,8 @@ DiskValidator::assertCanForFolder(
     'canUpload'
 );
 
+DiskValidator::assertGroupTreeOperation($context, $settings, $items, (int)$rootFolderId, 'canView');
+
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 $result = $adapter->copy($context, $items, $targetFolderId);
 

@@ -45,6 +45,8 @@ DiskValidator::assertCanForItemParent(
     'canRename'
 );
 
+DiskValidator::assertGroupTreeOperation($context, $settings, [['entityType'=>$entityType,'id'=>$entityId]], (int)$rootFolderId, 'canRename');
+
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 $item = $adapter->rename($context, $entityType, $entityId, $newName);
 

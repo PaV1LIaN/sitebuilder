@@ -763,7 +763,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
 
         html += '<a class="sb-btn sb-btn-light sb-btn-small" href="' + BASE_PATH + '/public.php?siteId=' + siteId + '" target="_blank">Публичная</a>';
 
-        if (userRoleRank >= 3) {
+        if (userRoleRank >= 3 || site.currentUserCanEditPages === true) {
             html += '<a class="sb-btn sb-btn-primary sb-btn-small" href="' + BASE_PATH + '/editor.php?siteId=' + siteId + '">Редактор</a>';
         }
 
@@ -972,7 +972,7 @@ $isSitebuilderGuest = sitebuilder_is_guest();
                         +        escapeHtml(s.name || '')
                         + '  </a>'
                         + '  <div class="sb-user-site-actions">'
-                        +        (currentUserRoleRank >= 3
+                        +        (currentUserRoleRank >= 3 || s.currentUserCanEditPages === true
                                     ? '<a class="sb-btn sb-btn-primary sb-btn-small" href="' + BASE_PATH + '/editor.php?siteId=' + siteId + '">Редактор</a>'
                                     : '')
                         + '  </div>'

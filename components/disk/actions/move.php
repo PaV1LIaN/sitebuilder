@@ -46,6 +46,9 @@ DiskValidator::assertCanForFolder(
     'canRename'
 );
 
+DiskValidator::assertCanForItemParents($context, $settings, $items, (int)$rootFolderId, 'canDelete');
+DiskValidator::assertGroupTreeOperation($context, $settings, $items, (int)$rootFolderId, 'canDelete');
+
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 $result = $adapter->move($context, $items, $targetFolderId);
 

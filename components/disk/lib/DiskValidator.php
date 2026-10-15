@@ -276,12 +276,42 @@ class DiskValidator
                 $rootFolderId
             );
 
-            if (!empty($permissions['canView'])) {
+            if (!empty($permissions['canView']) || ((string)($item['entityType'] ?? '') === 'folder'
+                && !empty($permissions['canTraverse']))) {
                 $result[] = $item;
             }
         }
 
         return $result;
+    }
+
+    public static function assertCanBrowse(array $permissions): void
+    {
+        if (empty($permissions['canView']) && empty($permissions['canTraverse'])) {
+            throw new RuntimeException('ACCESS_DENIED');
+        }
+    }
+
+    /** Folder mutations/copies may be recursive. Never act on hidden descendants via a permitted parent. */
+    public static function assertGroupTreeOperation(DiskContext $context, array $settings,
+        array $items, int $rootId, string $permission): void
+    {
+        if (!class_exists('AccessGroupPolicy') || !AccessGroupPolicy::rules($context->siteId, $context->currentUserId)) return;
+        $queue = []; $seen = [];
+        foreach ($items as $item) if (($item['entityType'] ?? '') === 'folder') $queue[] = (int)$item['id'];
+        while ($queue) {
+            $id = array_pop($queue);
+            if (isset($seen[$id])) throw new RuntimeException('FOLDER_HIERARCHY_INVALID');
+            if (count($seen) >= 2000) throw new RuntimeException('FOLDER_OPERATION_TOO_LARGE');
+            $seen[$id] = true;
+            self::assertCanForFolder($context, $settings, $id, $rootId, $permission);
+            $folder = \Bitrix\Disk\Folder::loadById($id);
+            if (!$folder) throw new RuntimeException('FOLDER_NOT_FOUND');
+            foreach ($folder->getChildren(\Bitrix\Disk\Driver::getInstance()->getFakeSecurityContext($context->currentUserId),
+                ['filter' => ['=TYPE' => \Bitrix\Disk\Internals\ObjectTable::TYPE_FOLDER]]) as $child) {
+                if ($child instanceof \Bitrix\Disk\Folder) $queue[] = (int)$child->getId();
+            }
+        }
     }
 
     public static function assertNonEmptyString(string $value, string $errorCode): void

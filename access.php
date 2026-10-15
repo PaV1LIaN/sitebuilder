@@ -28,6 +28,7 @@ $esc = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_SUB
     <header class="sba-header">
         <div><a href="<?= $esc($basePath) ?>/index.php">← Все сайты</a><h1>Управление доступом</h1>
             <p>Выберите объект, добавьте сотрудников и назначьте права.</p></div>
+        <a href="<?= $esc($basePath) ?>/groups.php" class="sba-groups-link">Группы доступа</a>
         <button type="button" id="sba-reload">Обновить / отменить изменения</button>
     </header>
     <div id="sba-message" role="status" aria-live="polite" hidden></div>

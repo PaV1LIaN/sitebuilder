@@ -5,6 +5,7 @@ require_once __DIR__ . '/AccessUserIdentity.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/PageAccessRepository.php';
 require_once __DIR__ . '/PageAccessPolicy.php';
+require_once __DIR__ . '/AccessGroupPolicy.php';
 
 class PageAccessService
 {
@@ -44,6 +45,10 @@ class PageAccessService
                 'view'
             )
         ) {
+            return true;
+        }
+
+        if (AccessGroupPolicy::page($siteId, $pageId, $userId)['view']) {
             return true;
         }
 
@@ -97,6 +102,10 @@ class PageAccessService
             return true;
         }
 
+        if (AccessGroupPolicy::page($siteId, $pageId, $userId)['edit']) {
+            return true;
+        }
+
         $accessCode =
             PageAccessRepository::userAccessCode($userId);
 
@@ -119,7 +128,8 @@ class PageAccessService
     public static function canViewDisk(
         int $siteId,
         int $pageId,
-        int $userId
+        int $userId,
+        bool $includeGroups = true
     ): bool {
         if (
             $siteId <= 0
@@ -147,6 +157,10 @@ class PageAccessService
             return true;
         }
 
+        if ($includeGroups && AccessGroupPolicy::page($siteId, $pageId, $userId)['diskView']) {
+            return true;
+        }
+
         $accessCode =
             PageAccessRepository::userAccessCode($userId);
 
@@ -169,7 +183,8 @@ class PageAccessService
     public static function canEditDisk(
         int $siteId,
         int $pageId,
-        int $userId
+        int $userId,
+        bool $includeGroups = true
     ): bool {
         if (
             $siteId <= 0
@@ -194,6 +209,10 @@ class PageAccessService
                 'disk_edit'
             )
         ) {
+            return true;
+        }
+
+        if ($includeGroups && AccessGroupPolicy::page($siteId, $pageId, $userId)['diskEdit']) {
             return true;
         }
 
@@ -227,6 +246,8 @@ class PageAccessService
         if (self::isBitrixAdmin($userId)) {
             return true;
         }
+
+        if (AccessGroupPolicy::hasPageAccess($siteId, $userId)) return true;
 
         $accessCode =
             PageAccessRepository::userAccessCode($userId);
@@ -317,6 +338,18 @@ class PageAccessService
         }
 
         return $filtered;
+    }
+
+    /** Editor entry point; does not elevate a page editor to a site administrator. */
+    public static function canEditAnyPage(int $siteId, int $userId): bool
+    {
+        if ($siteId <= 0 || $userId <= 0) return false;
+        $stmt = sb_db()->prepare('SELECT id FROM sitebuilder.page WHERE site_id=:site ORDER BY id');
+        $stmt->execute([':site'=>$siteId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $pageId) {
+            if (self::canEditPage($siteId,(int)$pageId,$userId)) return true;
+        }
+        return false;
     }
 
     /**
