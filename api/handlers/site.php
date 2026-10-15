@@ -155,6 +155,7 @@ if (!function_exists('sb_site_handler_get_access_context')) {
                 'hasGlobalEdit' => false,
                 'hasGlobalDiskEdit' => false,
                 'hasPageAccess' => false,
+                'canEditPages' => false,
             ];
         }
 
@@ -170,6 +171,7 @@ if (!function_exists('sb_site_handler_get_access_context')) {
                 'hasGlobalEdit' => true,
                 'hasGlobalDiskEdit' => true,
                 'hasPageAccess' => true,
+                'canEditPages' => true,
             ];
         }
 
@@ -202,6 +204,7 @@ if (!function_exists('sb_site_handler_get_access_context')) {
             'hasGlobalEdit' => $roleRank >= 3,
             'hasGlobalDiskEdit' => $roleRank >= 2,
             'hasPageAccess' => $hasPageAccess,
+            'canEditPages' => $roleRank >= 3 || ($hasPageAccess && PageAccessService::canEditAnyPage($siteId,$userId)),
         ];
     }
 }
@@ -461,6 +464,7 @@ if ($action === 'site.list') {
         $site['currentUserHasPageAccess'] =
             $accessContext['hasPageAccess'];
 
+        $site['currentUserCanEditPages'] = $accessContext['canEditPages'];
         $allowedSites[] = $site;
     }
 

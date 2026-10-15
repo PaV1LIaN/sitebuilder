@@ -36,6 +36,7 @@ jobs:
           set -eu
           find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l > /tmp/lint.log
           node --check assets/admin/access.js
+          node --check assets/admin/groups.js
           php tests/access_admin_unit_test.php
           php tests/access_subject_identity_test.php
           php tests/disk_permission_admin_test.php
@@ -50,3 +51,4 @@ jobs:
         run: |
           php tests/access_admin_pg_test.php
           php tests/access_migration_registry_pg_test.php
+          php tests/access_groups_pg_test.php

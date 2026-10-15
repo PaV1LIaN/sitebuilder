@@ -71,7 +71,7 @@ try {
     ]);
     $status = MigrationService::status();
     migrationAssert($status['conflictCount'] === 1, 'Occupied stage detected by status');
-    migrationAssert(($status['items'][count($status['items'])-1]['state'] ?? '') === 'conflict', 'Conflict is displayed on stage 24');
+    migrationAssert((array_values(array_filter($status['items'], static fn(array $item): bool => $item['stage'] === 24))[0]['state'] ?? '') === 'conflict', 'Conflict is displayed on stage 24');
     try {
         MigrationService::applyPending(99);
         throw new RuntimeException('Expected MIGRATION_STAGE_CONFLICT');

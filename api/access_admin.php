@@ -47,7 +47,8 @@ try {
     DiskDb::setConnection(sb_db());
     $actor = (int)$USER->GetID();
     sb_disk_release_session_lock();
-    $data = match ($action) {
+    require_once dirname(__DIR__) . '/lib/AccessGroupService.php';
+    $data = str_starts_with($action, 'group.') ? AccessGroupService::handle($action, $input, $actor) : match ($action) {
         'tree' => AccessAdminService::tree($input, $actor),
         'view' => AccessAdminService::view($input, $actor),
         'parse' => ['lines' => AccessUserResolver::parse((string)($input['text'] ?? ''))],

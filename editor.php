@@ -100,6 +100,12 @@ if (!$canOpenEditor && $currentUserId > 0) {
         $accessCode
     );
 
+    if (AccessGroupPolicy::rules($siteId, $currentUserId)) {
+        $stmt = sb_db()->prepare('SELECT id FROM sitebuilder.page WHERE site_id=:site');
+        $stmt->execute([':site'=>$siteId]);
+        $pageIds = array_unique(array_merge($pageIds, $stmt->fetchAll(PDO::FETCH_COLUMN)));
+    }
+
     foreach ($pageIds as $availablePageId) {
         if (
             PageAccessService::canEditPage(

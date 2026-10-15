@@ -68,7 +68,7 @@
       this.applyPermissions();
       this.applyInitialViewMode();
 
-      if (!this.state.permissions.canView) {
+      if (!this.state.permissions.canView && !this.state.permissions.canTraverse) {
         this.renderState('no-access');
         return;
       }

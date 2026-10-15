@@ -43,7 +43,7 @@ $permissions = DiskPermissionService::resolve(
     $currentFolderId,
     $rootFolderId
 );
-DiskValidator::assertCan($permissions, 'canView');
+DiskValidator::assertCanBrowse($permissions);
 
 $adapter = new DiskBitrixStorageAdapter($context->currentUserId);
 

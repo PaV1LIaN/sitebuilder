@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/PageAccessPolicy.php';
+require_once __DIR__ . '/AccessGroupPolicy.php';
 require_once __DIR__ . '/AccessNativeDiskService.php';
 
 final class AccessAdminException extends RuntimeException
@@ -236,6 +237,11 @@ final class AccessAdminService
                 if (in_array((string)$row['ROLE'], ['A', 'E', 'K'], true)) { $ids[(int)$row['USER_ID']] = true; }
             }
         }
+        if (AccessGroupPolicy::available()) {
+            foreach (self::all('SELECT DISTINCT m.user_id FROM sitebuilder.access_group_member m
+                JOIN sitebuilder.access_group_rule r ON r.group_id=m.group_id WHERE r.site_id=:site',
+                [':site'=>$target['siteId']]) as $member) $ids[(int)$member['user_id']] = true;
+        }
         foreach ((array)(sitebuilder_auth_config()['admin_user_ids'] ?? []) as $id) {
             if (sitebuilder_is_site_admin_user_id((int)$id)) { $ids[(int)$id] = true; }
         }
@@ -254,8 +260,10 @@ final class AccessAdminService
             $global = 'PORTAL_ADMIN';
             $source = 'Администратор Битрикс';
         }
+        $groups = AccessGroupPolicy::sources($target['siteId'],$userId);
+        if ($groups) $source .= '; группы на сайте: ' . implode(', ',array_column($groups,'name'));
         if ($target['kind'] === 'site') {
-            return ['role' => $global ?: 'NONE', 'source' => $source];
+            return ['role' => $global ?: ($groups ? 'GROUP_ACCESS' : 'NONE'), 'source' => $source];
         }
         $page = PageAccessService::getPageAccessInfo($target['siteId'], $target['pageId'], $userId);
         if ($target['kind'] === 'page') {
@@ -269,10 +277,12 @@ final class AccessAdminService
         $permissions = DiskPermissionService::resolve($context, $target['settings'], $target['folderId'], $target['rootFolderId']);
         $nativeRoles = ['disk_access_full' => 'FULL', 'disk_access_edit' => 'EDITOR', 'disk_access_add' => 'ADD', 'disk_access_read' => 'VIEWER'];
         $effectiveRole = $nativeRoles[$permissions['effectiveTaskName'] ?? ''] ?? ($permissions['canDelete'] || $permissions['canUpload'] ? 'EDITOR' : 'VIEWER');
-        return ['role' => !$permissions['canView'] ? 'NONE' : $effectiveRole,
+        return ['role' => !$permissions['canView'] ? (!empty($permissions['canTraverse']) ? 'TRAVERSE' : 'NONE') : $effectiveRole,
             'source' => !empty($permissions['folderRuleId'])
                 ? 'Правило папки #' . $permissions['folderRuleId']
-                : (($permissions['accessSource'] ?? '') === 'bitrix_disk_acl' ? 'Штатный ACL Битрикс.Диска' : $source),
+                : (($permissions['accessSource'] ?? '') === 'sitebuilder_groups'
+                    ? 'Группы: ' . implode(', ', $permissions['groupSources'] ?? []) . '; удаление: ' . (!empty($permissions['canDelete']) ? 'разрешено' : 'нет')
+                    : (($permissions['accessSource'] ?? '') === 'bitrix_disk_acl' ? 'Штатный ACL Битрикс.Диска' : $source)),
             'permissions' => $permissions,
             'warning' => !$page['canView'] ? 'Не может открыть страницу с диском. Проверьте запрет и право просмотра страницы.'
                 : (!$page['canDiskView'] ? 'Нет права на Диск страницы: одного назначения папки недостаточно.' : '')];
@@ -288,6 +298,7 @@ final class AccessAdminService
             static fn(int $id): bool => $id > 0)), 0, self::BATCH_SIZE);
         $selected = $extra ?: array_slice($ids, $offset, 100);
         $profiles = AccessUserResolver::profiles($selected);
+        AccessGroupPolicy::prime($target['siteId'], $selected);
         $rows = [];
         foreach ($selected as $id) {
             $rows[] = [

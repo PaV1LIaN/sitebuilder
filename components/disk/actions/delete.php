@@ -81,6 +81,10 @@ $sbDeleteResponse = (static function (): array {
 
         // Preflight the WHOLE batch before the first mutation. Keep the existing
         // Sitebuilder scope and parent-folder permission policy (no ACL bypass).
+        if (method_exists('DiskValidator', 'assertGroupTreeOperation')) {
+            DiskValidator::assertGroupTreeOperation($context, $settings, array_values($items), (int)$rootFolderId, 'canDelete');
+        }
+
         foreach ($items as $item) {
             $failedItem = $item;
             $permissions = [];

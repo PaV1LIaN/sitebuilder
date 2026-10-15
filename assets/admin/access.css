@@ -53,3 +53,5 @@
 .sba-resolution { display:flex; flex-wrap:wrap; gap:8px; padding:7px 0; border-bottom:1px solid #e7ebf1; }
 @media(max-width:1000px) { .sba-layout { grid-template-columns:220px minmax(0,1fr); } .sba-add-grid { grid-template-columns:1fr; } }
 @media(max-width:720px) { .sba-app { padding:14px; } .sba-layout { grid-template-columns:1fr; } .sba-sidebar { position:static; max-height:320px; } .sba-header { align-items:flex-start; flex-direction:column; } .sba-content { padding:14px; } }
+
+.sba-groups-link{display:inline-block;padding:9px 14px;border:1px solid #c8d8ed;border-radius:6px;background:#eff6ff;color:#245b9e;text-decoration:none;font-weight:600}

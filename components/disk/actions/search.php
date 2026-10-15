@@ -24,7 +24,7 @@ $settings = DiskSettingsRepository::ensureExistsForBlock(
 $rootFolderId = DiskRootResolver::resolve($context, $settings);
 $permissions = DiskPermissionService::resolve($context, $settings, $rootFolderId, $rootFolderId);
 
-DiskValidator::assertCan($permissions, 'canView');
+DiskValidator::assertCanBrowse($permissions);
 
 $query = trim((string)($data['query'] ?? ''));
 if ($query === '') {
