@@ -90,7 +90,7 @@ namespace {
         static fn(array $entry): bool => $entry['key'] === '20261014_011_page_access_deny'
     ));
     eq(1, count($denyMigrations), 'Deny migration registered once');
-    eq(23, $denyMigrations[0]['stage'], 'Deny migration avoids legacy stage 22');
+    eq(24, $denyMigrations[0]['stage'], 'Deny migration avoids historical stages 22 and 23');
 
     echo "Access admin unit checks passed ($checks checks)\n";
 }
