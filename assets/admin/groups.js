@@ -108,6 +108,7 @@
         $('empty').hidden = true; $('work').hidden = false; $('more-members').hidden = !data.hasMore;
         $('rule-panel').open = false; $('add-panel').open = false;
         for (const button of $('list').querySelectorAll('[data-group]')) button.setAttribute('aria-pressed', String(Number(button.dataset.group) === id));
+        if (config.initial) history.replaceState(null, '', config.basePath + '/access.php?view=groups&groupId=' + id);
         renderMembers(); renderRules(); syncButtons();
         if ($('tab-history').getAttribute('aria-selected') === 'true') await loadHistory();
     }
@@ -118,7 +119,9 @@
             check.setAttribute('aria-label', `Выбрать участника ${user.id}`);
             check.onchange = () => { if (check.checked) state.selected.add(user.id); else state.selected.delete(user.id); syncButtons(); };
             cell.append(check); tr.append(cell);
-            const person = text('td'); person.append(text('div', user.name, 'sbg-person'), text('small', 'ID ' + user.id));
+            const person = text('td'), employeeLink = text('a', user.name, 'uc-link');
+            employeeLink.href = config.basePath + '/access.php?view=employees&userId=' + user.id;
+            person.append(employeeLink, text('small', 'ID ' + user.id));
             tr.append(person, text('td', user.login)); const status = text('td'); status.append(text('span', user.active ? 'Активен' : 'Неактивен / удалён', 'sbg-status' + (user.active ? '' : ' inactive'))); tr.append(status); $('members').append(tr);
         }
         if (!state.members.length) { const tr = text('tr'), cell = text('td', 'В группе пока нет сотрудников. Добавьте их списком выше.'); cell.colSpan = 4; tr.append(cell); $('members').append(tr); }
@@ -126,7 +129,9 @@
     function renderRules() {
         $('rules').replaceChildren();
         for (const rule of state.rules) {
-            const tr = text('tr'), target = text('td'); target.append(text('div', rule.title, 'sbg-person'), text('small',
+            const tr = text('tr'), target = text('td'), objectLink = text('a', rule.title, 'uc-link');
+            objectLink.href = config.basePath + '/access.php?' + new URLSearchParams({ view: 'objects', kind: rule.kind, siteId: rule.site_id, pageId: rule.page_id, blockId: rule.block_id, folderId: rule.folder_id });
+            target.append(objectLink, text('small',
                 `${{ site: 'Сайт', page: 'Страница', disk: 'Диск', folder: 'Папка' }[rule.kind]} · ID ${rule.folder_id || rule.page_id || rule.site_id} · ${rule.permission_mode}`));
             const caps = text('td'); caps.append(text('span', 'Просмотр', 'sbg-badge'));
             if (flag(rule.can_edit)) caps.append(text('span', 'Редактирование', 'sbg-badge'));
@@ -236,7 +241,7 @@
         $('edit-help').textContent = disk ? 'Загрузка, создание папок, переименование и изменение файлов. Без удаления.' : 'Изменение содержимого страниц. Без управления группами и настройками сайта.';
         $('target-note').textContent = data.target.mode === 'bitrix_disk'
             ? 'Штатный режим: группа действует только внутри Sitebuilder и не выдаёт права в Битрикс.Диске. Итог ограничен также существующими штатными правами сотрудника.'
-            : (disk ? 'Локальное групповое правило. Личные назначения и режим диска не меняются.' : 'Это разрешения, а не запреты. Для ограничения другого источника используйте персональный запрет.');
+            : (disk ? 'Локальное групповое правило. Личные назначения и режим диска не меняются.' : 'Флажки выдают разрешения только от этой группы. Остальные источники и личные ограничения можно проверить в разделе «Объекты».');
         $('edit').checked = rule ? flag(rule.can_edit) : false; $('can-delete').checked = disk && rule ? flag(rule.can_delete) : false;
         $('children').checked = rule ? flag(rule.include_children) : true; $('open-page').checked = disk && (rule ? flag(rule.open_page) : true);
         syncButtons();
@@ -271,5 +276,16 @@
     task(async () => {
         await loadGroups(); const data = await api('tree'); state.sites = data.nodes;
         for (const site of state.sites) { const option = text('option', site.title); option.value = site.siteId; $('site').append(option); }
+        const initial = config.initial || {};
+        if (initial.groupId) {
+            await selectGroup(initial.groupId);
+            const rule = state.rules.find(r => Number(r.id) === initial.ruleId);
+            if (rule) {
+                showTab('rights'); $('rule-panel').open = true;
+                await selectTarget({ kind: rule.kind, siteId: Number(rule.site_id), pageId: Number(rule.page_id), blockId: Number(rule.block_id), folderId: Number(rule.folder_id) }, rule);
+            } else if (initial.siteId) {
+                showTab('rights'); $('rule-panel').open = true; await selectTarget(initial);
+            }
+        }
     });
 })();

@@ -9,10 +9,13 @@ class DiskPermissionService
         DiskContext $context,
         array $settings,
         ?int $folderId = null,
-        ?int $rootFolderId = null
+        ?int $rootFolderId = null,
+        bool $withExplanation = false
     ): array
     {
         $rolePermissions = self::resolveRolePermissions($context);
+        $legacyPermissions = $rolePermissions;
+        $native = null;
         $rootFolderId = $rootFolderId ?: $folderId;
         $folderRule = null;
         $permissionMode = (string)($settings['permissionMode'] ?? 'inherit_site');
@@ -45,6 +48,7 @@ class DiskPermissionService
             }
         }
 
+        $localPermissions = $rolePermissions;
         $groupPermissions = [
             'canView' => $groups['view'], 'canDownload' => $groups['view'],
             'canUpload' => $groups['edit'], 'canCreateFolder' => $groups['edit'],
@@ -81,13 +85,14 @@ class DiskPermissionService
         }
         if ($hasGroups) $rolePermissions['accessSource'] = 'sitebuilder_groups';
 
+        $beforeRestrictions = $rolePermissions;
         $blockRestrictions = self::resolveBlockRestrictions($settings);
 
         if (!array_key_exists('canEditFile', $rolePermissions)) {
             $rolePermissions['canEditFile'] = !empty($rolePermissions['canRename']);
         }
 
-        return [
+        $result = [
             'canView' => $rolePermissions['canView'] && $blockRestrictions['canView'],
             'canTraverse' => $canTraverse && empty($rolePermissions['canView']),
             'groupSources' => $groups['groups'],
@@ -108,6 +113,14 @@ class DiskPermissionService
             'folderRuleInherited' => !empty($folderRule['inherited']),
             'effectiveTaskName' => $rolePermissions['effectiveTaskName'] ?? null,
         ];
+        if ($withExplanation) $result['explanation'] = [
+            'protected'=>$protected, 'legacy'=>$legacyPermissions, 'local'=>$localPermissions,
+            'native'=>$native, 'beforeRestrictions'=>$beforeRestrictions, 'blockRestrictions'=>$blockRestrictions,
+            'groupFlags'=>$groups, 'legacyEligible'=>$legacyEligible, 'folderRule'=>$folderRule,
+            'pageDenied'=>$pageDenied,
+            'pageVisible'=>PageAccessService::canViewPage($context->siteId,$context->pageId,$context->currentUserId),
+        ];
+        return $result;
     }
 
     protected static function resolveRolePermissions(DiskContext $context): array

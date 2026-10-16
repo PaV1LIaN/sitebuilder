@@ -4,7 +4,7 @@ import json, os, re, shutil
 from urllib.parse import parse_qs
 from playwright.sync_api import sync_playwright
 root=Path(__file__).resolve().parent.parent
-text=(root/'access.php').read_text();text=text[text.index('<!doctype html>'):]
+text=(root/'access_legacy.php').read_text();text=text[text.index('<!doctype html>'):]
 text=re.sub(r'<\?= json_encode\([\s\S]*?\?>',json.dumps({'basePath':'','sessid':'test','siteId':0}),text)
 text=re.sub(r'<\?[\s\S]*?\?>','',text)
 text=re.sub(r'<link[^>]+>|<script[^>]+src=[^>]+></script>','',text)

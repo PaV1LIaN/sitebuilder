@@ -89,25 +89,61 @@ final class AccessGroupPolicy
         return $path;
     }
 
+    /** Shared by authorization and the administration console; no separate UI approximation. */
+    public static function matching(array $target, array $rows): array
+    {
+        $kind = $target['kind'];
+        $site = (int)$target['siteId'];
+        $page = (int)($target['pageId'] ?? 0);
+        $disk = in_array($kind, ['disk', 'folder'], true);
+        $path = !$rows ? [] : ($disk
+            ? self::folderPath((int)$target['folderId'], (int)$target['rootFolderId'])
+            : ($kind === 'page' ? self::pagePath($site, $page) : []));
+        $result = [];
+        foreach ($rows as $row) {
+            if ((int)$row['site_id'] !== $site) continue;
+            $caps = ['view'=>false, 'edit'=>false, 'delete'=>false, 'traverse'=>false,
+                'diskView'=>false, 'diskEdit'=>false];
+            $scope = '';
+            if ($disk) {
+                if (!$path || !in_array($row['kind'], ['disk','folder'], true)
+                    || (int)$row['page_id'] !== $page || (int)$row['block_id'] !== (int)$target['blockId']
+                    || (int)$row['root_folder_id'] !== (int)$target['rootFolderId']
+                    || $row['permission_mode'] !== $target['mode']) continue;
+                $at = (int)$row['folder_id'];
+                if (isset($path[$at]) && ($at === (int)$target['folderId'] || self::flag($row['include_children']))) {
+                    $caps['view'] = true;
+                    $caps['edit'] = self::flag($row['can_edit']);
+                    $caps['delete'] = self::flag($row['can_delete']);
+                    $scope = $at === (int)$target['folderId'] ? 'direct' : 'inherited';
+                } elseif (isset(self::folderPath($at, (int)$target['rootFolderId'])[(int)$target['folderId']])) {
+                    $caps['traverse'] = true;
+                    $scope = 'traverse';
+                }
+            } elseif ($kind === 'site' && $row['kind'] === 'site') {
+                $caps['view'] = true; $caps['edit'] = self::flag($row['can_edit']); $scope = 'direct';
+            } elseif ($kind === 'page' && isset($path[$page])) {
+                $at = (int)$row['page_id'];
+                if ($row['kind'] === 'site' || ($row['kind'] === 'page' && isset($path[$at])
+                    && ($at === $page || self::flag($row['include_children'])))) {
+                    $caps['view'] = true; $caps['edit'] = self::flag($row['can_edit']);
+                    $scope = $row['kind'] === 'site' || $at !== $page ? 'inherited' : 'direct';
+                } elseif (in_array($row['kind'], ['disk','folder'], true) && $at === $page) {
+                    // Component shell only: this must never be described as access to all its files.
+                    $caps['diskView'] = true; $caps['diskEdit'] = self::flag($row['can_edit']);
+                    $caps['view'] = self::flag($row['open_page']); $scope = 'container';
+                }
+            }
+            if ($scope !== '') $result[] = ['rule'=>$row, 'scope'=>$scope, 'caps'=>$caps];
+        }
+        return $result;
+    }
+
     public static function page(int $siteId, int $pageId, int $userId): array
     {
-        $caps = ['view' => false, 'edit' => false, 'diskView' => false, 'diskEdit' => false];
-        $rows = self::rules($siteId, $userId);
-        if (!$rows) return $caps;
-        $path = self::pagePath($siteId, $pageId);
-        if (!isset($path[$pageId])) return $caps;
-        foreach ($rows as $row) {
-            $id = (int)$row['page_id'];
-            if ($row['kind'] === 'site' || ($row['kind'] === 'page' && isset($path[$id])
-                && ($id === $pageId || self::flag($row['include_children'])))) {
-                $caps['view'] = true;
-                $caps['edit'] = $caps['edit'] || self::flag($row['can_edit']);
-            } elseif (in_array($row['kind'], ['disk','folder'], true) && $id === $pageId) {
-                // This enables the component shell only. DiskPermissionService enforces block/folder scope.
-                $caps['diskView'] = true;
-                $caps['diskEdit'] = $caps['diskEdit'] || self::flag($row['can_edit']);
-                $caps['view'] = $caps['view'] || self::flag($row['open_page']);
-            }
+        $caps = ['view'=>false, 'edit'=>false, 'diskView'=>false, 'diskEdit'=>false];
+        foreach (self::matching(['kind'=>'page','siteId'=>$siteId,'pageId'=>$pageId], self::rules($siteId,$userId)) as $match) {
+            foreach ($caps as $key=>$value) $caps[$key] = $value || $match['caps'][$key];
         }
         return $caps;
     }
@@ -144,27 +180,14 @@ final class AccessGroupPolicy
     public static function disk(int $siteId, int $pageId, int $blockId, int $folderId,
         int $rootId, int $userId, string $mode): array
     {
-        $caps = ['view' => false, 'edit' => false, 'delete' => false, 'traverse' => false, 'groups' => []];
-        $rows = self::rules($siteId, $userId);
-        if (!$rows || $folderId <= 0 || $rootId <= 0) return $caps;
-        $path = self::folderPath($folderId, $rootId);
-        if (!$path) return $caps;
+        $caps = ['view'=>false, 'edit'=>false, 'delete'=>false, 'traverse'=>false, 'groups'=>[]];
+        if ($folderId <= 0 || $rootId <= 0) return $caps;
         $sources = [];
-        foreach ($rows as $row) {
-            if (!in_array($row['kind'], ['disk','folder'], true) || (int)$row['page_id'] !== $pageId
-                || (int)$row['block_id'] !== $blockId || (int)$row['root_folder_id'] !== $rootId
-                || $row['permission_mode'] !== $mode) continue;
-            $at = (int)$row['folder_id'];
-            if (isset($path[$at]) && ($at === $folderId || self::flag($row['include_children']))) {
-                $caps['view'] = true;
-                $caps['edit'] = $caps['edit'] || self::flag($row['can_edit']);
-                $caps['delete'] = $caps['delete'] || self::flag($row['can_delete']);
-                $sources[(int)$row['group_id']] = $row['group_name'];
-            } elseif (isset(self::folderPath($at, $rootId)[$folderId])) {
-                // Ancestors are navigable, but their files, writes and sibling folders remain forbidden.
-                $caps['traverse'] = true;
-                $sources[(int)$row['group_id']] = $row['group_name'];
-            }
+        $target = ['kind'=>'folder','siteId'=>$siteId,'pageId'=>$pageId,'blockId'=>$blockId,
+            'folderId'=>$folderId,'rootFolderId'=>$rootId,'mode'=>$mode];
+        foreach (self::matching($target, self::rules($siteId,$userId)) as $match) {
+            foreach (['view','edit','delete','traverse'] as $key) $caps[$key] = $caps[$key] || $match['caps'][$key];
+            $sources[(int)$match['rule']['group_id']] = $match['rule']['group_name'];
         }
         $caps['groups'] = array_values($sources);
         return $caps;

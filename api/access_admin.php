@@ -48,7 +48,9 @@ try {
     $actor = (int)$USER->GetID();
     sb_disk_release_session_lock();
     require_once dirname(__DIR__) . '/lib/AccessGroupService.php';
-    $data = str_starts_with($action, 'group.') ? AccessGroupService::handle($action, $input, $actor) : match ($action) {
+    require_once dirname(__DIR__) . '/lib/AccessConsoleService.php';
+    $data = str_starts_with($action, 'console.') ? AccessConsoleService::handle($action, $input, $actor)
+        : (str_starts_with($action, 'group.') ? AccessGroupService::handle($action, $input, $actor) : match ($action) {
         'tree' => AccessAdminService::tree($input, $actor),
         'view' => AccessAdminService::view($input, $actor),
         'parse' => ['lines' => AccessUserResolver::parse((string)($input['text'] ?? ''))],
@@ -56,7 +58,7 @@ try {
         'search' => ['users' => AccessUserResolver::search((string)($input['query'] ?? ''))],
         'apply' => AccessAdminService::apply($input, $actor),
         default => throw new InvalidArgumentException('UNKNOWN_ACTION'),
-    };
+    });
     sb_access_admin_reply(['ok' => true, 'data' => $data]);
 } catch (Throwable $error) {
     $status = 500;
