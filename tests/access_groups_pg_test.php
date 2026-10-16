@@ -47,7 +47,7 @@ namespace {
     function sb_role_rank(?string $role):int{return ['VIEWER'=>1,'EDITOR'=>2,'ADMIN'=>3,'OWNER'=>4][$role??'']??0;}
     require __DIR__.'/../components/disk/lib/DiskContext.php';
     require __DIR__.'/../lib/PageAccessService.php';
-    class DiskSettingsRepository { public static string $mode='custom'; public static function getByBlockId(int $id):array{return ['permissionMode'=>self::$mode];} }
+    class DiskSettingsRepository { public static string $mode='custom'; public static function getByBlockId(int $id):array{return ['permissionMode'=>self::$mode,'allowUpload'=>true,'allowCreateFolder'=>true,'allowRename'=>true,'allowDelete'=>true,'allowDownload'=>true];} }
     class DiskRootResolver { public static function resolve(DiskContext $c,array $s,bool $auto=false):int{return 100;} }
     class BlockRepository {
         public static function getDiskBlockByContext(int $s,int $p,int $b):?array{
@@ -73,6 +73,7 @@ namespace {
     require __DIR__.'/../components/disk/lib/DiskPermissionService.php';
     require __DIR__.'/../components/disk/lib/DiskValidator.php';
     require __DIR__.'/../lib/AccessGroupService.php';
+    require __DIR__.'/../lib/AccessConsoleService.php';
     require __DIR__.'/../lib/MigrationService.php';
     $checks=0;
     function eq($expected,$actual,string $label):void{global $checks;++$checks;if($expected!==$actual)throw new RuntimeException($label.': '.var_export($actual,true));}
@@ -89,6 +90,9 @@ namespace {
         return DiskPermissionService::resolve(new DiskContext(1,10,$block,$user),['permissionMode'=>$mode,'allowUpload'=>true,'allowCreateFolder'=>true,
             'allowRename'=>true,'allowDelete'=>true,'allowDownload'=>true],$folder,100);
     }
+    function consoleRead(string $action,array $input):array{return AccessConsoleService::handle('console.'.$action,$input,99);}
+    function cap(array $result,string $key):array{return array_values(array_filter($result['capabilities'],fn($r)=>$r['key']===$key))[0];}
+    function explainFolder(array $target,int $user=12):array{return consoleRead('explain',['target'=>$target,'userId'=>$user]);}
     try{
         $pdo->exec('DROP SCHEMA IF EXISTS sitebuilder CASCADE; CREATE SCHEMA sitebuilder');
         $pdo->exec("CREATE TABLE sitebuilder.site(id bigint PRIMARY KEY,name text,bitrix_group_id bigint);
@@ -98,6 +102,7 @@ namespace {
             CREATE TABLE sitebuilder.page_access(id bigserial PRIMARY KEY,site_id bigint,page_id bigint,access_code text,
                 can_view boolean DEFAULT false,can_edit boolean DEFAULT false,can_disk_view boolean DEFAULT false,
                 can_disk_edit boolean DEFAULT false,include_children boolean DEFAULT false,deny_view boolean DEFAULT false);
+            CREATE TABLE sitebuilder.disk_folder_access(site_id bigint,block_id bigint,folder_id bigint,access_code text,role text);
             CREATE TABLE sitebuilder.audit_log(id bigserial PRIMARY KEY,request_id text,actor_user_id bigint,actor_access_code text,
                 action text,entity_type text,entity_id bigint,details_json jsonb,created_at timestamptz DEFAULT now());
             INSERT INTO sitebuilder.site VALUES(1,'Test site',NULL),(2,'Other site',NULL);
@@ -132,13 +137,33 @@ namespace {
         eq(false,PageAccessService::canViewPage(1,12,12),'Sibling not granted');
         eq(false,PageAccessService::canEditDisk(1,10,12),'Page edit is not disk edit');
         eq(true,PageAccessService::hasAnyPageAccess(1,12),'Group site visible in site list');
+        bad(fn()=>AccessConsoleService::handle('console.employee',['userId'=>12],12),'ACCESS_DENIED');
+        $info=consoleRead('employee',['userId'=>12]);eq(1,$info['groupCount'],'Console membership');eq([], $info['legacy'],'No personal rows fabricated');
+        $obj=consoleRead('object',['target'=>$page]);eq(1,$obj['total'],'Object sees existing group rule');eq($g,$obj['rules'][0]['groupId'],'Same group identity');
+        $childInfo=consoleRead('object',['target'=>['kind'=>'page','siteId'=>1,'pageId'=>11]]);
+        eq('inherited',$childInfo['rules'][0]['scope'],'Inherited source labelled');
+        eq(0,consoleRead('object',['target'=>['kind'=>'page','siteId'=>1,'pageId'=>12]])['total'],'Unrelated page not a source');
+        $pageCheck=consoleRead('explain',['target'=>$page,'userId'=>12]);
+        eq(true,cap($pageCheck,'view')['allowed'],'Console uses actual page view');eq(true,cap($pageCheck,'edit')['allowed'],'Console uses actual page edit');
+        eq($g,cap($pageCheck,'edit')['sources'][0]['groupId'],'Exact page edit source');
+        eq(false,cap($pageCheck,'diskEdit')['allowed'],'Page edit not conflated with disk');
         $folder=['kind'=>'folder','siteId'=>1,'pageId'=>10,'blockId'=>50,'folderId'=>110];
         putRule($g,$folder,['canEdit'=>true,'openPage'=>true]);
         $v=perms();eq(true,$v['canUpload'],'Group editing allows upload');eq(false,$v['canDelete'],'Edit does NOT imply delete');
+        $readOnlyAuditCount=(int)$pdo->query('SELECT count(*) FROM sitebuilder.audit_log')->fetchColumn();
+        $ex=explainFolder($folder);
+        foreach($v as $key=>$value){if(in_array($key,['canView','canUpload','canCreateFolder','canRename','canEditFile','canDelete','canDownload','canTraverse'],true))eq($value,cap($ex,$key)['allowed'],'Explain matches resolver '.$key);}
+        eq($g,cap($ex,'canUpload')['sources'][0]['groupId'],'Exact upload source');
+        eq([],cap($ex,'canDelete')['sources'],'No invented delete source');
+        eq($readOnlyAuditCount,(int)$pdo->query('SELECT count(*) FROM sitebuilder.audit_log')->fetchColumn(),'Explain has no write side effect');
         eq(false,$v['canManageAccess'],'Group never gets admin rights');eq(false,$v['canEditSettings'],'No settings grant');
         eq(true,perms(111)['canView'],'Allowed child');eq(false,perms(120)['canView'],'Sibling folder hidden');
         eq(false,perms(110,12,'custom',51)['canView'],'Same page other disk not granted');
         $ancestor=perms(100);eq(false,$ancestor['canView'],'Ancestor files not readable');eq(true,$ancestor['canTraverse'],'Ancestor navigable');
+        $ancestorEx=explainFolder(['kind'=>'folder','siteId'=>1,'pageId'=>10,'blockId'=>50,'folderId'=>100]);
+        eq(false,cap($ancestorEx,'canView')['allowed'],'Console no ancestor file access');
+        eq(true,cap($ancestorEx,'canTraverse')['allowed'],'Console only ancestor passage');
+        eq('traverse',cap($ancestorEx,'canTraverse')['sources'][0]['scope'],'Passage source not read source');
         eq(false,$ancestor['canDownload'],'Ancestor files cannot download');eq(false,$ancestor['canUpload'],'Ancestor no upload');
         $visible=DiskValidator::filterVisibleItems(new DiskContext(1,10,50,12),['permissionMode'=>'custom','allowDownload'=>true],
             [['entityType'=>'folder','id'=>110],['entityType'=>'folder','id'=>120],['entityType'=>'file','id'=>900]],100,100);
@@ -147,10 +172,16 @@ namespace {
         bad(fn()=>putRule($g,['kind'=>'folder','siteId'=>1,'pageId'=>10,'blockId'=>50,'folderId'=>210]),'FOLDER_OUT_OF_SCOPE');
         $g2=mutation('create',0,['name'=>'Deletion team'])['groupId'];mutation('members.add',$g2,['userIds'=>[12]]);
         putRule($g2,$folder,['canDelete'=>true,'openPage'=>true]);eq(true,perms()['canDelete'],'Other group adds delete');
+        $ex=explainFolder($folder);
+        eq([$g2],array_column(cap($ex,'canDelete')['sources'],'groupId'),'Only delete group named as delete source');
+        eq([$g],array_column(cap($ex,'canUpload')['sources'],'groupId'),'Only edit group named as upload source');
         mutation('members.remove',$g2,['userIds'=>[12]]);eq(false,perms()['canDelete'],'Removing one group revokes only its delete');
         eq(true,perms()['canUpload'],'Other group edit remains');
         $pdo->exec("INSERT INTO sitebuilder.page_access(site_id,page_id,access_code,deny_view) VALUES(1,10,'U12',true)");PageAccessPolicy::resetCache();
         eq(false,PageAccessService::canViewPage(1,10,12),'Personal page deny outranks group');eq(false,perms()['canView'],'Deny blocks group disk');
+        $ex=consoleRead('explain',['target'=>$page,'userId'=>12]);eq(false,cap($ex,'view')['allowed'],'Console honours personal deny');
+        eq(true,count(cap($ex,'view')['limits'])>0,'Console explains active deny');
+        $ex=explainFolder($folder);eq(false,cap($ex,'canView')['allowed'],'Folder explanation respects page deny');
         $pdo->exec('DELETE FROM sitebuilder.page_access');PageAccessPolicy::resetCache();
         FolderAccessRepository::$rule=['role'=>'DENY','folderId'=>110,'inherited'=>false];eq(false,perms()['canView'],'Personal folder deny wins');FolderAccessRepository::$rule=null;
         // Pins to root/mode and real current folder hierarchy.
@@ -163,6 +194,8 @@ namespace {
         eq(false,perms(120,12,'bitrix_disk')['canView'],'Native broad ACL does not expose sibling for group-only user');
         BitrixDiskRightsService::$read=false;BitrixDiskRightsService::$write=false;
         eq(false,perms(110,12,'bitrix_disk')['canView'],'Group never bypasses native denial');
+        $nativeEx=explainFolder($folder);eq(false,cap($nativeEx,'canUpload')['allowed'],'Console respects native intersection');
+        eq(true,count(cap($nativeEx,'canUpload')['limits'])>0,'Native blocker explained');
         BitrixDiskRightsService::$read=true;BitrixDiskRightsService::$write=true;
         DiskSettingsRepository::$mode='custom';putRule($g,$folder,['openPage'=>true]);
         // Refresh group rules after versioned mutations, not a stale permission cache.
@@ -187,6 +220,8 @@ namespace {
         eq(0,(int)$pdo->query('SELECT count(*) FROM sitebuilder.access_group_rule WHERE group_id='.$g)->fetchColumn(),'Rules cascade deleted');
         eq(true,count(callGroup('history',['groupId'=>$g])['events'])>0,'Audit remains after group deletion');
         eq(1,count(callGroup('list')['groups']),'Other group preserved');
+        $personal=consoleRead('employee',['userId'=>14]);eq(0,$personal['groupCount'],'Console sees removed membership');
+        eq('VIEWER',$personal['legacy'][0]['role'],'Legacy record preserved and displayed');
         echo "Access group PostgreSQL checks passed ($checks checks)\n";
     } finally {
         if($pdo->inTransaction())$pdo->rollBack();$pdo->exec('DROP SCHEMA IF EXISTS sitebuilder CASCADE');

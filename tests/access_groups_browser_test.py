@@ -4,7 +4,7 @@ from urllib.parse import parse_qs
 import json, re, shutil, os
 from playwright.sync_api import sync_playwright
 root=Path(__file__).resolve().parent.parent
-html=(root/'groups.php').read_text(); html=html[html.index('<!doctype html>'):]
+html='<html><body class="sbg-body">'+(root/'views/access/groups.php').read_text()+'<script id="sbg-config" type="application/json">{}</script></body></html>'
 html=re.sub(r'<script id="sbg-config"[^>]*>[\s\S]*?</script>', '<script id="sbg-config" type="application/json">'+json.dumps({'basePath':'','sessid':'test'})+'</script>',html)
 html=re.sub(r'<\?[\s\S]*?\?>','',html)
 html=re.sub(r'<link[^>]*>|<script[^>]+src=[^>]+></script>','',html)

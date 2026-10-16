@@ -1,0 +1,38 @@
+/* Shared shell for objects, groups and employees. No global rules and no !important. */
+.sbg-body .uc-heading{padding:21px 24px;border-top:3px solid #337ccf}
+.sbg-body .uc-heading h2{margin:0;font-size:23px;overflow-wrap:anywhere}
+.sbg-body .uc-spaced{margin-top:18px}
+.sbg-body .uc-field{display:grid;gap:7px;margin:14px 0;max-width:620px;font-size:13px;font-weight:600}
+.sbg-body .uc-field input,.sbg-body .uc-field select{width:100%;min-width:0;border:1px solid #d6dfe9;border-radius:5px;padding:10px 12px;background:#fff;color:#243650}
+.sbg-body .uc-tree{overflow:auto;max-height:440px;margin:14px 0;min-width:0}
+.sbg-body .uc-tree ul{list-style:none;margin:0;padding-left:15px}
+.sbg-body .uc-tree>ul{padding-left:0}
+.sbg-body .uc-tree li>div:first-child{display:flex;align-items:start}
+.sbg-body .uc-tree button{border:0;background:transparent;padding:7px;color:#334f6c;text-align:left;overflow-wrap:anywhere}
+.sbg-body .uc-tree button:hover,.sbg-body .uc-tree button[aria-pressed=true]{background:#e3effe;border-radius:5px}
+.sbg-body .uc-tree-dark{flex:1;max-height:none}
+.sbg-body .uc-tree-dark button{color:#dbe5f0}
+.sbg-body .uc-tree-dark button:hover,.sbg-body .uc-tree-dark button[aria-pressed=true]{background:#3b506b}
+.sbg-body .uc-link{color:#2671bd;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
+.sbg-body .uc-cards{display:grid;gap:11px}
+.sbg-body .uc-row{border:1px solid #e3eaf2;border-radius:6px;padding:13px 15px;display:flex;align-items:start;gap:16px;justify-content:space-between}
+.sbg-body .uc-row>div{min-width:0}
+.sbg-body .uc-row p{margin:3px 0 8px;overflow-wrap:anywhere}
+.sbg-body .uc-row .sbg-actions{flex-wrap:wrap}
+.sbg-body .uc-results{display:grid;gap:5px;margin-bottom:12px;max-height:260px;overflow:auto}
+.sbg-body .uc-results button{text-align:left;white-space:normal}
+.sbg-body .uc-details>summary{cursor:pointer;font-weight:600;color:#356594;list-style-position:inside}
+.sbg-body .uc-details[open]>summary{margin-bottom:14px}
+.sbg-body .uc-details:not(.sbg-card){margin-top:18px;border-top:1px solid #e3eaf2;padding-top:15px}
+.sbg-body .uc-capabilities{width:100%;border-collapse:collapse;margin-top:15px}
+.sbg-body .uc-capabilities th,.sbg-body .uc-capabilities td{vertical-align:top;padding:12px 10px;border-bottom:1px solid #e7edf5;text-align:left}
+.sbg-body .uc-capabilities th{font-size:11px;color:#647d98;background:#f6f8fb}
+.sbg-body .uc-capabilities td p{margin:4px 0;overflow-wrap:anywhere}
+.sbg-body .uc-allow,.sbg-body .uc-deny{display:inline-block;padding:3px 8px;border-radius:4px;font-size:12px;white-space:nowrap}
+.sbg-body .uc-allow{background:#eaf7ef;color:#277446}
+.sbg-body .uc-deny{background:#fff0f1;color:#a13a4e}
+.sbg-body .uc-limit{color:#a13a4e;font-size:12px}
+.sbg-body .uc-capabilities small{color:#6e8197;display:block}
+.sbg-body .uc-table-wrap{overflow:auto}
+.sbg-body .uc-note{padding:12px;background:#f5f8fc;border-left:3px solid #b7cde6;color:#596f89;font-size:12px;margin:12px 0}
+@media(max-width:680px){.sbg-body .uc-tree-dark{max-height:260px}.sbg-body .uc-row{flex-direction:column;gap:8px}.sbg-body .uc-capabilities th,.sbg-body .uc-capabilities td{padding:9px 5px}.sbg-body .uc-capabilities{font-size:12px}.sbg-body .uc-heading{padding:15px}.sbg-body .uc-heading h2{font-size:20px}}
