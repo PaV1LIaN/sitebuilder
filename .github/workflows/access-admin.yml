@@ -1,9 +1,9 @@
 name: Access administration regression
 on:
   push:
-    branches: [main, feature/access-admin-stage1]
+    branches: [main, feature/access-admin-stage1, feature/access-unified-stage4]
   pull_request:
-    branches: [main]
+    branches: [main, feature/access-groups-stage3]
 permissions:
   contents: read
 jobs:
@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 10
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_DB: sitebuilder_access_test
           POSTGRES_USER: postgres
@@ -37,12 +37,20 @@ jobs:
           find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l > /tmp/lint.log
           node --check assets/admin/access.js
           node --check assets/admin/groups.js
+          node --check assets/admin/access-console.js
           php tests/access_admin_unit_test.php
           php tests/access_subject_identity_test.php
+          php tests/page_access_policy_test.php
+          php tests/access_native_disk_test.php
+          php tests/bitrix_disk_gate_test.php
+          php tests/disk_delete_action_test.php
+          php tests/disk_download_action_test.php
           php tests/disk_permission_admin_test.php
           php tests/sitebuilder_admin_config_test.php
+          php tests/sitebuilder_deploy_readonly_test.php
           php tests/disk_user_search_test.php
-      - name: Atomic bulk ACL with real PostgreSQL
+          php tests/access_console_policy_test.php
+      - name: Atomic ACL and unified console with real PostgreSQL
         env:
           SB_TEST_PG_DSN: 'pgsql:host=127.0.0.1;port=5432;dbname=sitebuilder_access_test'
           SB_TEST_PG_USER: postgres
@@ -50,5 +58,6 @@ jobs:
           SB_ACCESS_TEST_ALLOW_RESET: '1'
         run: |
           php tests/access_admin_pg_test.php
+          php tests/access_native_journal_pg_test.php
           php tests/access_migration_registry_pg_test.php
           php tests/access_groups_pg_test.php
